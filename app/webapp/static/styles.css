@@ -19,6 +19,11 @@
 
 * { box-sizing: border-box; }
 
+/* The HTML `hidden` attribute should always win over explicit display
+ * rules (e.g. .login-overlay { display: flex }). Without this the
+ * login overlay stays visible after hideLogin() sets `hidden=true`. */
+[hidden] { display: none !important; }
+
 html, body {
   margin: 0;
   padding: 0;
