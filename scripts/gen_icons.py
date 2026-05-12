@@ -8,8 +8,8 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-BG = (10, 10, 10, 255)
-FG = (240, 240, 240, 255)
+BG = (10, 10, 10)
+FG = (240, 240, 240)
 
 OUT_DIR = Path(__file__).resolve().parent.parent / "app" / "webapp" / "static"
 
@@ -20,7 +20,7 @@ def draw_camera(size: int, inset: float) -> Image.Image:
     inset is the fraction of the canvas reserved as padding around the icon
     (used to produce a 'maskable' variant with safe margins).
     """
-    img = Image.new("RGBA", (size, size), BG)
+    img = Image.new("RGB", (size, size), BG)
     d = ImageDraw.Draw(img)
 
     pad = int(size * inset)
