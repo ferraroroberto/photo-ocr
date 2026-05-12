@@ -53,6 +53,51 @@ icons under `app/webapp/static/`.
 
 ---
 
+## Quick start: access from another device over Tailscale
+
+The webapp binds `0.0.0.0:8444`, so any device on your tailnet can reach it —
+no Cloudflare tunnel needed for tailnet-only access. Four steps on the home PC,
+once:
+
+```powershell
+# 1. Generate the self-signed cert. gen_ssl_cert.py auto-discovers your
+#    Tailscale hostname + IP via `tailscale status --json` / `tailscale ip -4`
+#    and adds them to the cert's SAN list — so https://<tailscale-hostname>:8444 is valid
+#    out of the box once the CA is trusted on the client device.
+.\.venv\Scripts\python.exe scripts\gen_ssl_cert.py
+
+# 2. Open Windows Firewall on :8444 for the Private profile (Tailscale's
+#    interface is Private by default). Needs admin.
+New-NetFirewallRule -DisplayName "photo-ocr 8444" -Direction Inbound `
+    -Protocol TCP -LocalPort 8444 -Action Allow -Profile Private
+
+# 3. Start the webapp (foreground) — or use tray.bat for resident mode.
+.\.venv\Scripts\python.exe launcher.py webapp
+```
+
+**Open on the phone or laptop** (any device on the same tailnet):
+- `https://<tailscale-hostname>:8444` — find your machine's name with
+  `tailscale status` on the home PC (or in the Tailscale admin console)
+- or `https://<100.x.y.z>:8444` — the home PC's tailnet IPv4 from
+  `tailscale ip -4`
+
+**iOS PWA install** — open `https://<tailscale-hostname>:8444/install-ca` once,
+install the profile, then go to **Settings → General → About → Certificate
+Trust Settings** and enable full trust on "Photo OCR Local CA". After that
+Safari trusts the cert and you can **Add to Home Screen**.
+
+**Auth gate (optional)** — by default the gate is **off** and any tailnet
+device can use the app. To require a token + password:
+```powershell
+.\.venv\Scripts\python.exe scripts\gen_token.py
+.\.venv\Scripts\python.exe scripts\set_password.py "your-password"
+```
+Tailscale IPs are *not* in the loopback bypass; the phone will see a login
+overlay on first visit and swap the password for a bearer token that's stashed
+in `localStorage`.
+
+---
+
 ## Day-to-day usage
 
 ### Tray (recommended)
