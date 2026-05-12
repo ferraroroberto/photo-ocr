@@ -1,0 +1,35 @@
+# Runtime deps for photo-ocr.
+#
+#   python -m venv .venv
+#   .venv\Scripts\python.exe -m pip install -r requirements.txt
+#
+# There is no native binary to bundle here (unlike voice-transcriber's
+# whisper.cpp). The only inference plane is the local-llm-hub on :8000,
+# reached over plain HTTP.
+
+# HTTP + YAML config
+requests>=2.31
+PyYAML>=6.0
+
+# Process introspection (port-owner lookup in /api/status)
+psutil>=5.9
+
+# Image handling: Pillow for everything, pillow-heif for HEIC/HEIF from
+# iOS uploads. HEIC support is best-effort — see image_utils.py for
+# the graceful-degrade path when pillow-heif isn't installed.
+Pillow>=10.0
+pillow-heif>=0.16
+
+# Webapp (mobile-first FastAPI UI on :8444)
+fastapi>=0.110
+uvicorn[standard]>=0.27
+python-multipart>=0.0.9
+
+# Self-signed cert + iOS .mobileconfig generation
+cryptography>=42.0
+
+# Tray icon (optional surface — see app/tray/)
+pystray>=0.19
+
+# Windows toast notifications for tray lifecycle events.
+winotify>=1.1; sys_platform == "win32"

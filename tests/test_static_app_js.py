@@ -1,0 +1,45 @@
+"""Lightweight source pins on app.js — guards against accidental
+regression of key invariants without needing a JS test runner."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+APP_JS = (
+    Path(__file__).resolve().parent.parent
+    / "app"
+    / "webapp"
+    / "static"
+    / "app.js"
+)
+
+
+@pytest.fixture(scope="module")
+def js_source() -> str:
+    return APP_JS.read_text(encoding="utf-8")
+
+
+def test_clipboard_uses_text_plain_mime(js_source: str) -> None:
+    # voice-transcriber's troubleshooting flagged styled-DOM leakage with
+    # writeText on some Safari versions — assert we use the explicit MIME.
+    assert "'text/plain'" in js_source
+    assert "ClipboardItem" in js_source
+
+
+def test_token_keys_are_namespaced(js_source: str) -> None:
+    # Avoid colliding with voice-transcriber's localStorage on phones that
+    # serve both apps from the same origin.
+    assert "photo-ocr.token" in js_source
+    assert "photo-ocr.promptId" in js_source
+    assert "photo-ocr.model" in js_source
+
+
+def test_history_page_size(js_source: str) -> None:
+    assert "HISTORY_PAGE_SIZE = 10" in js_source
+
+
+def test_extract_uses_authorization_header(js_source: str) -> None:
+    assert "Authorization" in js_source
+    assert "Bearer" in js_source
