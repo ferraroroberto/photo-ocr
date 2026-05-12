@@ -25,7 +25,7 @@ echo [2/3] Installing Python requirements...
 "%VENV_PY%" -m pip install -r requirements.txt || exit /b 1
 
 echo [3/3] Generating PWA icons...
-"%VENV_PY%" scripts\gen_app_icons.py || exit /b 1
+"%VENV_PY%" scripts\gen_icons.py || exit /b 1
 
 echo.
 echo ============================================================================

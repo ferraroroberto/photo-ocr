@@ -8,8 +8,8 @@ REM  webapp/cloudflared.yml so the public URL stays the same every launch.
 REM
 REM  One-time setup (run from this directory):
 REM    cloudflared tunnel login
-REM    cloudflared tunnel create photo
-REM    cloudflared tunnel route dns photo photo.your-domain.example
+REM    cloudflared tunnel create ocr
+REM    cloudflared tunnel route dns ocr ocr.your-domain.example
 REM    copy webapp\cloudflared.sample.yml webapp\cloudflared.yml
 REM    REM ...then edit webapp\cloudflared.yml and fill in your UUID + hostname
 REM

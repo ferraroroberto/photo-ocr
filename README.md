@@ -107,16 +107,25 @@ tray.bat
 ```
 
 A system-tray icon appears. It spawns the webapp on `:8444` and stays resident.
+If `webapp/cloudflared.yml` exists, the tray also launches a named Cloudflare
+tunnel in the background so the public URL is up alongside the webapp.
 
 - **Left-click** the tray icon → opens the webapp in your default browser.
 - **Right-click** for the menu:
   - **📷 Open photo OCR** — opens the webapp.
   - **📋 Copy local URL** — clipboard the loopback URL (with `?token=…` if
     `auth_token` is set).
+  - **📋 Copy Tailscale URL** — clipboard `https://<tailscale-host>:8444`
+    (with `?token=…` if set). Resolves the tailnet hostname via
+    `tailscale status --json`; greyed-out feedback if Tailscale isn't
+    installed or logged in.
   - **📋 Copy Cloudflare URL** — clipboard the public URL from
-    `webapp/last_tunnel_url.txt` (only present when the named tunnel is up).
+    `webapp/last_tunnel_url.txt` (written by the tray when the named
+    tunnel comes up).
+  - **🔄 Restart webapp** — stop + start uvicorn so a fresh pull is
+    picked up without quitting the tray.
   - **ℹ️ Status** — popup with hub + webapp state.
-  - **🚪 Quit** — stops the webapp.
+  - **🚪 Quit** — stops cloudflared (if running) and the webapp.
 
 ### Webapp without the tray
 
@@ -174,7 +183,7 @@ photo-ocr/
 │   ├── webapp_config.json       runtime UI prefs (gitignored)
 │   └── webapp_config.sample.json
 ├── scripts/
-│   ├── gen_app_icons.py         PNG icon generator
+│   ├── gen_icons.py             PNG icon generator (RGB — iOS-friendly)
 │   ├── gen_ssl_cert.py          self-signed loopback HTTPS cert
 │   ├── gen_token.py             generate/rotate the bearer token
 │   ├── set_password.py          set/clear the login password
@@ -184,7 +193,6 @@ photo-ocr/
 │   ├── cloudflared.yml          (gitignored — UUID + hostname)
 │   └── certificates/            (gitignored)
 ├── archive/                     (gitignored — sessions on disk)
-├── docs/                        per-PR changelog entries
 └── tests/                       pytest suite
 ```
 
@@ -223,7 +231,7 @@ photo-ocr/
 │                                                                 │
 │  local-llm-hub  ──── /v1/messages (vision)  on :8000            │
 │                                                                 │
-│  cloudflared  ────  photo.<your-domain>  (named tunnel)         │
+│  cloudflared  ────  ocr.<your-domain>  (named tunnel)           │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -287,21 +295,20 @@ One-time setup:
 
 ```powershell
 cloudflared tunnel login
-cloudflared tunnel create photo
-cloudflared tunnel route dns photo photo.<your-domain>
+cloudflared tunnel create ocr
+cloudflared tunnel route dns ocr ocr.<your-domain>
 copy webapp\cloudflared.sample.yml webapp\cloudflared.yml
 # edit webapp\cloudflared.yml — fill in UUID + hostname
 ```
 
-Then:
+Once `webapp/cloudflared.yml` is in place, `tray.bat` spawns cloudflared
+automatically alongside the webapp — the persistent URL (with `?token=…`
+if a token is configured) is written to `webapp/last_tunnel_url.txt` so
+the tray's **📋 Copy Cloudflare URL** reads from this file. Quitting the
+tray stops the tunnel.
 
-```powershell
-webapp_tunnel_named.bat
-```
-
-The persistent URL (with `?token=…` if a token is configured) is written to
-`webapp/last_tunnel_url.txt`. The tray's **📋 Copy Cloudflare URL** reads from
-this file.
+For headless / no-tray use, `webapp_tunnel_named.bat` does the same thing
+in the foreground (uvicorn + cloudflared, Ctrl+C to stop).
 
 Behind Cloudflare, set up an **Access policy** for the hostname so the
 public URL is gated by your Google sign-in.

@@ -20,12 +20,17 @@ from __future__ import annotations
 # Standard library imports
 import json
 import logging
+import shutil
+import signal
 import subprocess
 import sys
 import threading
 import webbrowser
 from pathlib import Path
 from typing import Optional
+
+# Third-party imports
+import yaml
 
 from src import AppConfig
 from src.webapp_config import append_auth_token, load_webapp_config
@@ -41,6 +46,26 @@ logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 TUNNEL_URL_FILE = PROJECT_ROOT / "webapp" / "last_tunnel_url.txt"
+TUNNEL_CONFIG_PATH = PROJECT_ROOT / "webapp" / "cloudflared.yml"
+
+
+def _read_tunnel_hostname(config_path: Path) -> Optional[str]:
+    """Pull the first ingress[].hostname out of the cloudflared config.
+
+    Returns None when the file is missing or unparseable — the tray
+    treats either case as "no tunnel" and skips spawning cloudflared.
+    """
+    if not config_path.exists():
+        return None
+    try:
+        data = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError) as exc:
+        logger.warning(f"⚠️  Could not parse {config_path}: {exc}")
+        return None
+    for entry in data.get("ingress") or []:
+        if isinstance(entry, dict) and entry.get("hostname"):
+            return str(entry["hostname"]).strip()
+    return None
 
 
 def _build_icon():
@@ -130,6 +155,12 @@ def run_tray(app_config: AppConfig) -> int:
     mgr_cfg = load_config(app_config.webapp)
     manager = WebappManager(mgr_cfg)
 
+    # Cloudflare named tunnel — spawned alongside uvicorn so a single
+    # launch (`tray.bat`) brings the public URL up too. Hostname is read
+    # from webapp/cloudflared.yml; missing config skips the tunnel.
+    tunnel_hostname = _read_tunnel_hostname(TUNNEL_CONFIG_PATH)
+    tunnel_state: dict = {"proc": None}
+
     # Kick off the webapp on a background thread so the tray comes up
     # quickly even if uvicorn takes a second to start.
     starter_error: dict = {"exc": None}
@@ -147,6 +178,88 @@ def run_tray(app_config: AppConfig) -> int:
             _notify("Photo OCR start failed", str(exc))
 
     threading.Thread(target=_start, daemon=True).start()
+
+    def _start_tunnel():
+        """Spawn cloudflared and persist the public URL.
+
+        Best-effort: a missing binary or failed launch is logged + toasted
+        but doesn't take the tray down.
+        """
+        if tunnel_hostname is None:
+            return
+        bin_path = shutil.which("cloudflared")
+        if bin_path is None:
+            logger.warning(
+                "⚠️  cloudflared not on PATH — public URL won't be reachable. "
+                "Install: winget install Cloudflare.cloudflared"
+            )
+            _notify(
+                "Cloudflare tunnel",
+                "cloudflared not on PATH — install via winget",
+            )
+            return
+        cmd = [
+            bin_path, "tunnel", "--config", str(TUNNEL_CONFIG_PATH), "run",
+        ]
+        kw: dict = dict(
+            cwd=str(PROJECT_ROOT),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        if sys.platform == "win32":
+            kw["creationflags"] = (
+                subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
+            )
+        try:
+            proc = subprocess.Popen(cmd, **kw)
+        except OSError as exc:
+            logger.warning(f"⚠️  cloudflared failed to launch: {exc}")
+            _notify("Cloudflare tunnel", f"Failed to start: {exc}")
+            return
+        tunnel_state["proc"] = proc
+        logger.info(
+            f"🌍 Cloudflare tunnel started → https://{tunnel_hostname} "
+            f"(pid={proc.pid})"
+        )
+
+        # Persist the URL so the "Copy Cloudflare URL" menu item finds it.
+        url = f"https://{tunnel_hostname}"
+        token = (load_webapp_config().auth_token or "").strip()
+        if token:
+            url = append_auth_token(url, token)
+        try:
+            TUNNEL_URL_FILE.parent.mkdir(parents=True, exist_ok=True)
+            TUNNEL_URL_FILE.write_text(url + "\n", encoding="utf-8")
+        except OSError as exc:
+            logger.warning(f"⚠️  Could not write {TUNNEL_URL_FILE}: {exc}")
+
+    def _stop_tunnel():
+        proc = tunnel_state.get("proc")
+        tunnel_state["proc"] = None
+        if proc is None:
+            return
+        try:
+            logger.info(f"🛑 Stopping cloudflared (pid={proc.pid})")
+            if sys.platform == "win32":
+                try:
+                    proc.send_signal(signal.CTRL_BREAK_EVENT)
+                except Exception:
+                    pass
+            proc.terminate()
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+        except Exception as exc:  # noqa: BLE001
+            logger.debug(f"cloudflared stop failed: {exc}")
+        try:
+            if TUNNEL_URL_FILE.exists():
+                TUNNEL_URL_FILE.unlink()
+        except OSError:
+            pass
+
+    if tunnel_hostname is not None:
+        threading.Thread(target=_start_tunnel, daemon=True).start()
 
     def open_local(icon, item):  # noqa: ARG001
         webbrowser.open(manager.base_url)
@@ -217,6 +330,9 @@ def run_tray(app_config: AppConfig) -> int:
 
     def quit_app(icon, item):  # noqa: ARG001
         logger.info("👋 Tray quit requested")
+        # Stop cloudflared first so the public URL 5xx's immediately
+        # while the webapp shutdown runs.
+        _stop_tunnel()
         try:
             manager.stop()
         except Exception as exc:  # noqa: BLE001
