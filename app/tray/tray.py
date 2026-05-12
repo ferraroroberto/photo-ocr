@@ -7,7 +7,9 @@ Windows login without keeping a console window open.
 Menu:
     Open photo OCR             — open the local URL in the default browser
     Copy local URL             — clipboard the local URL
+    Copy Tailscale URL         — clipboard https://<tailscale-host>:8444?token=…
     Copy Cloudflare URL        — clipboard the public URL with ?token=…
+    Restart webapp             — stop + start so a new pull is picked up
     Status                     — popup with hub + webapp state
     --
     Quit                       — stop the webapp and exit
@@ -16,7 +18,9 @@ Menu:
 from __future__ import annotations
 
 # Standard library imports
+import json
 import logging
+import subprocess
 import sys
 import threading
 import webbrowser
@@ -26,7 +30,12 @@ from typing import Optional
 from src import AppConfig
 from src.webapp_config import append_auth_token, load_webapp_config
 
-from app.webapp.manager import WebappManager, WebappManagerConfig, load_config
+from app.webapp.manager import (
+    WebappManager,
+    WebappManagerConfig,
+    cert_paths,
+    load_config,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +73,33 @@ def _clipboard_copy(text: str) -> bool:
             logger.debug(f"clip failed: {exc}")
     # POSIX best-effort via xclip / pbcopy if installed.
     return False
+
+
+def _tailscale_hostname() -> Optional[str]:
+    """Return the tailnet hostname for this machine, or None if Tailscale is unavailable."""
+    try:
+        result = subprocess.run(
+            ["tailscale", "status", "--self=true", "--peers=false", "--json"],
+            capture_output=True,
+            text=True,
+            timeout=4,
+            check=False,
+        )
+    except (FileNotFoundError, OSError, subprocess.TimeoutExpired) as exc:
+        logger.debug(f"tailscale lookup failed: {exc}")
+        return None
+    if result.returncode != 0:
+        return None
+    try:
+        data = json.loads(result.stdout)
+    except ValueError:
+        return None
+    self_node = data.get("Self") or {}
+    dns = (self_node.get("DNSName") or "").rstrip(".")
+    if not dns:
+        return None
+    short = dns.split(".")[0]
+    return short or dns
 
 
 def _notify(title: str, message: str) -> None:
@@ -123,6 +159,23 @@ def run_tray(app_config: AppConfig) -> int:
         else:
             _notify("Local URL", url)
 
+    def copy_tailscale(icon, item):  # noqa: ARG001
+        host = _tailscale_hostname()
+        if not host:
+            _notify(
+                "Tailscale not available",
+                "Couldn't resolve a tailnet hostname (is `tailscale` installed and logged in?).",
+            )
+            return
+        scheme = "https" if cert_paths() else "http"
+        url = f"{scheme}://{host}:{manager.config.port}"
+        webapp_cfg = load_webapp_config()
+        url = append_auth_token(url, webapp_cfg.auth_token)
+        if _clipboard_copy(url):
+            _notify("Copied Tailscale URL", url)
+        else:
+            _notify("Tailscale URL", url)
+
     def copy_tunnel(icon, item):  # noqa: ARG001
         if not TUNNEL_URL_FILE.exists():
             _notify(
@@ -142,6 +195,18 @@ def run_tray(app_config: AppConfig) -> int:
             _notify("Copied Cloudflare URL", url)
         else:
             _notify("Cloudflare URL", url)
+
+    def restart_webapp(icon, item):  # noqa: ARG001
+        def _do_restart():
+            try:
+                _notify("Photo OCR", "Restarting webapp…")
+                manager.restart(wait=True)
+                _notify("Photo OCR webapp restarted", manager.base_url)
+            except Exception as exc:  # noqa: BLE001
+                logger.error(f"❌ webapp restart failed: {exc}")
+                _notify("Restart failed", str(exc))
+
+        threading.Thread(target=_do_restart, daemon=True).start()
 
     def show_status(icon, item):  # noqa: ARG001
         s = manager.status()
@@ -165,8 +230,10 @@ def run_tray(app_config: AppConfig) -> int:
     menu = Menu(
         MenuItem("📷 Open photo OCR", on_left_click, default=True),
         MenuItem("📋 Copy local URL", copy_local),
+        MenuItem("📋 Copy Tailscale URL", copy_tailscale),
         MenuItem("📋 Copy Cloudflare URL", copy_tunnel),
         Menu.SEPARATOR,
+        MenuItem("🔄 Restart webapp", restart_webapp),
         MenuItem("ℹ️ Status", show_status),
         Menu.SEPARATOR,
         MenuItem("🚪 Quit", quit_app),

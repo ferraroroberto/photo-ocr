@@ -191,6 +191,17 @@ class WebappManager:
             self._wait_until_ready()
         return self.status()
 
+    def restart(self, wait: bool = True) -> WebappStatus:
+        """Stop (if we own it) and start again. Used by the tray to pick up code changes."""
+        status = self.status()
+        if status.running and status.ownership == OWNERSHIP_EXTERNAL:
+            raise RuntimeError(
+                "Webapp is running but was started externally — cannot restart from here"
+            )
+        if status.running:
+            self.stop()
+        return self.start(wait=wait)
+
     def stop(self) -> WebappStatus:
         status = self.status()
         if status.ownership == OWNERSHIP_EXTERNAL:
