@@ -25,8 +25,11 @@ Ask whenever a decision would be expensive to undo or genuinely ambiguous. One s
 **Always ask before assuming** any of these:
 - File or module location for new code
 - Data shape or schema
-- Page placement (new section vs. new page)
-- Data source (upload, local file, hub via HTTP)
+- Page placement (new page vs. section in existing page)
+- `st.session_state` key names and scope (Streamlit projects)
+- Caching strategy (`@st.cache_data` TTL vs. `@st.cache_resource`) (Streamlit projects)
+- Widget `key=` names and input sources (Streamlit projects)
+- Data source (upload, local file, DB via secrets)
 - Error and empty-state handling
 - Whether to add tests, and at what level
 
@@ -41,7 +44,7 @@ If multiple reasonable approaches exist, present them as options with tradeoffs.
 
 ## General conventions
 - **Project layout** is documented in this repo's `README.md`. Don't assume `/app/`, `/src/`, `launch_app.bat`, or any specific paths exist — read the README first.
-- **Config & secrets:** project config in `config/config.json` (committed) and `config/webapp_config.json` (gitignored, runtime UI prefs); secrets always live next to config in the gitignored `webapp_config.json`, never committed. There is no `.env` for this project — the only secret values are `auth_token` and `auth_password` and they live in `config/webapp_config.json`.
+- **Config & secrets:** project config in `config.json` or similar; secrets always in `.env`, never committed. The canonical name for the env file is `.env` (not `venv` or anything else — `.venv` is the venv directory).
 - **Logging:** use the language's logging facility. In Python that's `logging`, not `print()`. Emojis are welcome in log messages: ℹ️ ⚠️ ❌ ✅
 - **Naming:** snake_case for files/functions (Python), PascalCase for classes, UPPER_CASE for constants.
 - **Imports:** stdlib → third-party → local.
@@ -52,18 +55,28 @@ If multiple reasonable approaches exist, present them as options with tradeoffs.
 - Implement only what was asked. No nice-to-haves.
 
 ## Streamlit conventions
-*Apply only if this project uses Streamlit. This project is FastAPI + vanilla JS — Streamlit conventions do not apply. Do not introduce Streamlit.*
+*Apply only if this project uses Streamlit.*
+
+- `st.set_page_config(layout="wide", page_title="...")` MUST be the first Streamlit call.
+- Use `width="stretch"` (and `width="content"` where appropriate) in new and modified code. **Never** introduce new `use_container_width=True` — it is deprecated. When you touch existing code that uses `use_container_width`, migrate it.
+- All mutable state in `st.session_state`. No module-level globals.
+- `@st.cache_data` for DataFrames/files; `@st.cache_resource` for DB clients/models.
+- Every widget needs a stable, explicit `key=`.
+- UI code only in the UI directory (e.g. `app/`). Data logic stays in the non-UI package (e.g. `src/`). Never import `streamlit` from non-UI code.
+- User feedback via `st.error()` / `st.warning()` / `st.success()`, not `st.write()`.
+- **App layout:** main file (e.g. `app.py`) handles only page config, shared state, sidebar, and tab/radio routing. Each tab/mode lives in its own file exposing a `main(...)` (or `render_*`) function. Default to `st.tabs()`; use a sidebar radio only when asked.
 
 ## Phased execution for larger work
 Multi-file refactors don't go in a single response. Break into phases of ≤5 files each. Complete phase 1, run verification, wait for my approval, then phase 2. Same rule for any task you'd estimate at >30 minutes of work.
 
 ## Verification (before declaring a task done)
+Examples — adapt to the project's actual tooling:
 
 Windows / PowerShell:
 - Syntax: `& .\.venv\Scripts\python.exe -m py_compile <file>`
 - Lint (if configured): `ruff check .`
-- Tests: `& .\.venv\Scripts\python.exe -m pytest`
-- Webapp boot check: `& .\.venv\Scripts\python.exe -m uvicorn app.webapp.server:app --host 127.0.0.1 --port 8444` then `curl http://127.0.0.1:8444/healthz`
+- Tests (if any exist): `& .\.venv\Scripts\python.exe -m pytest`
+- Streamlit boot check (UI changes): `& .\.venv\Scripts\python.exe -m streamlit run app/app.py --server.headless true`
 
 POSIX:
 - Syntax: `./.venv/bin/python -m py_compile <file>`
@@ -108,3 +121,10 @@ Before finishing, ask: "What would a senior, perfectionist dev reject in review?
 
 ## This repository
 Mobile-first photo OCR — capture/upload N photos of a document, screen, or page; a vision-capable model on the local LLM hub returns one clean, deduplicated, copy-ready text. Sister project to `voice-transcriber` (same conventions, same archive shape, same auth model), but for pixels instead of audio. See `README.md` for setup, layout, and usage.
+
+
+**Per-project overrides** (these take precedence over the template above):
+
+- **Stack:** FastAPI + vanilla JS — **not** Streamlit. The Streamlit conventions section in the template does not apply here; do not introduce Streamlit.
+- **Config & secrets:** there is no `.env`. Project config lives in `config/config.json` (committed) and runtime UI prefs + secrets (`auth_token`, `auth_password`) in `config/webapp_config.json` (gitignored).
+- **Verification — webapp boot check** (instead of the Streamlit boot check in the template): `& .\.venv\Scripts\python.exe -m uvicorn app.webapp.server:app --host 127.0.0.1 --port 8444` then `curl http://127.0.0.1:8444/healthz`.
