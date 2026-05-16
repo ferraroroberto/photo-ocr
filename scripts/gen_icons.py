@@ -1,6 +1,9 @@
 """Generate PWA icons: solid white camera silhouette on pure-black background.
 
 Matches the voice-transcriber icon style (solid-white-on-black, flat, no outlines).
+
+Writes ``icon-512.png``, ``icon-512-maskable.png``, ``icon-180.png``
+and a multi-size ``favicon.ico`` (16/32/48) into ``app/webapp/static/``.
 """
 from __future__ import annotations
 
@@ -66,6 +69,11 @@ def main() -> None:
     draw_camera(512, inset=0.06).save(OUT_DIR / "icon-512.png", "PNG")
     draw_camera(512, inset=0.20).save(OUT_DIR / "icon-512-maskable.png", "PNG")
     draw_camera(180, inset=0.06).save(OUT_DIR / "icon-180.png", "PNG")
+    draw_camera(256, inset=0.06).save(
+        OUT_DIR / "favicon.ico",
+        "ICO",
+        sizes=[(16, 16), (32, 32), (48, 48)],
+    )
 
     print(f"wrote icons to {OUT_DIR}")
 
