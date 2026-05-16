@@ -14,11 +14,14 @@ set "VENV_PY=%SCRIPT_DIR%.venv\Scripts\python.exe"
 cd /d "%SCRIPT_DIR%" || exit /b 1
 
 REM Prefer pythonw.exe so no console window stays open.
+REM Window title differentiates this tray from sister apps' trays so
+REM `taskkill /FI "WINDOWTITLE eq PhotoOCR Tray"` can target it
+REM selectively. The same trick is in app-launcher and voice-transcriber.
 if exist "%VENV_PYW%" (
-    start "" "%VENV_PYW%" launcher.py tray
+    start "PhotoOCR Tray" "%VENV_PYW%" launcher.py tray
 ) else if exist "%VENV_PY%" (
-    start "" "%VENV_PY%" launcher.py tray
+    start "PhotoOCR Tray" "%VENV_PY%" launcher.py tray
 ) else (
-    start "" pythonw launcher.py tray
+    start "PhotoOCR Tray" pythonw launcher.py tray
 )
 exit /b 0

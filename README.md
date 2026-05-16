@@ -325,12 +325,30 @@ public URL is gated by your Google sign-in.
 ## Verification
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest
+.\.venv\Scripts\python.exe -m pytest -m "not smoke"
 .\.venv\Scripts\python.exe -m py_compile launcher.py
 ```
 
-The smoke test marker (`pytest -m smoke`) boots uvicorn for real; the rest of
-the suite uses `TestClient` + mocked hub responses.
+The `smoke` marker is the slow live-tray bucket — see the Playwright section below. The rest of the suite uses `TestClient` + mocked hub responses.
+
+### Playwright browser smoke tests
+
+A small `pytest-playwright` suite under `tests/e2e/` catches SPA boot regressions (JS errors, empty `<select>`s, broken settings toggle, missing login overlay). Runs against the **live tray on `https://127.0.0.1:8444`** — does not boot anything itself; if the tray isn't up, every test is skipped with a clear message.
+
+One-time setup:
+
+```powershell
+& .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+& .\.venv\Scripts\python.exe -m playwright install chromium
+```
+
+Then with the tray running (`tray.bat`):
+
+```powershell
+.\scripts\run-e2e.ps1
+# or directly:
+& .\.venv\Scripts\python.exe -m pytest -m smoke -v tests/e2e
+```
 
 ---
 
