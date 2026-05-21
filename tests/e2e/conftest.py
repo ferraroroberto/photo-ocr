@@ -1,10 +1,17 @@
 """Fixtures for the photo-ocr Playwright smoke suite.
 
-Same pattern as app-launcher/tests/e2e/conftest.py: run against the live
-tray on https://127.0.0.1:8444 instead of booting our own server. The
-autouse ``_require_live_tray`` fixture skips the whole module with a
-clear message if /healthz isn't reachable, so a forgotten tray fails
-fast instead of hanging in browser.goto.
+Two run modes:
+
+* **Default (ad-hoc).** Runs against a live tray the user already has up
+  on https://127.0.0.1:8444. The autouse ``_require_live_tray`` fixture
+  skips the whole suite with a clear message if /healthz isn't reachable,
+  so a forgotten tray fails fast instead of hanging in browser.goto.
+* **Autoboot (pre-ship gate).** Enabled with ``--e2e-autoboot`` or the
+  ``PHOTO_OCR_E2E_AUTOBOOT=1`` env var. ``_autoboot_server`` spawns a
+  disposable webapp on a free TCP port (HTTPS, reusing
+  webapp/certificates/). In this mode a failure to boot is a hard
+  *failure*, never a skip — the whole point of the gate is that a
+  missing server can't silently pass. See issue #8.
 
 Dual projection (issue #7): when ``--browser`` isn't passed the suite
 runs in two projections — **Chromium desktop** and **WebKit projected
@@ -18,9 +25,15 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import signal
+import socket
+import subprocess
+import sys
+import time
 import urllib3
 from pathlib import Path
-from typing import Iterator, List
+from typing import IO, Iterator, List, Optional
 
 import pytest
 import requests
@@ -40,6 +53,24 @@ _TOKEN_KEY = "photo-ocr.token"  # must match TOKEN_KEY in app/webapp/static/stat
 # Safari's engine family on an iPhone-shaped viewport.
 _IPHONE_DEVICE = "iPhone 14"
 
+_AUTOBOOT_ENV = "PHOTO_OCR_E2E_AUTOBOOT"
+
+
+def pytest_addoption(parser: pytest.Parser) -> None:
+    parser.addoption(
+        "--e2e-autoboot",
+        action="store_true",
+        default=False,
+        help="Boot a disposable webapp on a free port instead of "
+        "requiring a live tray. Equivalent to PHOTO_OCR_E2E_AUTOBOOT=1.",
+    )
+
+
+def _autoboot_enabled(config: pytest.Config) -> bool:
+    return bool(config.getoption("--e2e-autoboot")) or (
+        os.environ.get(_AUTOBOOT_ENV, "") == "1"
+    )
+
 
 def pytest_configure(config: pytest.Config) -> None:
     # Default the e2e suite to dual projections (Chromium-desktop +
@@ -50,6 +81,123 @@ def pytest_configure(config: pytest.Config) -> None:
     selected: List[str] = config.option.browser
     if not selected:
         selected.extend(["chromium", "webkit"])
+
+
+# ----------------------------------------------------------- autoboot
+
+
+def _free_tcp_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return int(s.getsockname()[1])
+
+
+def _spawn(cmd: List[str], log: IO[str]) -> subprocess.Popen:
+    kwargs: dict = dict(
+        cwd=str(_REPO_ROOT),
+        stdout=log,
+        stderr=subprocess.STDOUT,
+        env={**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"},
+    )
+    if sys.platform == "win32":
+        # New process group so CTRL_BREAK reaches it for a clean stop;
+        # no window so the test run doesn't flash consoles.
+        kwargs["creationflags"] = (
+            subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
+        )
+    return subprocess.Popen(cmd, **kwargs)
+
+
+def _terminate(proc: Optional[subprocess.Popen]) -> None:
+    if proc is None or proc.poll() is not None:
+        return
+    try:
+        if sys.platform == "win32":
+            try:
+                proc.send_signal(signal.CTRL_BREAK_EVENT)
+            except Exception as exc:  # pragma: no cover - best effort
+                logger.debug("CTRL_BREAK_EVENT failed: %s", exc)
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait(timeout=3)
+    except Exception as exc:  # pragma: no cover - best effort
+        logger.warning("⚠️  autoboot: process teardown failed: %s", exc)
+
+
+def _wait_healthz(base: str, timeout: float) -> bool:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            res = requests.get(f"{base}/healthz", timeout=2, verify=False)
+            if res.status_code == 200:
+                return True
+        except requests.RequestException:
+            pass
+        time.sleep(0.4)
+    return False
+
+
+@pytest.fixture(scope="session")
+def _autoboot_server() -> Iterator[str]:
+    """Spawn a disposable webapp and yield its base URL.
+
+    A hard failure (``pytest.fail``) — never a skip — if it doesn't come
+    up: under the pre-ship gate a missing server must not pass silently.
+    """
+    from app.webapp.manager import cert_paths
+
+    logs_dir = _REPO_ROOT / "webapp"  # gitignored runtime dir
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    log_handle: Optional[IO[str]] = None
+    wa_proc: Optional[subprocess.Popen] = None
+
+    try:
+        log_handle = (logs_dir / "e2e-autoboot-webapp.log").open(
+            "w", encoding="utf-8", errors="replace"
+        )
+        # A free port, never the hardcoded 8444 — the dev tray may hold it.
+        port = _free_tcp_port()
+        certs = cert_paths()
+        scheme = "https" if certs else "http"
+        cmd = [
+            sys.executable,
+            "-m",
+            "uvicorn",
+            "app.webapp.server:app",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            str(port),
+            "--log-level",
+            "warning",
+        ]
+        if certs:
+            cert, key = certs
+            cmd += ["--ssl-keyfile", str(key), "--ssl-certfile", str(cert)]
+        wa_proc = _spawn(cmd, log_handle)
+
+        base = f"{scheme}://127.0.0.1:{port}"
+        if not _wait_healthz(base, timeout=10):
+            _terminate(wa_proc)
+            pytest.fail(
+                f"autoboot: webapp did not answer /healthz at {base} "
+                "within 10s — see webapp/e2e-autoboot-webapp.log"
+            )
+        logger.info("✅ autoboot: webapp ready at %s", base)
+        yield base
+    finally:
+        _terminate(wa_proc)
+        if log_handle is not None:
+            try:
+                log_handle.close()
+            except Exception:  # pragma: no cover
+                pass
+
+
+# ----------------------------------------------------------- fixtures
 
 
 @pytest.fixture(autouse=True)
@@ -65,14 +213,19 @@ def _skip_desktop_only_on_webkit(
 
 
 @pytest.fixture(scope="session")
-def base_url() -> str:
+def base_url(request: pytest.FixtureRequest) -> str:
+    if _autoboot_enabled(request.config):
+        return request.getfixturevalue("_autoboot_server")
     return _BASE_URL
 
 
 @pytest.fixture(scope="session")
 def webapp_config() -> dict:
+    # Missing config is fine — loopback bypasses the bearer gate, so the
+    # suite still runs end-to-end. Returning {} keeps autoboot working on
+    # a clean checkout where webapp_config.json hasn't been created yet.
     if not _WEBAPP_CONFIG.exists():
-        pytest.skip(f"{_WEBAPP_CONFIG} missing — copy webapp_config.sample.json first")
+        return {}
     return json.loads(_WEBAPP_CONFIG.read_text(encoding="utf-8"))
 
 
@@ -85,7 +238,12 @@ def auth_token(webapp_config: dict) -> str:
 
 
 @pytest.fixture(scope="session", autouse=True)
-def _require_live_tray(base_url: str) -> None:
+def _require_live_tray(request: pytest.FixtureRequest, base_url: str) -> None:
+    # Under autoboot the disposable server is already up — `_autoboot_server`
+    # hard-fails if it isn't, so the skip-guard below would be wrong there.
+    # The guard only protects the default ad-hoc path against a forgotten tray.
+    if _autoboot_enabled(request.config):
+        return
     try:
         res = requests.get(f"{base_url}/healthz", timeout=2, verify=False)
         res.raise_for_status()
@@ -111,7 +269,7 @@ def browser_context_args(
 
 
 def _seed_token_init_script(token: str) -> str:
-    # Seeded *before* the first navigation so app.js reads it on boot
+    # Seeded *before* the first navigation so the SPA reads it on boot
     # rather than going through the ?token=… URL strip dance.
     safe = json.dumps(token)
     safe_key = json.dumps(_TOKEN_KEY)
