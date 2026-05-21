@@ -19,6 +19,8 @@
   "history_retention_days": 30,
   "max_photos_per_session": 50,
   "max_photo_dimension_px": 2048,
+  "_comment_search_enabled": "Full-text search over the session archive (SQLite FTS5). true exposes a 🔎 search box on the History panel and builds archive/index.sqlite from extracted.txt on boot. false hides the UI and writes no index.",
+  "search_enabled": true,
   "auth_token": "",
   "auth_password": ""
 }

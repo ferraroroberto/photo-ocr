@@ -140,6 +140,16 @@ async def _run_extract(
         duration_s=duration,
     )
     session.write_meta()
+
+    # Index the fresh text for full-text search. Best-effort — a search
+    # hiccup must never fail an extract that already succeeded and is
+    # persisted on disk (the canonical source).
+    if cfg.search_enabled:
+        try:
+            archive.index_session(session)
+        except Exception as exc:  # noqa: BLE001 — search is non-critical
+            logger.warning(f"⚠️  Could not index session {session_id}: {exc}")
+
     return {
         "session_id": session.session_id,
         "extracted": result.extracted_text,

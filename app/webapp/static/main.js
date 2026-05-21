@@ -24,7 +24,12 @@ import {
   setupDragDrop,
 } from './capture.js';
 import { extract, copyExtracted, resetTake, renderExtracted } from './extract.js';
-import { loadHistory, cleanAllHistory } from './sessions.js';
+import {
+  loadHistory,
+  cleanAllHistory,
+  onSearchInput,
+  clearSearch,
+} from './sessions.js';
 import {
   fetchConfig,
   fetchStatus,
@@ -132,11 +137,18 @@ els.saveSettings.addEventListener('click', async function () {
   }
 });
 
-els.refreshHistory.addEventListener('click', function () { loadHistory(0); });
+els.refreshHistory.addEventListener('click', function () {
+  // Refresh always drops back to the chronological browse list.
+  clearSearch();
+  loadHistory(0);
+});
 els.cleanAll.addEventListener('click', cleanAllHistory);
 els.loadMoreHistory.addEventListener('click', function () {
   loadHistory(state.historyOffset + HISTORY_PAGE_SIZE);
 });
+if (els.historySearch) {
+  els.historySearch.addEventListener('input', onSearchInput);
+}
 
 els.previewClose.addEventListener('click', closePreview);
 els.previewDialog.addEventListener('click', function (ev) {

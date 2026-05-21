@@ -55,6 +55,11 @@ export async function fetchConfig() {
     (state.prompts[0] && state.prompts[0].id) ||
     'verbatim-merge';
   renderSettings();
+
+  // The 🔎 search box only appears when the server has the feature on.
+  if (els.historySearch) {
+    els.historySearch.hidden = !body.search_enabled;
+  }
 }
 
 export async function fetchStatus() {

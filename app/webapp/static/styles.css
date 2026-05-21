@@ -399,6 +399,19 @@ hr {
   margin: 10px 0;
   flex-wrap: wrap;
 }
+.history-search {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0 0 10px;
+  min-height: 40px;
+  padding: 8px 10px;
+  background: var(--bg-elev-2);
+  color: var(--fg);
+  border: 1px solid #333;
+  border-radius: 10px;
+  font-size: 14px;
+}
 .history-list {
   list-style: none;
   margin: 0;
@@ -406,6 +419,17 @@ hr {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+.history-empty {
+  font-size: 13px;
+  color: var(--muted);
+  padding: 8px 2px;
+}
+.history-item .preview mark {
+  background: var(--good, #3a7);
+  color: #000;
+  border-radius: 3px;
+  padding: 0 2px;
 }
 .history-item {
   background: var(--bg-elev-2);

@@ -11,6 +11,8 @@
  *   state.config          — full /api/config response
  *   state.busy            — boolean: an extract is in flight
  *   state.incognito       — boolean: don't save this take to history
+ *   state.searchQuery     — active archive-search phrase ('' = browse mode)
+ *   state.searchResults   — [{ session_id, created_at, model, snippet }]
  *
  * Auth: a bearer token is stored in localStorage under TOKEN_KEY. The
  * page extracts it from ?token=… on first load (then strips it from
@@ -38,6 +40,8 @@ export const state = {
   historyOffset: 0,
   historyItems: [],
   historyTotal: 0,
+  searchQuery: '',
+  searchResults: [],
 };
 
 // ----------------------------------------------------------------- DOM
@@ -61,6 +65,7 @@ export const els = {
   buildInfo: document.getElementById('buildInfo'),
   historyCount: document.getElementById('historyCount'),
   historyList: document.getElementById('historyList'),
+  historySearch: document.getElementById('historySearch'),
   refreshHistory: document.getElementById('refreshHistory'),
   cleanAll: document.getElementById('cleanAll'),
   loadMoreHistory: document.getElementById('loadMoreHistory'),

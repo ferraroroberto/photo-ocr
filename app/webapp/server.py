@@ -21,6 +21,7 @@ Routes (split across ``app/webapp/routers/``):
     GET    /api/sessions/{id}/photo/{seq}     → serve a stored photo      (sessions)
     GET    /api/sessions/{id}/text            → full extracted text       (sessions)
     GET    /api/sessions                      → list (newest first)       (sessions)
+    GET    /api/search                         → FTS5 archive search       (search)
     DELETE /api/sessions                      → cleanup all               (sessions)
     DELETE /api/sessions/{id}                 → delete one                (sessions)
     DELETE /api/sessions/older-than/{days}    → cleanup old               (sessions)
@@ -46,7 +47,7 @@ from starlette.types import Scope
 
 # Local imports
 from app.webapp.middleware import BearerTokenMiddleware
-from app.webapp.routers import auth, config, misc, sessions
+from app.webapp.routers import auth, config, misc, search, sessions
 from app.webapp.routers._helpers import BUILD_INFO, STATIC_DIR
 from src.app_config import load_app_config
 from src.archive import SessionArchive
@@ -122,6 +123,15 @@ async def _lifespan(app: FastAPI):
     except Exception as exc:  # noqa: BLE001 — never block startup
         logger.warning(f"⚠️  Archive prune failed: {exc}")
 
+    # Rebuild any search-index rows missing from disk. Idempotent and
+    # cheap; keeps extracted.txt canonical — the index can be deleted at
+    # any time and is restored here on the next boot.
+    if cfg.search_enabled:
+        try:
+            archive.reconcile_index()
+        except Exception as exc:  # noqa: BLE001 — never block startup
+            logger.warning(f"⚠️  Search-index reconcile failed: {exc}")
+
     yield
 
     try:
@@ -173,6 +183,7 @@ def create_app() -> FastAPI:
     app.include_router(config.router)
     app.include_router(auth.router)
     app.include_router(sessions.router)
+    app.include_router(search.router)
 
     return app
 
