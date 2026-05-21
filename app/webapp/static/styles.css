@@ -192,6 +192,45 @@ html, body {
   outline: 2px solid var(--danger);
   outline-offset: -2px;
 }
+.thumb.warned {
+  outline: 2px solid var(--warn);
+  outline-offset: -2px;
+}
+
+/* Pre-flight quality gate — advisory overlay on a blurry/dark/glary
+   photo. Covers the thumbnail with a retake / keep choice. */
+.photo-warning {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 4px;
+  text-align: center;
+  background: rgba(0, 0, 0, 0.78);
+}
+.photo-warning .warn-text {
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--warn);
+}
+.photo-warning button {
+  width: 78px;
+  border: 0;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.photo-warning .retake-btn { background: var(--warn); color: #000; }
+.photo-warning .dismiss-btn {
+  background: rgba(255, 255, 255, 0.15);
+  color: var(--fg);
+}
 
 .capture-actions {
   display: flex;

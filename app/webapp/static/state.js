@@ -3,7 +3,8 @@
  * State machine (single source of truth):
  *
  *   state.sessionId       — server-assigned on first photo upload (lazy)
- *   state.photos          — [{ clientId, seq, file, previewUrl, status, error }]
+ *   state.photos          — [{ clientId, seq, file, previewUrl, status,
+ *                              error, warnings, warningDismissed }]
  *   state.extracted       — current extracted text
  *   state.model           — selected model alias
  *   state.promptId        — selected prompt id

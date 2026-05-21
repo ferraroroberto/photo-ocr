@@ -34,6 +34,7 @@ DEFAULT_RETENTION_DAYS = 30
 DEFAULT_MAX_PHOTOS = 50
 DEFAULT_MAX_DIM_PX = 2048
 DEFAULT_SEARCH_ENABLED = True
+DEFAULT_QUALITY_GATE_ENABLED = True
 
 
 def _sample_ocr_defaults() -> tuple[str, List[str]]:
@@ -74,6 +75,9 @@ class WebappConfig:
     # Feature flag: full-text search over the session archive (FTS5).
     # Off → no index file, /api/search short-circuits, search UI hides.
     search_enabled: bool = DEFAULT_SEARCH_ENABLED
+    # Feature flag: on-device pre-flight image quality gate. Off →
+    # the PWA skips client-side blur/glare scoring entirely.
+    quality_gate_enabled: bool = DEFAULT_QUALITY_GATE_ENABLED
     # Bearer token enforced when the request did NOT come from a
     # loopback IP. Empty string disables enforcement entirely.
     auth_token: str = ""
@@ -131,6 +135,9 @@ def load_webapp_config(path: Optional[Path] = None) -> WebappConfig:
         search_enabled=bool(
             raw.get("search_enabled", DEFAULT_SEARCH_ENABLED)
         ),
+        quality_gate_enabled=bool(
+            raw.get("quality_gate_enabled", DEFAULT_QUALITY_GATE_ENABLED)
+        ),
         auth_token=str(raw.get("auth_token", "")),
         auth_password=str(raw.get("auth_password", "")),
     )
@@ -154,6 +161,7 @@ def save_webapp_config(cfg: WebappConfig, path: Optional[Path] = None) -> Path:
         "max_photos_per_session": cfg.max_photos_per_session,
         "max_photo_dimension_px": cfg.max_photo_dimension_px,
         "search_enabled": cfg.search_enabled,
+        "quality_gate_enabled": cfg.quality_gate_enabled,
         "auth_token": cfg.auth_token,
         "auth_password": cfg.auth_password,
     }
