@@ -335,13 +335,15 @@ The `smoke` marker is the slow live-tray bucket — see the Playwright section b
 
 ### Playwright browser smoke tests
 
-A small `pytest-playwright` suite under `tests/e2e/` catches SPA boot regressions (JS errors, empty `<select>`s, broken settings toggle, missing login overlay). Runs against the **live tray on `https://127.0.0.1:8444`** — does not boot anything itself; if the tray isn't up, every test is skipped with a clear message.
+A `pytest-playwright` suite under `tests/e2e/` catches SPA boot regressions (JS errors, empty `<select>`s, broken settings toggle, missing login overlay) plus regression nets for past iPhone-only bugs (cache-busting, cert lifetime, photo upload). Runs against the **live tray on `https://127.0.0.1:8444`** — does not boot anything itself; if the tray isn't up, every test is skipped with a clear message.
+
+By default the suite runs in **two projections**: Chromium desktop and WebKit projected onto an iPhone 14 (viewport, user-agent, touch). WebKit is iOS Mobile Safari's engine family, so the second projection catches most "Safari is unhappy" regressions on Windows. Pin one engine with `--browser chromium` for a faster dev loop; a test tagged `@pytest.mark.desktop_only` skips the WebKit projection.
 
 One-time setup:
 
 ```powershell
 & .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
-& .\.venv\Scripts\python.exe -m playwright install chromium
+& .\.venv\Scripts\python.exe -m playwright install chromium webkit
 ```
 
 Then with the tray running (`tray.bat`):
