@@ -158,7 +158,7 @@ photo-ocr/
 ├── requirements.txt
 ├── requirements-dev.txt
 ├── pytest.ini
-├── package.json                 (optional Vitest harness for app.js)
+├── package.json                 (optional Vitest harness for the JS modules)
 ├── CLAUDE.md                    project instructions for coding agents
 ├── AGENTS.md                    one-line pointer to CLAUDE.md
 ├── README.md                    this file
@@ -173,9 +173,11 @@ photo-ocr/
 ├── app/
 │   ├── cli/                     argparse dispatcher
 │   ├── webapp/                  FastAPI app + manager
-│   │   ├── server.py
+│   │   ├── server.py            app factory, static mount, router includes
+│   │   ├── middleware.py        bearer-token / loopback auth gate
+│   │   ├── routers/             APIRouter per concern (misc, config, auth, sessions)
 │   │   ├── manager.py
-│   │   └── static/              PWA: index.html, app.js, styles.css, icons
+│   │   └── static/              PWA: index.html, ES-module JS, styles.css, icons
 │   └── tray/                    system-tray launcher
 ├── config/
 │   ├── config.json              app-level (log level, language hint)
