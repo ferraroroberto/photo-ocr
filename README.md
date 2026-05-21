@@ -26,6 +26,10 @@ same archive shape, same auth model, but for pixels instead of audio.
   `webapp_config.json`.
 - **History + redo.** Every take lands in `archive/YYYY/MM/DD/HH-MM-SS-<id>/`.
   Re-run with a different model from the history panel without re-capturing.
+- **Pre-flight quality gate.** Each photo is scored on-device for blur,
+  glare, and exposure the moment it's added — a bad shot gets an advisory
+  badge with a one-tap retake, before any hub round-trip is spent on it.
+  Advisory only; never blocks Extract. Toggle with `quality_gate_enabled`.
 - **No telemetry.** Images and text never leave your home PC except via the
   authenticated hub call, which itself goes to your own Google AI Pro / Claude
   subscription.

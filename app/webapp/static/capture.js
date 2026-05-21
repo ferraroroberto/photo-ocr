@@ -5,6 +5,7 @@
 
 import { state, els, toast } from './state.js';
 import { jsonApi } from './api.js';
+import { assessImage } from './quality.js';
 
 function clientId() {
   return 'c' + Math.random().toString(36).slice(2, 10);
@@ -71,6 +72,40 @@ export function renderThumbnails() {
       li.appendChild(right);
     }
 
+    if (photo.warnings && photo.warnings.length && !photo.warningDismissed) {
+      li.classList.add('warned');
+      const warn = document.createElement('div');
+      warn.className = 'photo-warning';
+
+      const warnText = document.createElement('div');
+      warnText.className = 'warn-text';
+      warnText.textContent = warningLabel(photo.warnings);
+      warn.appendChild(warnText);
+
+      const retakeBtn = document.createElement('button');
+      retakeBtn.className = 'retake-btn';
+      retakeBtn.type = 'button';
+      retakeBtn.textContent = 'Retake';
+      retakeBtn.addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        retakePhoto(photo);
+      });
+      warn.appendChild(retakeBtn);
+
+      const dismissBtn = document.createElement('button');
+      dismissBtn.className = 'dismiss-btn';
+      dismissBtn.type = 'button';
+      dismissBtn.textContent = 'Keep';
+      dismissBtn.addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        photo.warningDismissed = true;
+        renderThumbnails();
+      });
+      warn.appendChild(dismissBtn);
+
+      li.appendChild(warn);
+    }
+
     li.addEventListener('click', function () {
       if (photo.previewUrl) openPreview(photo.previewUrl);
     });
@@ -115,9 +150,12 @@ export function handleFilePick(files) {
       status: 'pending',
       seq: state.photos.length + 1,
       error: null,
+      warnings: [],
+      warningDismissed: false,
     };
     state.photos.push(photo);
     uploadPhoto(photo);
+    assessPhoto(photo);
   });
   renderThumbnails();
 }
@@ -196,6 +234,39 @@ function movePhoto(fromIdx, toIdx) {
   // without delete, the v1 server still extracts in stored order, so
   // a re-upload of the affected photos is the workaround until v2.
   toast('Reorder is visual only in v1 — Extract will use stored upload order.', 'good');
+}
+
+// --------------------------------------------------- quality gate
+const WARNING_LABELS = { blurry: 'Blurry', 'too dark': 'Dark', glare: 'Glare' };
+
+function warningLabel(warnings) {
+  return (
+    '⚠️ ' +
+    warnings
+      .map(function (w) { return WARNING_LABELS[w] || w; })
+      .join(' · ')
+  );
+}
+
+// Score a freshly-added photo on-device. Advisory only — any failure is
+// swallowed, and the feature flag can switch it off entirely.
+function assessPhoto(photo) {
+  if (!state.config || !state.config.quality_gate_enabled) return;
+  if (!photo.file) return;
+  assessImage(photo.file)
+    .then(function (result) {
+      // The photo may have been removed while we were decoding.
+      if (state.photos.indexOf(photo) < 0) return;
+      photo.warnings = (result && result.warnings) || [];
+      renderThumbnails();
+    })
+    .catch(function () { /* advisory — never surface a decode error */ });
+}
+
+function retakePhoto(photo) {
+  removePhoto(photo);
+  // Re-open the camera so "retake" is genuinely one tap.
+  if (els.cameraInput) els.cameraInput.click();
 }
 
 // ----------------------------------------------------------- preview dialog

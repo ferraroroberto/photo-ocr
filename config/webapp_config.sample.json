@@ -21,6 +21,8 @@
   "max_photo_dimension_px": 2048,
   "_comment_search_enabled": "Full-text search over the session archive (SQLite FTS5). true exposes a 🔎 search box on the History panel and builds archive/index.sqlite from extracted.txt on boot. false hides the UI and writes no index.",
   "search_enabled": true,
+  "_comment_quality_gate_enabled": "On-device pre-flight image quality gate. true makes the PWA score each added photo for blur/glare/exposure and show an advisory badge before Extract. false skips client-side scoring entirely.",
+  "quality_gate_enabled": true,
   "auth_token": "",
   "auth_password": ""
 }
