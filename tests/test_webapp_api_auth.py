@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from app.webapp import server as server_module
+from app.webapp import middleware as middleware_module
 from app.webapp.server import create_app
 from src.archive import SessionArchive
 from src.webapp_config import WebappConfig
@@ -55,7 +55,7 @@ def test_loopback_bypasses_token(app_with_archive, monkeypatch) -> None:
     """Treat the TestClient host as loopback to exercise the bypass branch."""
     _set_token(app_with_archive, token="secret")
     monkeypatch.setattr(
-        server_module,
+        middleware_module,
         "_LOOPBACK_HOSTS",
         frozenset({"127.0.0.1", "::1", "localhost", "testclient"}),
     )

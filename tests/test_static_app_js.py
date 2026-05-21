@@ -1,5 +1,9 @@
-"""Lightweight source pins on app.js — guards against accidental
-regression of key invariants without needing a JS test runner."""
+"""Lightweight source pins on the webapp JS — guards against accidental
+regression of key invariants without needing a JS test runner.
+
+The webapp JS is split into ES modules under static/; these checks run
+against the concatenation of every module so they survive code moving
+between files."""
 
 from __future__ import annotations
 
@@ -7,18 +11,20 @@ from pathlib import Path
 
 import pytest
 
-APP_JS = (
+STATIC_DIR = (
     Path(__file__).resolve().parent.parent
     / "app"
     / "webapp"
     / "static"
-    / "app.js"
 )
 
 
 @pytest.fixture(scope="module")
 def js_source() -> str:
-    return APP_JS.read_text(encoding="utf-8")
+    return "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted(STATIC_DIR.glob("*.js"))
+    )
 
 
 def test_clipboard_uses_text_plain_mime(js_source: str) -> None:

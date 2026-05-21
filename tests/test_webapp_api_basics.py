@@ -78,11 +78,28 @@ class TestBuildVersion:
     def test_index_is_content_hash_stamped(self, app_factory) -> None:
         with TestClient(app_factory()) as client:
             html = client.get("/").text
-        # The placeholder tokens are gone — replaced by an 8-hex content
-        # hash computed at startup.
-        assert "__APP_JS__" not in html and "__STYLES_CSS__" not in html
-        assert re.search(r"/static/app\.js\?v=[0-9a-f]{8}", html)
+        # The entry module + stylesheet carry an 8-hex fleet hash
+        # computed at startup.
+        assert re.search(r"/static/main\.js\?v=[0-9a-f]{8}", html)
         assert re.search(r"/static/styles\.css\?v=[0-9a-f]{8}", html)
+
+    def test_served_js_modules_have_stamped_imports(self, app_factory) -> None:
+        # main.js imports the other modules; every relative import in
+        # the served body must carry the fleet hash so an edit to any
+        # module busts the whole graph.
+        static_dir = (
+            Path(__file__).resolve().parent.parent
+            / "app" / "webapp" / "static"
+        )
+        on_disk = (static_dir / "main.js").read_text(encoding="utf-8")
+        imports = re.findall(r"from\s*['\"]\./([\w\-.]+\.js)", on_disk)
+        assert imports, "expected relative imports in main.js"
+        with TestClient(app_factory()) as client:
+            body = client.get("/static/main.js").text
+        for name in imports:
+            assert re.search(
+                rf"\./{re.escape(name)}\?v=[0-9a-f]{{8}}", body
+            ), f"import of {name} not stamped"
 
     def test_index_revalidates(self, app_factory) -> None:
         with TestClient(app_factory()) as client:
@@ -91,7 +108,7 @@ class TestBuildVersion:
 
     def test_static_assets_are_long_cached(self, app_factory) -> None:
         with TestClient(app_factory()) as client:
-            for asset in ("app.js", "styles.css"):
+            for asset in ("main.js", "state.js", "styles.css"):
                 cc = client.get(f"/static/{asset}").headers.get(
                     "cache-control", ""
                 )
