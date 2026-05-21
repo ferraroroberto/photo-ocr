@@ -59,6 +59,7 @@
     maxPhotos: document.getElementById('maxPhotos'),
     saveSettings: document.getElementById('saveSettings'),
     statusReadout: document.getElementById('statusReadout'),
+    buildInfo: document.getElementById('buildInfo'),
     historyCount: document.getElementById('historyCount'),
     historyList: document.getElementById('historyList'),
     refreshHistory: document.getElementById('refreshHistory'),
@@ -740,10 +741,33 @@
     }
   }
 
+  // Surface the loaded build in the Settings panel so "is the phone
+  // running the current code?" is answerable at a glance — see issue #5.
+  // /api/version is auth-exempt, so a plain fetch avoids the login
+  // overlay even before the user has signed in.
+  async function loadVersion() {
+    if (!els.buildInfo) return;
+    try {
+      const res = await fetch('/api/version');
+      if (!res.ok) throw new Error(String(res.status));
+      const v = await res.json();
+      const when = String(v.built_at || '')
+        .replace('T', ' ')
+        .replace(/(\+00:00|Z)$/, ' UTC');
+      els.buildInfo.textContent =
+        ('Build: ' + (v.git_sha || '?') + ' · ' + when).trim();
+    } catch (_) {
+      // Non-critical — leave a quiet placeholder rather than alarming.
+      els.buildInfo.textContent = 'Build: unavailable';
+    }
+  }
+
   async function boot() {
     // Pick up ?token=…
     const fromUrl = tokenFromUrl();
     if (fromUrl) writeToken(fromUrl);
+
+    loadVersion();
 
     try {
       await fetchConfig();

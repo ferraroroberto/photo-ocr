@@ -6,6 +6,7 @@ Routes:
     GET    /static/{file}                     → CSS / JS / icons / manifest
     GET    /healthz                           → liveness probe
     GET    /install-ca                        → iOS .mobileconfig
+    GET    /api/version                       → build identity (git SHA + asset hash)
 
     GET    /api/config                        → current config + prompts + models
     POST   /api/config                        → patch + persist (whitelist)
@@ -40,7 +41,7 @@ from typing import Any, Dict, List, Optional
 
 # Third-party imports
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -53,6 +54,7 @@ from src.ocr_prompts import (
     get_prompt,
     load_ocr_prompts,
 )
+from src.static_versioning import BuildInfo
 from src.webapp_config import (
     WebappConfig,
     load_webapp_config,
@@ -64,6 +66,44 @@ logger = logging.getLogger(__name__)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
+# Build identity, computed once at import — the tray restarts on every
+# code edit, so a fresh process always reflects the deployed code.
+BUILD_INFO = BuildInfo(STATIC_DIR, PROJECT_ROOT)
+
+# Hash-stamped assets get a one-year immutable cache: the content hash in
+# the query string makes the URL change on every edit, so a stale copy
+# can never be served. Icons + manifest revalidate daily — they almost
+# never change but we don't want a year of staleness either.
+_IMMUTABLE_ASSETS = frozenset({"app.js", "styles.css"})
+_DAILY_ASSETS = frozenset({
+    "manifest.webmanifest",
+    "favicon.ico",
+    "icon-180.png",
+    "icon-512.png",
+    "icon-512-maskable.png",
+})
+
+
+class CachingStaticFiles(StaticFiles):
+    """``StaticFiles`` with per-file ``Cache-Control``.
+
+    Starlette's mount serves every file with only ``ETag`` /
+    ``Last-Modified``, leaving iOS Safari free to heuristic-cache. This
+    subclass stamps an explicit policy keyed on the filename.
+    """
+
+    def file_response(self, full_path, *args, **kwargs):  # type: ignore[override]
+        response = super().file_response(full_path, *args, **kwargs)
+        name = Path(full_path).name.lower()
+        if name in _IMMUTABLE_ASSETS:
+            response.headers["Cache-Control"] = (
+                "public, max-age=31536000, immutable"
+            )
+        elif name in _DAILY_ASSETS:
+            response.headers["Cache-Control"] = "public, max-age=86400"
+        return response
+
+
 # Loopback addresses bypass the bearer-token gate so local probes keep
 # working without carrying the token. Tunnel traffic arrives with a
 # non-loopback client IP and must present the token.
@@ -71,11 +111,14 @@ _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
 
 # Endpoints that must remain reachable without the token: liveness
 # probes, the iOS profile install, the page boot (so the JS can pick
-# up the token from ?token= and attach it to subsequent calls), and
+# up the token from ?token= and attach it to subsequent calls),
 # /api/login so a device with no token can swap a password for the
-# bearer token.
+# bearer token, and /api/version so the build line renders before the
+# user has authenticated.
 _AUTH_EXEMPT_PREFIXES = ("/static/", "/healthz", "/install-ca")
-_AUTH_EXEMPT_EXACT = frozenset({"/", "/healthz", "/install-ca", "/api/login"})
+_AUTH_EXEMPT_EXACT = frozenset(
+    {"/", "/healthz", "/install-ca", "/api/login", "/api/version"}
+)
 
 
 # Dedicated logger for password attempts — written to webapp/auth.log
@@ -206,20 +249,39 @@ def create_app() -> FastAPI:
     if STATIC_DIR.exists():
         app.mount(
             "/static",
-            StaticFiles(directory=str(STATIC_DIR)),
+            CachingStaticFiles(directory=str(STATIC_DIR)),
             name="static",
         )
 
+    logger.info(
+        f"ℹ️  webapp build {BUILD_INFO.git_sha} "
+        f"(app.js {BUILD_INFO.asset_hashes.get('app.js')}) "
+        f"built {BUILD_INFO.built_at}"
+    )
+
     @app.get("/")
-    async def index() -> FileResponse:
+    async def index() -> HTMLResponse:
         index_path = STATIC_DIR / "index.html"
         if not index_path.exists():
             raise HTTPException(status_code=500, detail="index.html missing")
-        return FileResponse(str(index_path))
+        # Stamp the asset URLs with their content hash and force the
+        # entry document to revalidate, so a tray restart after an edit
+        # is always picked up — no stale iOS PWA cache.
+        html = BUILD_INFO.stamp_html(index_path.read_text(encoding="utf-8"))
+        return HTMLResponse(
+            html,
+            headers={"Cache-Control": "no-cache, must-revalidate"},
+        )
 
     @app.get("/healthz")
     async def healthz() -> Dict[str, Any]:
         return {"ok": True, "service": "photo-ocr-webapp"}
+
+    @app.get("/api/version")
+    async def version() -> Dict[str, str]:
+        """Build identity so the phone (and tests) can confirm which
+        build is loaded — see issue #5."""
+        return BUILD_INFO.as_dict()
 
     @app.get("/install-ca")
     async def install_ca() -> FileResponse:
