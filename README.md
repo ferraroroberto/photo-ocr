@@ -226,7 +226,7 @@ photo-ocr/
 │   ├── /api/sessions/{id}/extract     run OCR on all photos      │
 │   ├── /api/sessions/{id}/redo        re-run with new model      │
 │   ├── /api/sessions                  list (newest first)        │
-│   ├── /api/config, /api/login, …                                │
+│   ├── /api/config, /api/login, /api/version, …                 │
 │   └── archive/YYYY/MM/DD/<id>/  01.jpg…NN.jpg + extracted.txt   │
 │                                                                 │
 │  local-llm-hub  ──── /v1/messages (vision)  on :8000            │
