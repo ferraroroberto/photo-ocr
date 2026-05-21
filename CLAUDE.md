@@ -82,6 +82,8 @@ POSIX:
 - Syntax: `./.venv/bin/python -m py_compile <file>`
 - Tests: `./.venv/bin/python -m pytest`
 
+**Pre-ship gate (webapp changes).** For any change touching `app/webapp/` or the webapp-facing `src/` modules, also run `pwsh -File scripts/verify-before-ship.ps1` and it must pass before the task is declared done. The script byte-compiles, runs the non-e2e pytest suite, then runs the Playwright e2e suite (Chromium + WebKit/iPhone) against a disposable webapp it boots itself on a free port — the tray may or may not be running, it doesn't matter.
+
 If no checker exists for a project, say so explicitly. Don't claim "tests pass" when there are no tests.
 
 ## Documentation discipline
@@ -128,3 +130,4 @@ Mobile-first photo OCR — capture/upload N photos of a document, screen, or pag
 - **Stack:** FastAPI + vanilla JS — **not** Streamlit. The Streamlit conventions section in the template does not apply here; do not introduce Streamlit.
 - **Config & secrets:** there is no `.env`. Project config lives in `config/config.json` (committed) and runtime UI prefs + secrets (`auth_token`, `auth_password`) in `config/webapp_config.json` (gitignored).
 - **Verification — webapp boot check** (instead of the Streamlit boot check in the template): `& .\.venv\Scripts\python.exe -m uvicorn app.webapp.server:app --host 127.0.0.1 --port 8444` then `curl http://127.0.0.1:8444/healthz`.
+- **Pre-ship gate:** any change under `app/webapp/` (or the webapp-facing `src/` modules) must pass `pwsh -File scripts/verify-before-ship.ps1` before it is declared done — see the Verification section above.
