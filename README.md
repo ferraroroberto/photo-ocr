@@ -19,6 +19,11 @@ same archive shape, same auth model, but for pixels instead of audio.
   lines — each unique line once.
 - **Clean output discipline.** The system prompt forbids preamble, commentary,
   `"Photo 1:"` labels, and translation. The result is drop-in-clipboard-ready.
+- **Searchable archive.** A 🔎 box on the history panel runs full-text search
+  (SQLite FTS5) over every past extract — "find the bakery receipt". The index
+  lives in `archive/index.sqlite` and rebuilds itself from `extracted.txt` on
+  boot, so it can be deleted at any time. Toggle with `search_enabled` in
+  `webapp_config.json`.
 - **History + redo.** Every take lands in `archive/YYYY/MM/DD/HH-MM-SS-<id>/`.
   Re-run with a different model from the history panel without re-capturing.
 - **No telemetry.** Images and text never leave your home PC except via the
@@ -169,13 +174,14 @@ photo-ocr/
 │   ├── ocr_client.py            local-llm-hub /v1/messages client
 │   ├── ocr_prompts.py           prompt library loader
 │   ├── archive.py               dated session folders + retention
+│   ├── archive_index.py         SQLite FTS5 full-text search index
 │   └── diagnostics.py
 ├── app/
 │   ├── cli/                     argparse dispatcher
 │   ├── webapp/                  FastAPI app + manager
 │   │   ├── server.py            app factory, static mount, router includes
 │   │   ├── middleware.py        bearer-token / loopback auth gate
-│   │   ├── routers/             APIRouter per concern (misc, config, auth, sessions)
+│   │   ├── routers/             APIRouter per concern (misc, config, auth, sessions, search)
 │   │   ├── manager.py
 │   │   └── static/              PWA: index.html, ES-module JS, styles.css, icons
 │   └── tray/                    system-tray launcher
@@ -228,6 +234,7 @@ photo-ocr/
 │   ├── /api/sessions/{id}/extract     run OCR on all photos      │
 │   ├── /api/sessions/{id}/redo        re-run with new model      │
 │   ├── /api/sessions                  list (newest first)        │
+│   ├── /api/search                    full-text search (FTS5)     │
 │   ├── /api/config, /api/login, /api/version, …                 │
 │   └── archive/YYYY/MM/DD/<id>/  01.jpg…NN.jpg + extracted.txt   │
 │                                                                 │

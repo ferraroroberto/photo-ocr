@@ -48,6 +48,7 @@ async def get_config(request: Request) -> Dict[str, Any]:
         "history_retention_days": cfg.history_retention_days,
         "max_photos_per_session": cfg.max_photos_per_session,
         "max_photo_dimension_px": cfg.max_photo_dimension_px,
+        "search_enabled": cfg.search_enabled,
         "auth_password_set": bool(cfg.auth_password),
     }
 

@@ -33,6 +33,7 @@ DEFAULT_PORT = 8444
 DEFAULT_RETENTION_DAYS = 30
 DEFAULT_MAX_PHOTOS = 50
 DEFAULT_MAX_DIM_PX = 2048
+DEFAULT_SEARCH_ENABLED = True
 
 
 def _sample_ocr_defaults() -> tuple[str, List[str]]:
@@ -70,6 +71,9 @@ class WebappConfig:
     history_retention_days: int = DEFAULT_RETENTION_DAYS
     max_photos_per_session: int = DEFAULT_MAX_PHOTOS
     max_photo_dimension_px: int = DEFAULT_MAX_DIM_PX
+    # Feature flag: full-text search over the session archive (FTS5).
+    # Off → no index file, /api/search short-circuits, search UI hides.
+    search_enabled: bool = DEFAULT_SEARCH_ENABLED
     # Bearer token enforced when the request did NOT come from a
     # loopback IP. Empty string disables enforcement entirely.
     auth_token: str = ""
@@ -124,6 +128,9 @@ def load_webapp_config(path: Optional[Path] = None) -> WebappConfig:
         max_photo_dimension_px=int(
             raw.get("max_photo_dimension_px", DEFAULT_MAX_DIM_PX)
         ),
+        search_enabled=bool(
+            raw.get("search_enabled", DEFAULT_SEARCH_ENABLED)
+        ),
         auth_token=str(raw.get("auth_token", "")),
         auth_password=str(raw.get("auth_password", "")),
     )
@@ -146,6 +153,7 @@ def save_webapp_config(cfg: WebappConfig, path: Optional[Path] = None) -> Path:
         "history_retention_days": cfg.history_retention_days,
         "max_photos_per_session": cfg.max_photos_per_session,
         "max_photo_dimension_px": cfg.max_photo_dimension_px,
+        "search_enabled": cfg.search_enabled,
         "auth_token": cfg.auth_token,
         "auth_password": cfg.auth_password,
     }

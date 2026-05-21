@@ -28,65 +28,171 @@ export async function loadHistory(offset) {
   }
 }
 
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+  });
+}
+
+// FTS5 snippet() wraps each match in [ … ]; turn those into <mark>.
+// Stray brackets in the OCR text can mis-highlight — purely cosmetic.
+function highlightSnippet(snip) {
+  return escapeHtml(snip).replace(/\[([^[\]]*)\]/g, '<mark>$1</mark>');
+}
+
+// Shared row component for both the chronological history list and the
+// search-result list — one DOM shape, two data sources. The
+// Copy/Redo/Delete actions only need a { session_id } reference.
+function makeSessionRow(sessionId, leftText, rightText, previewText, isSnippet) {
+  const li = document.createElement('li');
+  li.className = 'history-item';
+
+  const meta = document.createElement('div');
+  meta.className = 'meta';
+  const left = document.createElement('span');
+  left.textContent = leftText;
+  const right = document.createElement('span');
+  right.textContent = rightText;
+  meta.appendChild(left);
+  meta.appendChild(right);
+  li.appendChild(meta);
+
+  const preview = document.createElement('div');
+  preview.className = 'preview';
+  if (isSnippet) {
+    preview.innerHTML = highlightSnippet(previewText);
+  } else {
+    preview.textContent = previewText;
+  }
+  li.appendChild(preview);
+
+  const ref = { session_id: sessionId };
+  const actions = document.createElement('div');
+  actions.className = 'actions';
+
+  const copyBtn = document.createElement('button');
+  copyBtn.className = 'copy-btn';
+  copyBtn.type = 'button';
+  copyBtn.textContent = '📋 Copy';
+  copyBtn.addEventListener('click', function () { copyHistoryEntry(ref); });
+  actions.appendChild(copyBtn);
+
+  const redoBtn = document.createElement('button');
+  redoBtn.className = 'ghost-btn';
+  redoBtn.type = 'button';
+  redoBtn.textContent = '🔁 Redo';
+  redoBtn.addEventListener('click', function () { redoHistoryEntry(ref); });
+  actions.appendChild(redoBtn);
+
+  const delBtn = document.createElement('button');
+  delBtn.className = 'ghost-btn';
+  delBtn.type = 'button';
+  delBtn.textContent = '🗑️ Delete';
+  delBtn.addEventListener('click', function () { deleteHistoryEntry(ref); });
+  actions.appendChild(delBtn);
+
+  li.appendChild(actions);
+  return li;
+}
+
 function renderHistory() {
+  // Search mode and browse mode share the same list element.
+  if (state.searchQuery) {
+    renderSearchResults();
+    return;
+  }
   els.historyCount.textContent =
     state.historyItems.length + '/' + state.historyTotal;
   els.historyList.innerHTML = '';
   state.historyItems.forEach(function (s) {
-    const li = document.createElement('li');
-    li.className = 'history-item';
-
-    const meta = document.createElement('div');
-    meta.className = 'meta';
-    const left = document.createElement('span');
-    left.textContent =
-      formatDate(s.created_at) + ' · ' + s.photo_count + ' photo(s)';
-    const right = document.createElement('span');
-    right.textContent =
-      (s.model || '—') +
-      (s.extract_duration_s ? ' · ' + s.extract_duration_s.toFixed(1) + 's' : '');
-    meta.appendChild(left);
-    meta.appendChild(right);
-    li.appendChild(meta);
-
-    const preview = document.createElement('div');
-    preview.className = 'preview';
-    preview.textContent = s.extracted_preview || (s.error ? '⚠️ ' + s.error : '(no text)');
-    li.appendChild(preview);
-
-    const actions = document.createElement('div');
-    actions.className = 'actions';
-
-    const copyBtn = document.createElement('button');
-    copyBtn.className = 'copy-btn';
-    copyBtn.type = 'button';
-    copyBtn.textContent = '📋 Copy';
-    copyBtn.addEventListener('click', function () { copyHistoryEntry(s); });
-    actions.appendChild(copyBtn);
-
-    const redoBtn = document.createElement('button');
-    redoBtn.className = 'ghost-btn';
-    redoBtn.type = 'button';
-    redoBtn.textContent = '🔁 Redo';
-    redoBtn.addEventListener('click', function () { redoHistoryEntry(s); });
-    actions.appendChild(redoBtn);
-
-    const delBtn = document.createElement('button');
-    delBtn.className = 'ghost-btn';
-    delBtn.type = 'button';
-    delBtn.textContent = '🗑️ Delete';
-    delBtn.addEventListener('click', function () { deleteHistoryEntry(s); });
-    actions.appendChild(delBtn);
-
-    li.appendChild(actions);
-    els.historyList.appendChild(li);
+    els.historyList.appendChild(
+      makeSessionRow(
+        s.session_id,
+        formatDate(s.created_at) + ' · ' + s.photo_count + ' photo(s)',
+        (s.model || '—') +
+          (s.extract_duration_s
+            ? ' · ' + s.extract_duration_s.toFixed(1) + 's'
+            : ''),
+        s.extracted_preview || (s.error ? '⚠️ ' + s.error : '(no text)'),
+        false
+      )
+    );
   });
+  els.loadMoreHistory.hidden =
+    state.historyItems.length >= state.historyTotal;
+}
 
-  if (state.historyItems.length < state.historyTotal) {
-    els.loadMoreHistory.hidden = false;
+function renderSearchResults() {
+  const results = state.searchResults || [];
+  els.historyCount.textContent =
+    results.length + (results.length === 1 ? ' match' : ' matches');
+  els.historyList.innerHTML = '';
+  if (!results.length) {
+    const empty = document.createElement('li');
+    empty.className = 'history-empty';
+    empty.textContent = 'No matches for “' + state.searchQuery + '”';
+    els.historyList.appendChild(empty);
   } else {
-    els.loadMoreHistory.hidden = true;
+    results.forEach(function (r) {
+      els.historyList.appendChild(
+        makeSessionRow(
+          r.session_id,
+          formatDate(r.created_at),
+          r.model || '—',
+          r.snippet || '(match)',
+          true
+        )
+      );
+    });
   }
+  // Search returns a single ranked page — no incremental loading.
+  els.loadMoreHistory.hidden = true;
+}
+
+// Re-render the history panel after a mutation, staying in whichever
+// mode (search vs. browse) the user is currently in.
+function refreshHistoryView() {
+  if (state.searchQuery) {
+    runSearch(state.searchQuery);
+  } else {
+    loadHistory(0);
+  }
+}
+
+let searchTimer = null;
+
+async function runSearch(q) {
+  try {
+    const body = await jsonApi(
+      '/api/search?q=' + encodeURIComponent(q) + '&limit=25'
+    );
+    state.searchQuery = q;
+    state.searchResults = body.results || [];
+    renderHistory();
+  } catch (exc) {
+    toast('Search failed: ' + (exc.message || exc), 'error');
+  }
+}
+
+// Debounced handler for the 🔎 input. Empty query restores browse mode.
+export function onSearchInput() {
+  const q = (els.historySearch.value || '').trim();
+  if (searchTimer) clearTimeout(searchTimer);
+  if (!q) {
+    state.searchQuery = '';
+    state.searchResults = [];
+    renderHistory();
+    return;
+  }
+  searchTimer = setTimeout(function () { runSearch(q); }, 250);
+}
+
+// Drop out of search mode — used by the Refresh button.
+export function clearSearch() {
+  if (els.historySearch) els.historySearch.value = '';
+  if (searchTimer) clearTimeout(searchTimer);
+  state.searchQuery = '';
+  state.searchResults = [];
 }
 
 function formatDate(iso) {
@@ -142,7 +248,7 @@ async function redoHistoryEntry(s) {
     state.sessionId = s.session_id;
     state.extracted = body.extracted || '';
     renderExtracted();
-    loadHistory(0);
+    refreshHistoryView();
     toast('Redo done.', 'good');
   } catch (exc) {
     toast('Redo failed: ' + (exc.message || exc), 'error');
@@ -156,7 +262,7 @@ async function deleteHistoryEntry(s) {
       '/api/sessions/' + encodeURIComponent(s.session_id),
       { method: 'DELETE' }
     );
-    loadHistory(0);
+    refreshHistoryView();
   } catch (exc) {
     toast('Delete failed: ' + (exc.message || exc), 'error');
   }
@@ -166,7 +272,7 @@ export async function cleanAllHistory() {
   if (!confirm('Delete all saved takes?')) return;
   try {
     await jsonApi('/api/sessions', { method: 'DELETE' });
-    loadHistory(0);
+    refreshHistoryView();
     toast('History cleared.', 'good');
   } catch (exc) {
     toast('Clean failed: ' + (exc.message || exc), 'error');
