@@ -22,7 +22,7 @@ import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 # Third-party imports
 import requests
@@ -203,15 +203,3 @@ def _payload_for_archive(payload: dict, image_paths: List[Path]) -> dict:
         "system": payload.get("system"),
         "images": [p.name for p in image_paths],
     }
-
-
-def parse_model_alias(model_id: Optional[str]) -> Optional[str]:
-    """Normalise a model alias.
-
-    Stripped to a small helper to keep the server clean. Returns None
-    when the input is empty / not a string.
-    """
-    if not isinstance(model_id, str):
-        return None
-    val = model_id.strip()
-    return val or None

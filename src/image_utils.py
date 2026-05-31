@@ -20,7 +20,7 @@ import io
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Tuple
 
 # Third-party imports — pillow-heif is best-effort. If the wheel isn't
 # installed on this platform, HEIC uploads fail with a clear message
@@ -142,28 +142,3 @@ def _maybe_downscale(im: Image.Image, max_dim_px: int) -> Image.Image:
     scale = max_dim_px / long_edge
     new_size: Tuple[int, int] = (max(1, int(w * scale)), max(1, int(h * scale)))
     return im.resize(new_size, Image.LANCZOS)
-
-
-def read_persisted_jpeg(path: Path) -> bytes:
-    """Read a previously-persisted JPEG byte-for-byte.
-
-    Used by the OCR step to base64-encode photos in upload order. Kept
-    as a thin helper so callers don't sprinkle Path.read_bytes calls.
-    """
-    return path.read_bytes()
-
-
-def file_extension_for(content_type: str) -> Optional[str]:
-    """Helper for diagnostics / logging only — the persisted file is
-    always .jpg regardless of the original upload content_type."""
-    ct = (content_type or "").lower().strip().split(";")[0].strip()
-    mapping = {
-        "image/jpeg": ".jpg",
-        "image/jpg": ".jpg",
-        "image/pjpeg": ".jpg",
-        "image/png": ".png",
-        "image/webp": ".webp",
-        "image/heic": ".heic",
-        "image/heif": ".heif",
-    }
-    return mapping.get(ct)
