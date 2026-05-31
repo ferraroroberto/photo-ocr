@@ -34,14 +34,13 @@ INDEX_FILENAME = "index.sqlite"
 
 # 0-based column index of the indexed ``text`` column — needed by the
 # FTS5 ``snippet()`` built-in.
-_TEXT_COLUMN_INDEX = 4
+_TEXT_COLUMN_INDEX = 3
 
 _CREATE_TABLE_SQL = """
 CREATE VIRTUAL TABLE IF NOT EXISTS sessions USING fts5(
     session_id UNINDEXED,
     created_at UNINDEXED,
     model UNINDEXED,
-    kind UNINDEXED,
     text,
     tokenize = 'porter unicode61 remove_diacritics 1'
 )
@@ -135,7 +134,6 @@ class ArchiveIndex:
         created_at: str,
         text: str,
         model: Optional[str] = None,
-        kind: Optional[str] = None,
     ) -> None:
         """Upsert one session row, keyed on ``session_id``.
 
@@ -152,9 +150,9 @@ class ArchiveIndex:
                 )
                 conn.execute(
                     "INSERT INTO sessions"
-                    " (session_id, created_at, model, kind, text)"
-                    " VALUES (?, ?, ?, ?, ?)",
-                    (session_id, created_at or "", model or "", kind or "", text),
+                    " (session_id, created_at, model, text)"
+                    " VALUES (?, ?, ?, ?)",
+                    (session_id, created_at or "", model or "", text),
                 )
                 conn.commit()
             except sqlite3.DatabaseError as exc:
@@ -254,7 +252,6 @@ class ArchiveIndex:
                 created_at=str(s.get("created_at") or ""),
                 text=text,
                 model=s.get("model"),
-                kind=s.get("kind"),
             )
             inserted += 1
         if inserted:
