@@ -8,6 +8,8 @@
 
 import { els, readToken } from './state.js';
 
+const DEFAULT_TIMEOUT_MS = 45000;
+
 // ----------------------------------------------------------- login UI
 export function showLogin() {
   if (!els.loginOverlay) return;
@@ -25,7 +27,29 @@ export async function api(path, opts) {
   const headers = new Headers(opts.headers || {});
   const token = readToken();
   if (token) headers.set('Authorization', 'Bearer ' + token);
-  const res = await fetch(path, Object.assign({}, opts, { headers }));
+  const timeoutMs = opts.timeoutMs == null ? DEFAULT_TIMEOUT_MS : opts.timeoutMs;
+  const controller = timeoutMs > 0 ? new AbortController() : null;
+  let timeoutId = null;
+  if (controller) {
+    timeoutId = setTimeout(function () { controller.abort(); }, timeoutMs);
+  }
+  let res;
+  try {
+    res = await fetch(
+      path,
+      Object.assign({}, opts, {
+        headers,
+        signal: controller ? controller.signal : opts.signal,
+      })
+    );
+  } catch (exc) {
+    if (exc && exc.name === 'AbortError') {
+      throw new Error('request timed out after ' + Math.round(timeoutMs / 1000) + ' s');
+    }
+    throw exc;
+  } finally {
+    if (timeoutId != null) clearTimeout(timeoutId);
+  }
   if (res.status === 401) {
     showLogin();
     throw new Error('auth required');

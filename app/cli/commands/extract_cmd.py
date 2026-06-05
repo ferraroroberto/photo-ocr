@@ -81,6 +81,7 @@ class ExtractCommand(BaseCommand):
                     image_paths=persisted,
                     model=model,
                     system=prompt.system,
+                    chunk_size=cfg.extract_chunk_size,
                 )
             except OcrError as exc:
                 logger.error(f"❌ OCR failed: {exc}")

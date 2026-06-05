@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -19,6 +20,21 @@ def client(tmp_path: Path):
     app.state.archive = SessionArchive(root=tmp_path / "archive")
     with TestClient(app) as c:
         yield c
+
+
+def _wait_for_phase(
+    client: TestClient, session_id: str, phase: str, timeout_s: float = 2.0
+) -> dict:
+    deadline = time.time() + timeout_s
+    last = {}
+    while time.time() < deadline:
+        r = client.get(f"/api/sessions/{session_id}/extract/status")
+        assert r.status_code == 200
+        last = r.json()
+        if last["phase"] == phase:
+            return last
+        time.sleep(0.02)
+    raise AssertionError(f"timed out waiting for {phase}; last={last!r}")
 
 
 def test_extract_success(client: TestClient, jpeg_bytes: bytes) -> None:
@@ -39,8 +55,9 @@ def test_extract_success(client: TestClient, jpeg_bytes: bytes) -> None:
         return_value=fake_result,
     ) as mock_extract:
         r = client.post(f"/api/sessions/{sid}/extract", json={"model": "gemini_flash"})
+        body = _wait_for_phase(client, sid, "succeeded")
     assert r.status_code == 200
-    body = r.json()
+    assert r.json()["phase"] in {"queued", "running", "succeeded"}
     assert body["extracted"] == "hello world"
     assert body["model"] == "gemini_flash"
     assert body["reused"] is False
@@ -59,8 +76,9 @@ def test_extract_returns_424_on_hub_error(client: TestClient, jpeg_bytes: bytes)
         side_effect=OcrError("hub down"),
     ):
         r = client.post(f"/api/sessions/{sid}/extract", json={"model": "gemini_flash"})
-    assert r.status_code == 424
-    assert "hub down" in r.json()["detail"]
+        body = _wait_for_phase(client, sid, "failed")
+    assert r.status_code == 200
+    assert "hub down" in body["error"]
 
 
 def test_redo_re_runs_even_if_already_extracted(client: TestClient, jpeg_bytes: bytes) -> None:
@@ -81,6 +99,7 @@ def test_redo_re_runs_even_if_already_extracted(client: TestClient, jpeg_bytes: 
         return_value=fake_result,
     ):
         client.post(f"/api/sessions/{sid}/extract", json={"model": "gemini_flash"})
+        _wait_for_phase(client, sid, "succeeded")
 
     # /extract again would short-circuit (reused: True).
     fake_again = OcrResult(
@@ -95,6 +114,8 @@ def test_redo_re_runs_even_if_already_extracted(client: TestClient, jpeg_bytes: 
         return_value=fake_again,
     ) as mock_again:
         r = client.post(f"/api/sessions/{sid}/extract", json={"model": "gemini_flash"})
+        body = r.json()
+        assert body["phase"] == "succeeded"
         assert r.json()["reused"] is True
         mock_again.assert_not_called()
 
@@ -111,7 +132,8 @@ def test_redo_re_runs_even_if_already_extracted(client: TestClient, jpeg_bytes: 
         return_value=fake_redo,
     ) as mock_redo:
         r = client.post(f"/api/sessions/{sid}/redo", json={"model": "gemini_pro"})
+        body = _wait_for_phase(client, sid, "succeeded")
         assert r.status_code == 200
-        assert r.json()["extracted"] == "second run"
-        assert r.json()["reused"] is False
+        assert body["extracted"] == "second run"
+        assert body["reused"] is False
         mock_redo.assert_called_once()

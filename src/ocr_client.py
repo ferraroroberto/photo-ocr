@@ -18,11 +18,12 @@ from __future__ import annotations
 
 # Standard library imports
 import base64
+import difflib
 import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List
+from typing import Callable, List, Optional
 
 # Third-party imports
 import requests
@@ -34,6 +35,8 @@ _OPEN_THINK_RE = re.compile(r"<think\b[^>]*>", re.IGNORECASE)
 
 
 DEFAULT_TIMEOUT = 180.0
+DEFAULT_CHUNK_SIZE = 4
+DEFAULT_CHUNK_OVERLAP = 1
 # Vision models need a generous budget for long documents — voice
 # polish needed 16k for reasoning-heavy paths; OCR can produce equally
 # long output for a 20-photo email screenshot sequence.
@@ -82,6 +85,8 @@ class OcrClient:
         model: str,
         system: str,
         max_tokens: int = DEFAULT_MAX_TOKENS,
+        chunk_size: int = DEFAULT_CHUNK_SIZE,
+        progress_callback: Optional[Callable[[int, int], None]] = None,
     ) -> OcrResult:
         """Send ``image_paths`` through the hub for OCR. Returns the extracted
         text plus the raw request/response payloads for archival.
@@ -90,7 +95,87 @@ class OcrClient:
         system prompt carries all the rules. This prevents the
         user-content channel from being interpreted as instructions by
         accident.
+
+        Multi-photo takes are chunked into overlapped hub calls. The model
+        still does the semantic merge inside each chunk; Python only joins
+        adjacent chunk outputs and removes duplicate lines at the known
+        overlap boundary. There is intentionally no second LLM stitch pass.
         """
+        if not image_paths:
+            raise OcrError("no images to extract from")
+        if chunk_size < 1:
+            raise OcrError("chunk_size must be >= 1")
+
+        chunks = _chunk_paths(image_paths, chunk_size=chunk_size)
+        if len(chunks) == 1:
+            result = self._extract_single_request(
+                image_paths=chunks[0],
+                model=model,
+                system=system,
+                max_tokens=max_tokens,
+            )
+            if progress_callback is not None:
+                progress_callback(1, 1)
+            return result
+
+        chunk_results: List[OcrResult] = []
+        total = len(chunks)
+        for index, chunk in enumerate(chunks, start=1):
+            logger.info(
+                f"🔍 OCR chunk {index}/{total} model={model} photos={len(chunk)}"
+            )
+            chunk_results.append(
+                self._extract_single_request(
+                    image_paths=chunk,
+                    model=model,
+                    system=system,
+                    max_tokens=max_tokens,
+                )
+            )
+            if progress_callback is not None:
+                progress_callback(index, total)
+
+        extracted = _join_chunk_texts([r.extracted_text for r in chunk_results])
+        return OcrResult(
+            extracted_text=extracted,
+            model=model,
+            request_payload={
+                "model": model,
+                "max_tokens": max_tokens,
+                "system": system,
+                "chunk_size": chunk_size,
+                "chunk_overlap": DEFAULT_CHUNK_OVERLAP if chunk_size > 1 else 0,
+                "chunks": [
+                    {
+                        "index": i,
+                        "images": [p.name for p in chunk],
+                    }
+                    for i, chunk in enumerate(chunks, start=1)
+                ],
+            },
+            response_payload={
+                "chunks": [
+                    {
+                        "index": i,
+                        "response": r.response_payload,
+                    }
+                    for i, r in enumerate(chunk_results, start=1)
+                ],
+                "merge": {
+                    "strategy": "python-overlap-line-dedup",
+                    "llm_stitch_call": False,
+                },
+            },
+        )
+
+    def _extract_single_request(
+        self,
+        image_paths: List[Path],
+        model: str,
+        system: str,
+        max_tokens: int,
+    ) -> OcrResult:
+        """Send one hub request containing ``image_paths``."""
         if not image_paths:
             raise OcrError("no images to extract from")
 
@@ -168,6 +253,80 @@ class OcrClient:
             request_payload=_payload_for_archive(payload, image_paths),
             response_payload=body,
         )
+
+
+def _chunk_paths(image_paths: List[Path], chunk_size: int) -> List[List[Path]]:
+    """Split paths into chunks with a one-photo overlap between chunks."""
+    if chunk_size < 1:
+        raise OcrError("chunk_size must be >= 1")
+    if len(image_paths) <= chunk_size:
+        return [list(image_paths)]
+
+    chunks: List[List[Path]] = []
+    start = 0
+    total = len(image_paths)
+    while start < total:
+        end = min(start + chunk_size, total)
+        chunks.append(list(image_paths[start:end]))
+        if end == total:
+            break
+        start = end - DEFAULT_CHUNK_OVERLAP if chunk_size > 1 else end
+    return chunks
+
+
+def _join_chunk_texts(texts: List[str]) -> str:
+    """Join chunk outputs and remove duplicate lines at adjacent seams."""
+    merged = ""
+    for text in texts:
+        candidate = text.strip()
+        if not candidate:
+            continue
+        if not merged:
+            merged = candidate
+            continue
+        merged = _join_two_chunks(merged, candidate)
+    return merged.strip()
+
+
+def _join_two_chunks(left: str, right: str) -> str:
+    left_lines = left.splitlines()
+    right_lines = right.splitlines()
+    overlap = _find_line_overlap(left_lines, right_lines)
+    if overlap:
+        right_lines = right_lines[overlap:]
+    return "\n".join(left_lines + right_lines).strip()
+
+
+def _find_line_overlap(left_lines: List[str], right_lines: List[str]) -> int:
+    """Return how many leading right lines duplicate trailing left lines."""
+    max_window = min(12, len(left_lines), len(right_lines))
+    for size in range(max_window, 0, -1):
+        left_tail = left_lines[-size:]
+        right_head = right_lines[:size]
+        if _line_runs_match(left_tail, right_head):
+            return size
+    return 0
+
+
+def _line_runs_match(left_lines: List[str], right_lines: List[str]) -> bool:
+    return all(
+        _lines_match(left, right)
+        for left, right in zip(left_lines, right_lines)
+    )
+
+
+def _lines_match(left: str, right: str) -> bool:
+    left_norm = _normalise_line(left)
+    right_norm = _normalise_line(right)
+    if not left_norm or not right_norm:
+        return left_norm == right_norm
+    if left_norm == right_norm:
+        return True
+    return difflib.SequenceMatcher(None, left_norm, right_norm).ratio() >= 0.92
+
+
+def _normalise_line(line: str) -> str:
+    return re.sub(r"\s+", " ", line).strip().casefold()
 
 
 def _extract_text(body: dict) -> str:

@@ -25,6 +25,7 @@ def _config_dict(cfg: WebappConfig) -> Dict[str, Any]:
         "history_retention_days": cfg.history_retention_days,
         "max_photos_per_session": cfg.max_photos_per_session,
         "max_photo_dimension_px": cfg.max_photo_dimension_px,
+        "extract_chunk_size": cfg.extract_chunk_size,
     }
 
 
@@ -48,6 +49,7 @@ async def get_config(request: Request) -> Dict[str, Any]:
         "history_retention_days": cfg.history_retention_days,
         "max_photos_per_session": cfg.max_photos_per_session,
         "max_photo_dimension_px": cfg.max_photo_dimension_px,
+        "extract_chunk_size": cfg.extract_chunk_size,
         "search_enabled": cfg.search_enabled,
         "quality_gate_enabled": cfg.quality_gate_enabled,
         "auth_password_set": bool(cfg.auth_password),
@@ -62,6 +64,7 @@ async def patch_config(request: Request) -> Dict[str, Any]:
         "ocr_prompt_default",
         "history_retention_days",
         "max_photos_per_session",
+        "extract_chunk_size",
     }
     patch = {k: v for k, v in body.items() if k in allowed}
     try:

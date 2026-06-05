@@ -6,6 +6,11 @@
 import { state, els, toast, HISTORY_PAGE_SIZE } from './state.js';
 import { jsonApi } from './api.js';
 import { renderExtracted } from './extract.js';
+import { renderThumbnails, setStatus } from './capture.js';
+
+function sleep(ms) {
+  return new Promise(function (resolve) { setTimeout(resolve, ms); });
+}
 
 export async function loadHistory(offset) {
   state.historyOffset = offset || 0;
@@ -236,22 +241,51 @@ async function copyHistoryEntry(s) {
 }
 
 async function redoHistoryEntry(s) {
+  if (state.busy) return;
+  state.busy = true;
+  renderThumbnails();
+  setStatus('Queued redo…');
+  let finalStatusText = null;
   try {
-    const body = await jsonApi(
+    let body = await jsonApi(
       '/api/sessions/' + encodeURIComponent(s.session_id) + '/redo',
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model: state.model, prompt_id: state.promptId }),
+        timeoutMs: 15000,
       }
     );
+    while (body.phase !== 'succeeded') {
+      if (body.phase === 'failed') throw new Error(body.error || 'redo failed');
+      if (body.phase === 'running') {
+        const total = body.chunks_total || 0;
+        const current = total ? Math.min((body.chunks_done || 0) + 1, total) : 1;
+        setStatus('Redo chunk ' + current + ' of ' + total + '…');
+      } else if (body.phase === 'merging') {
+        setStatus('Merging redo output…');
+      }
+      await sleep(1000);
+      body = await jsonApi(
+        '/api/sessions/' + encodeURIComponent(s.session_id) + '/extract/status',
+        { timeoutMs: 15000 }
+      );
+    }
     state.sessionId = s.session_id;
     state.extracted = body.extracted || '';
     renderExtracted();
     refreshHistoryView();
+    setStatus('Redo done — tap Copy');
+    finalStatusText = els.captureStatus.textContent;
     toast('Redo done.', 'good');
   } catch (exc) {
+    setStatus('❌ ' + (exc.message || exc));
+    finalStatusText = els.captureStatus.textContent;
     toast('Redo failed: ' + (exc.message || exc), 'error');
+  } finally {
+    state.busy = false;
+    renderThumbnails();
+    if (finalStatusText) setStatus(finalStatusText);
   }
 }
 
