@@ -33,6 +33,7 @@ DEFAULT_PORT = 8444
 DEFAULT_RETENTION_DAYS = 30
 DEFAULT_MAX_PHOTOS = 50
 DEFAULT_MAX_DIM_PX = 2048
+DEFAULT_EXTRACT_CHUNK_SIZE = 4
 DEFAULT_SEARCH_ENABLED = True
 DEFAULT_QUALITY_GATE_ENABLED = True
 
@@ -72,6 +73,7 @@ class WebappConfig:
     history_retention_days: int = DEFAULT_RETENTION_DAYS
     max_photos_per_session: int = DEFAULT_MAX_PHOTOS
     max_photo_dimension_px: int = DEFAULT_MAX_DIM_PX
+    extract_chunk_size: int = DEFAULT_EXTRACT_CHUNK_SIZE
     # Feature flag: full-text search over the session archive (FTS5).
     # Off → no index file, /api/search short-circuits, search UI hides.
     search_enabled: bool = DEFAULT_SEARCH_ENABLED
@@ -132,6 +134,9 @@ def load_webapp_config(path: Optional[Path] = None) -> WebappConfig:
         max_photo_dimension_px=int(
             raw.get("max_photo_dimension_px", DEFAULT_MAX_DIM_PX)
         ),
+        extract_chunk_size=int(
+            raw.get("extract_chunk_size", DEFAULT_EXTRACT_CHUNK_SIZE)
+        ),
         search_enabled=bool(
             raw.get("search_enabled", DEFAULT_SEARCH_ENABLED)
         ),
@@ -160,6 +165,7 @@ def save_webapp_config(cfg: WebappConfig, path: Optional[Path] = None) -> Path:
         "history_retention_days": cfg.history_retention_days,
         "max_photos_per_session": cfg.max_photos_per_session,
         "max_photo_dimension_px": cfg.max_photo_dimension_px,
+        "extract_chunk_size": cfg.extract_chunk_size,
         "search_enabled": cfg.search_enabled,
         "quality_gate_enabled": cfg.quality_gate_enabled,
         "auth_token": cfg.auth_token,
@@ -207,3 +213,7 @@ def _validate(cfg: WebappConfig) -> None:
         raise ValueError("max_photos_per_session must be between 1 and 200")
     if cfg.max_photo_dimension_px < 256 or cfg.max_photo_dimension_px > 8192:
         raise ValueError("max_photo_dimension_px must be between 256 and 8192")
+    if cfg.extract_chunk_size < 1 or cfg.extract_chunk_size > cfg.max_photos_per_session:
+        raise ValueError(
+            "extract_chunk_size must be between 1 and max_photos_per_session"
+        )

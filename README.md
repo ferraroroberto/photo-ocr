@@ -14,9 +14,14 @@ same archive shape, same auth model, but for pixels instead of audio.
 - **Multi-photo capture / upload.** iOS Safari and Android Chrome both support
   `<input type="file" accept="image/*" capture="environment" multiple>`. Tap the
   shutter, capture overlapping shots of a long email, tap **Extract**.
-- **One model call, one shot.** All photos go to the local LLM hub in one
-  request. The model concatenates pages in reading order and merges overlapping
-  lines — each unique line once.
+- **Chunked multi-photo extraction.** Photos go to the local LLM hub in
+  bounded, overlapping chunks so long takes stay below upstream timeout
+  ceilings. The model merges text inside each chunk; Python then joins
+  adjacent chunk outputs and de-duplicates the known overlap boundary. There
+  is no second LLM "stitch" call.
+- **Live extract progress.** The webapp starts extraction as a background job
+  and polls session status, so long takes show `Chunk i of N`, `Merging`, and
+  the final result instead of freezing behind one long HTTP request.
 - **Clean output discipline.** The system prompt forbids preamble, commentary,
   `"Photo 1:"` labels, and translation. The result is drop-in-clipboard-ready.
 - **Searchable archive.** A 🔎 box on the history panel runs full-text search
@@ -235,8 +240,9 @@ photo-ocr/
 │  photo-ocr webapp (FastAPI on :8444)                            │
 │   ├── /api/sessions                  create session             │
 │   ├── /api/sessions/{id}/photos      append 1..N photos         │
-│   ├── /api/sessions/{id}/extract     run OCR on all photos      │
-│   ├── /api/sessions/{id}/redo        re-run with new model      │
+│   ├── /api/sessions/{id}/extract     start OCR job              │
+│   ├── /api/sessions/{id}/extract/status  poll chunk progress    │
+│   ├── /api/sessions/{id}/redo        start re-run with new model│
 │   ├── /api/sessions                  list (newest first)        │
 │   ├── /api/search                    full-text search (FTS5)     │
 │   ├── /api/config, /api/login, /api/version, …                 │
@@ -276,6 +282,7 @@ Created on first **💾 Save defaults** tap. Schema lives in
 | `history_retention_days` | `30` | Sessions older than this are pruned on startup. |
 | `max_photos_per_session` | `50` | Hard cap on photos per take. |
 | `max_photo_dimension_px` | `2048` | Long-edge resize before sending to the hub. |
+| `extract_chunk_size` | `4` | Photos per hub request. Chunks overlap by one photo when chunking is needed. |
 | `auth_token` | `""` | Empty = auth gate **off**. Set via `scripts/gen_token.py`. |
 | `auth_password` | `""` | Optional companion password — see auth section. |
 

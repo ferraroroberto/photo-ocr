@@ -21,6 +21,7 @@ def test_load_missing_returns_defaults(tmp_path: Path) -> None:
     # Defaults pulled from the sample JSON committed alongside src/.
     assert cfg.port == 8444
     assert cfg.history_retention_days == 30
+    assert cfg.extract_chunk_size == 4
     assert cfg.ocr_prompt_default == "verbatim-merge"
 
 
@@ -64,6 +65,22 @@ def test_load_invalid_default_model_raises(tmp_path: Path) -> None:
             {
                 "ocr_model_default": "not_in_list",
                 "ocr_models_available": ["gemini_flash"],
+            }
+        )
+    )
+    with pytest.raises(ValueError):
+        load_webapp_config(path)
+
+
+def test_load_invalid_extract_chunk_size_raises(tmp_path: Path) -> None:
+    path = tmp_path / "webapp_config.json"
+    path.write_text(
+        json.dumps(
+            {
+                "ocr_model_default": "gemini_flash",
+                "ocr_models_available": ["gemini_flash"],
+                "max_photos_per_session": 10,
+                "extract_chunk_size": 11,
             }
         )
     )

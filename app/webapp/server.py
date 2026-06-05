@@ -16,8 +16,9 @@ Routes (split across ``app/webapp/routers/``):
     POST   /api/sessions                      → create new session       (sessions)
     POST   /api/sessions/{id}/photos          → multipart upload, 1..N    (sessions)
     DELETE /api/sessions/{id}/photos/{seq}    → drop a photo              (sessions)
-    POST   /api/sessions/{id}/extract         → run OCR on all photos     (sessions)
-    POST   /api/sessions/{id}/redo            → re-run OCR                (sessions)
+    POST   /api/sessions/{id}/extract         → start OCR job             (sessions)
+    GET    /api/sessions/{id}/extract/status  → poll OCR progress         (sessions)
+    POST   /api/sessions/{id}/redo            → start OCR re-run          (sessions)
     GET    /api/sessions/{id}/photo/{seq}     → serve a stored photo      (sessions)
     GET    /api/sessions/{id}/text            → full extracted text       (sessions)
     GET    /api/sessions                      → list (newest first)       (sessions)
@@ -36,6 +37,7 @@ from __future__ import annotations
 import logging
 import mimetypes
 import os
+import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -166,6 +168,8 @@ def create_app() -> FastAPI:
     app.state.webapp_config = webapp_cfg
     app.state.archive = archive
     app.state.ocr_client = ocr_client
+    app.state.extract_tasks = {}
+    app.state.extract_lock = threading.Lock()
 
     if STATIC_DIR.exists():
         app.mount(

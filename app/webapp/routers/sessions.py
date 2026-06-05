@@ -4,6 +4,7 @@ extract/redo, text retrieval, listing, and the delete family."""
 from __future__ import annotations
 
 # Standard library imports
+import asyncio
 import logging
 import time
 from typing import Any, Dict, List, Optional
@@ -23,6 +24,7 @@ from src.webapp_config import WebappConfig
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+_PROGRESS_KEY = "extract_progress"
 
 
 # --------------------------------------------------------------- helpers
@@ -57,6 +59,7 @@ def _session_summary(s: Session) -> Dict[str, Any]:
         "extracted_chars": s.meta.extracted_chars,
         "extracted_preview": _preview(s.read_extracted(), 200),
         "error": s.meta.error,
+        "extract_progress": _extract_status_payload(s, include_extracted=False),
     }
 
 
@@ -84,13 +87,198 @@ def _resolve_model(model: Any, cfg: WebappConfig) -> str:
     return candidate
 
 
-async def _run_extract(
+def _chunk_count(photo_count: int, chunk_size: int) -> int:
+    if photo_count <= 0:
+        return 0
+    if chunk_size <= 1:
+        return photo_count
+    if photo_count <= chunk_size:
+        return 1
+    count = 1
+    covered = chunk_size
+    step = chunk_size - 1
+    while covered < photo_count:
+        count += 1
+        covered += step
+    return count
+
+
+def _progress_meta(session: Session) -> Dict[str, Any]:
+    raw = session.meta.extra.get(_PROGRESS_KEY)
+    return dict(raw) if isinstance(raw, dict) else {}
+
+
+def _extract_status_payload(
+    session: Session, include_extracted: bool = True
+) -> Dict[str, Any]:
+    progress = _progress_meta(session)
+    phase = progress.get("phase")
+    if not phase:
+        if session.meta.extract_succeeded is True:
+            phase = "succeeded"
+        elif session.meta.extract_succeeded is False:
+            phase = "failed"
+        else:
+            phase = "idle"
+
+    payload = {
+        "session_id": session.session_id,
+        "phase": phase,
+        "chunks_total": int(progress.get("chunks_total") or 0),
+        "chunks_done": int(progress.get("chunks_done") or 0),
+        "model": progress.get("model") or session.meta.model,
+        "prompt_id": progress.get("prompt_id") or session.meta.prompt_id,
+        "duration_s": session.meta.extract_duration_s,
+        "extract_succeeded": session.meta.extract_succeeded,
+        "extracted_chars": session.meta.extracted_chars,
+        "error": session.meta.error,
+        "reused": bool(progress.get("reused", False)),
+    }
+    if phase == "succeeded" and include_extracted:
+        payload["extracted"] = session.read_extracted() or ""
+    return payload
+
+
+def _set_extract_progress(session: Session, **fields: Any) -> None:
+    progress = _progress_meta(session)
+    progress.update(fields)
+    session.meta.extra[_PROGRESS_KEY] = progress
+    session.write_meta()
+
+
+def _index_session_best_effort(
+    cfg: WebappConfig, archive: SessionArchive, session: Session
+) -> None:
+    if not cfg.search_enabled:
+        return
+    try:
+        archive.index_session(session)
+    except Exception as exc:  # noqa: BLE001 — search is non-critical
+        logger.warning(f"⚠️  Could not index session {session.session_id}: {exc}")
+
+
+def _execute_extract_job(
+    app: Any,
+    session_id: str,
+    model: str,
+    prompt_system: str,
+    prompt_id: str,
+    chunk_size: int,
+) -> None:
+    archive: SessionArchive = app.state.archive
+    cfg: WebappConfig = app.state.webapp_config
+    ocr_client: OcrClient = app.state.ocr_client
+    lock = app.state.extract_lock
+
+    with lock:
+        session = archive.get(session_id)
+        if session is None:
+            logger.warning(f"⚠️  Extract job lost unknown session {session_id}")
+            return
+
+        total_chunks = _chunk_count(len(session.meta.photos), chunk_size)
+        _set_extract_progress(
+            session,
+            phase="running",
+            chunks_total=total_chunks,
+            chunks_done=0,
+            model=model,
+            prompt_id=prompt_id,
+            error=None,
+            reused=False,
+        )
+        photo_paths = session.photo_paths()
+        t0 = time.monotonic()
+
+        def _on_chunk(done: int, total: int) -> None:
+            current = archive.get(session_id)
+            if current is None:
+                return
+            _set_extract_progress(
+                current,
+                phase="running",
+                chunks_total=total,
+                chunks_done=done,
+                model=model,
+                prompt_id=prompt_id,
+            )
+
+        try:
+            result = ocr_client.extract(
+                image_paths=photo_paths,
+                model=model,
+                system=prompt_system,
+                chunk_size=chunk_size,
+                progress_callback=_on_chunk,
+            )
+        except OcrError as exc:
+            current = archive.get(session_id) or session
+            current.mark_extract_failed(model, str(exc), prompt_id=prompt_id)
+            _set_extract_progress(
+                current,
+                phase="failed",
+                chunks_total=total_chunks,
+                chunks_done=int(_progress_meta(current).get("chunks_done") or 0),
+                model=model,
+                prompt_id=prompt_id,
+                error=str(exc),
+                reused=False,
+            )
+            return
+
+        duration = time.monotonic() - t0
+        current = archive.get(session_id) or session
+        _set_extract_progress(
+            current,
+            phase="merging",
+            chunks_total=total_chunks,
+            chunks_done=total_chunks,
+            model=model,
+            prompt_id=prompt_id,
+            error=None,
+            reused=False,
+        )
+        current.write_extracted(
+            result.extracted_text,
+            model=result.model,
+            request_payload=result.request_payload,
+            response_payload=result.response_payload,
+            prompt_id=prompt_id,
+            duration_s=duration,
+        )
+        _set_extract_progress(
+            current,
+            phase="succeeded",
+            chunks_total=total_chunks,
+            chunks_done=total_chunks,
+            model=result.model,
+            prompt_id=prompt_id,
+            error=None,
+            reused=False,
+        )
+        _index_session_best_effort(cfg, archive, current)
+
+
+def _store_extract_task(app: Any, session_id: str, task: asyncio.Task) -> None:
+    tasks = app.state.extract_tasks
+    tasks[session_id] = task
+
+    def _cleanup(done_task: asyncio.Task) -> None:
+        tasks.pop(session_id, None)
+        try:
+            done_task.result()
+        except Exception as exc:  # noqa: BLE001 — background crash visibility
+            logger.exception(f"❌ Extract job crashed for {session_id}: {exc}")
+
+    task.add_done_callback(_cleanup)
+
+
+async def _start_extract(
     request: Request, session_id: str, allow_when_done: bool
 ) -> Dict[str, Any]:
     body = await maybe_json(request)
     cfg: WebappConfig = request.app.state.webapp_config
     archive: SessionArchive = request.app.state.archive
-    ocr_client: OcrClient = request.app.state.ocr_client
 
     session = archive.get(session_id)
     if session is None:
@@ -102,62 +290,49 @@ async def _run_extract(
         # path — the UI uses /redo when the user wants to re-run with
         # a different model. Surface the existing text instead of
         # silently re-billing the hub.
-        return {
-            "session_id": session.session_id,
-            "extracted": session.read_extracted() or "",
-            "model": session.meta.model,
-            "prompt_id": session.meta.prompt_id,
-            "duration_s": session.meta.extract_duration_s,
-            "reused": True,
-        }
+        _set_extract_progress(
+            session,
+            phase="succeeded",
+            chunks_total=_chunk_count(len(session.meta.photos), cfg.extract_chunk_size),
+            chunks_done=_chunk_count(len(session.meta.photos), cfg.extract_chunk_size),
+            model=session.meta.model,
+            prompt_id=session.meta.prompt_id,
+            error=None,
+            reused=True,
+        )
+        return _extract_status_payload(session)
+
+    progress = _progress_meta(session)
+    if progress.get("phase") in {"queued", "running", "merging"}:
+        return _extract_status_payload(session)
 
     model = _resolve_model(body.get("model"), cfg)
     prompt = _resolve_prompt(body.get("prompt_id"), cfg)
-    photo_paths = session.photo_paths()
-
-    t0 = time.monotonic()
-    try:
-        result = ocr_client.extract(
-            image_paths=photo_paths,
-            model=model,
-            system=prompt.system,
-        )
-    except OcrError as exc:
-        session.mark_extract_failed(model, str(exc), prompt_id=prompt.id)
-        session.write_meta()
-        # 424 (Failed Dependency) so Cloudflare passes the JSON body
-        # through to the browser. Cloudflare rewrites 5xx into its own
-        # HTML error page, clobbering the rich upstream message.
-        raise HTTPException(status_code=424, detail=str(exc))
-
-    duration = time.monotonic() - t0
-    session.write_extracted(
-        result.extracted_text,
-        model=result.model,
-        request_payload=result.request_payload,
-        response_payload=result.response_payload,
+    total_chunks = _chunk_count(len(session.meta.photos), cfg.extract_chunk_size)
+    _set_extract_progress(
+        session,
+        phase="queued",
+        chunks_total=total_chunks,
+        chunks_done=0,
+        model=model,
         prompt_id=prompt.id,
-        duration_s=duration,
+        error=None,
+        reused=False,
     )
-    session.write_meta()
 
-    # Index the fresh text for full-text search. Best-effort — a search
-    # hiccup must never fail an extract that already succeeded and is
-    # persisted on disk (the canonical source).
-    if cfg.search_enabled:
-        try:
-            archive.index_session(session)
-        except Exception as exc:  # noqa: BLE001 — search is non-critical
-            logger.warning(f"⚠️  Could not index session {session_id}: {exc}")
-
-    return {
-        "session_id": session.session_id,
-        "extracted": result.extracted_text,
-        "model": result.model,
-        "prompt_id": prompt.id,
-        "duration_s": round(duration, 2),
-        "reused": False,
-    }
+    task = asyncio.create_task(
+        asyncio.to_thread(
+            _execute_extract_job,
+            request.app,
+            session_id,
+            model,
+            prompt.system,
+            prompt.id,
+            cfg.extract_chunk_size,
+        )
+    )
+    _store_extract_task(request.app, session_id, task)
+    return _extract_status_payload(session)
 
 
 # ---------------------------------------------------------------- routes
@@ -272,12 +447,21 @@ async def remove_photo(
 
 @router.post("/api/sessions/{session_id}/extract")
 async def extract_session(session_id: str, request: Request) -> Dict[str, Any]:
-    return await _run_extract(request, session_id, allow_when_done=False)
+    return await _start_extract(request, session_id, allow_when_done=False)
 
 
 @router.post("/api/sessions/{session_id}/redo")
 async def redo_session(session_id: str, request: Request) -> Dict[str, Any]:
-    return await _run_extract(request, session_id, allow_when_done=True)
+    return await _start_extract(request, session_id, allow_when_done=True)
+
+
+@router.get("/api/sessions/{session_id}/extract/status")
+async def get_extract_status(session_id: str, request: Request) -> Dict[str, Any]:
+    archive: SessionArchive = request.app.state.archive
+    session = archive.get(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail=f"unknown session {session_id}")
+    return _extract_status_payload(session)
 
 
 @router.get("/api/sessions/{session_id}/photo/{sequence_index}")

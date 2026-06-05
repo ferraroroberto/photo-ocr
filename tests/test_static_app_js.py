@@ -49,3 +49,10 @@ def test_history_page_size(js_source: str) -> None:
 def test_extract_uses_authorization_header(js_source: str) -> None:
     assert "Authorization" in js_source
     assert "Bearer" in js_source
+
+
+def test_extract_uses_timeout_and_status_polling(js_source: str) -> None:
+    assert "AbortController" in js_source
+    assert "/extract/status" in js_source
+    assert "Chunk " in js_source
+    assert "Merging" in js_source

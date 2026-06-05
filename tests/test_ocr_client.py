@@ -9,6 +9,7 @@ import pytest
 import requests
 
 from src.ocr_client import OcrClient, OcrError, _extract_text
+from src.ocr_client import _chunk_paths, _join_chunk_texts
 
 
 def _mock_response(json_body: dict, status_code: int = 200) -> MagicMock:
@@ -48,6 +49,75 @@ def test_extract_returns_text(tmp_path: Path, jpeg_bytes: bytes) -> None:
     assert "images" in result.request_payload
     assert result.request_payload["images"] == ["01.jpg"]
     assert "data" not in str(result.request_payload)
+
+
+def test_chunk_paths_uses_one_photo_overlap() -> None:
+    photos = [Path(f"{i:02d}.jpg") for i in range(1, 51)]
+    assert _chunk_paths(photos[:1], chunk_size=4) == [photos[:1]]
+    assert _chunk_paths(photos[:4], chunk_size=4) == [photos[:4]]
+    assert _chunk_paths(photos[:5], chunk_size=4) == [photos[:4], photos[3:5]]
+    assert _chunk_paths(photos[:14], chunk_size=4) == [
+        photos[0:4],
+        photos[3:7],
+        photos[6:10],
+        photos[9:13],
+        photos[12:14],
+    ]
+    assert len(_chunk_paths(photos, chunk_size=4)) == 17
+
+
+def test_extract_chunks_large_take_and_dedups_seam(
+    tmp_path: Path, jpeg_bytes: bytes
+) -> None:
+    photos = []
+    for idx in range(1, 6):
+        photo = tmp_path / f"{idx:02d}.jpg"
+        photo.write_bytes(jpeg_bytes)
+        photos.append(photo)
+
+    client = OcrClient(base_url="http://127.0.0.1:8000")
+    responses = [
+        _mock_response(
+            {"content": [{"type": "text", "text": "alpha\nshared line"}]}
+        ),
+        _mock_response(
+            {"content": [{"type": "text", "text": "shared line\nomega"}]}
+        ),
+    ]
+    progress = []
+    with patch.object(client._session, "post", side_effect=responses) as mock_post:
+        result = client.extract(
+            image_paths=photos,
+            model="gemini_flash",
+            system="dummy system",
+            chunk_size=4,
+            progress_callback=lambda done, total: progress.append((done, total)),
+        )
+
+    assert result.extracted_text == "alpha\nshared line\nomega"
+    assert mock_post.call_count == 2
+    first_payload = mock_post.call_args_list[0].kwargs["json"]
+    second_payload = mock_post.call_args_list[1].kwargs["json"]
+    assert len(first_payload["messages"][0]["content"]) == 4
+    assert len(second_payload["messages"][0]["content"]) == 2
+    assert result.request_payload["chunks"] == [
+        {"index": 1, "images": ["01.jpg", "02.jpg", "03.jpg", "04.jpg"]},
+        {"index": 2, "images": ["04.jpg", "05.jpg"]},
+    ]
+    assert result.response_payload["merge"]["llm_stitch_call"] is False
+    assert progress == [(1, 2), (2, 2)]
+
+
+def test_join_chunk_texts_fuzzy_dedups_boundary() -> None:
+    assert (
+        _join_chunk_texts(
+            [
+                "first line\nInvoice total: EUR 12.50",
+                "Invoice total:  EUR 12.50\nlast line",
+            ]
+        )
+        == "first line\nInvoice total: EUR 12.50\nlast line"
+    )
 
 
 def test_extract_hub_unreachable_wraps_error(tmp_path: Path, jpeg_bytes: bytes) -> None:

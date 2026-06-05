@@ -13,6 +13,49 @@ export function renderExtracted() {
   els.copyExtracted.disabled = !state.extracted;
 }
 
+function sleep(ms) {
+  return new Promise(function (resolve) { setTimeout(resolve, ms); });
+}
+
+function renderExtractStatus(body, startedAt) {
+  const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
+  const total = body.chunks_total || 0;
+  const done = body.chunks_done || 0;
+  if (body.phase === 'queued') {
+    setStatus('Queued · waiting to extract ' + total + ' chunk(s)…');
+  } else if (body.phase === 'running') {
+    const current = total ? Math.min(done + 1, total) : 1;
+    setStatus('Chunk ' + current + ' of ' + total + '…');
+  } else if (body.phase === 'merging') {
+    setStatus('Merging chunk output…');
+  } else if (body.phase === 'succeeded') {
+    state.extracted = body.extracted || '';
+    renderExtracted();
+    const seconds = body.duration_s ? Number(body.duration_s).toFixed(1) : elapsed;
+    if (body.reused) {
+      setStatus('Already extracted — showing cached result · ' + seconds + ' s');
+    } else if (!state.extracted) {
+      setStatus('No readable text detected · ' + seconds + ' s');
+    } else {
+      setStatus('Done in ' + seconds + ' s — tap Copy');
+    }
+  } else if (body.phase === 'failed') {
+    throw new Error(body.error || 'extract failed');
+  }
+}
+
+async function pollExtractStatus(startedAt) {
+  while (true) {
+    const body = await jsonApi(
+      '/api/sessions/' + encodeURIComponent(state.sessionId) + '/extract/status',
+      { timeoutMs: 15000 }
+    );
+    renderExtractStatus(body, startedAt);
+    if (body.phase === 'succeeded') return body;
+    await sleep(1000);
+  }
+}
+
 // ----------------------------------------------------------- extract
 export async function extract() {
   if (!state.sessionId) {
@@ -33,6 +76,7 @@ export async function extract() {
   );
 
   const t0 = Date.now();
+  let finalStatusText = null;
   try {
     const body = await jsonApi(
       '/api/sessions/' + encodeURIComponent(state.sessionId) + '/extract',
@@ -40,26 +84,24 @@ export async function extract() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model: state.model, prompt_id: state.promptId }),
+        timeoutMs: 15000,
       }
     );
-    state.extracted = body.extracted || '';
-    renderExtracted();
-    const seconds = ((Date.now() - t0) / 1000).toFixed(1);
-    if (body.reused) {
-      setStatus('Already extracted — showing cached result · ' + seconds + ' s');
-    } else if (!state.extracted) {
-      setStatus('No readable text detected · ' + seconds + ' s');
-    } else {
-      setStatus('Done in ' + seconds + ' s — tap Copy');
+    renderExtractStatus(body, t0);
+    if (body.phase !== 'succeeded') {
+      await pollExtractStatus(t0);
     }
+    finalStatusText = els.captureStatus.textContent;
     loadHistory(0);
   } catch (exc) {
     setStatus('❌ ' + (exc.message || exc));
+    finalStatusText = els.captureStatus.textContent;
     toast('Extract failed: ' + (exc.message || exc), 'error');
   } finally {
     state.busy = false;
     els.extractBtn.classList.remove('busy');
     renderThumbnails();
+    if (finalStatusText) setStatus(finalStatusText);
   }
 }
 
