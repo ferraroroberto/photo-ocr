@@ -278,11 +278,14 @@ Created on first **💾 Save defaults** tap. Schema lives in
 | `ocr_models_available` | gemini × 3, claude × 3 | Drives the picker. |
 | `ocr_prompt_default` | `verbatim-merge` | One of the entries in `config/ocr_prompts.json`. |
 | `llm_hub_url` | `http://127.0.0.1:8000` | Local-llm-hub address. |
+| `host` | `0.0.0.0` | Bind address for the webapp server. |
 | `port` | `8444` | Webapp HTTPS/HTTP port. |
 | `history_retention_days` | `30` | Sessions older than this are pruned on startup. |
 | `max_photos_per_session` | `50` | Hard cap on photos per take. |
 | `max_photo_dimension_px` | `2048` | Long-edge resize before sending to the hub. |
 | `extract_chunk_size` | `4` | Photos per hub request. Chunks overlap by one photo when chunking is needed. |
+| `search_enabled` | `true` | Full-text search over the session archive (SQLite FTS5). `false` hides the search box and writes no index. |
+| `quality_gate_enabled` | `true` | On-device pre-flight image quality gate. `false` skips client-side blur/glare/exposure scoring entirely. |
 | `auth_token` | `""` | Empty = auth gate **off**. Set via `scripts/gen_token.py`. |
 | `auth_password` | `""` | Optional companion password — see auth section. |
 
