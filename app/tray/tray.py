@@ -35,6 +35,7 @@ import yaml
 from src import AppConfig
 from src.webapp_config import append_auth_token, load_webapp_config
 
+from app.tray.single_instance import SingleInstance
 from app.webapp.manager import (
     WebappManager,
     WebappManagerConfig,
@@ -151,6 +152,15 @@ def run_tray(app_config: AppConfig) -> int:
             f"❌ pystray not installed ({exc}); install via `pip install -r requirements.txt`"
         )
         return 1
+
+    # In-process single-instance guard (project-scaffolding#39): the tray.bat CIM
+    # pre-check can let two near-simultaneous launches through, so the guarantee
+    # must live in the process. Held for the tray's lifetime; the OS frees the
+    # named mutex on exit. `instance` is intentionally kept referenced (quit).
+    instance = SingleInstance(r"Global\photo-ocr-tray")
+    if not instance.acquired:
+        logger.info("ℹ️  Another photo-ocr tray is already running; exiting.")
+        return 0
 
     mgr_cfg = load_config(app_config.webapp)
     manager = WebappManager(mgr_cfg)
@@ -337,6 +347,7 @@ def run_tray(app_config: AppConfig) -> int:
             manager.stop()
         except Exception as exc:  # noqa: BLE001
             logger.warning(f"⚠️  stop failed: {exc}")
+        instance.release()
         icon.stop()
 
     def on_left_click(icon, item):  # noqa: ARG001
