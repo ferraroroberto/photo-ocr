@@ -352,6 +352,44 @@ async def create_session(request: Request) -> Dict[str, Any]:
     }
 
 
+async def _persist_uploads(
+    session: Session, files: List[UploadFile], cfg: WebappConfig
+) -> List[Dict[str, Any]]:
+    """Validate, EXIF-rotate, downscale, and persist each uploaded image
+    into the session folder, recording its ``PhotoMeta``.
+
+    Returns the list of added-photo dicts. Raises ``HTTPException(400)`` on
+    the first invalid file — files already persisted earlier in the batch
+    are kept. The caller owns any photo-count cap check and the final
+    ``session.write_meta()``. Shared by ``/api/sessions/{id}/photos`` and
+    the single-shot ``/api/extract`` so both ingest images identically.
+    """
+    persisted: List[Dict[str, Any]] = []
+    for upload in files:
+        raw = await upload.read()
+        seq = session.next_sequence_index()
+        try:
+            p = validate_and_persist(
+                raw=raw,
+                content_type=upload.content_type or "",
+                dest_folder=session.folder,
+                sequence_index=seq,
+                max_dim_px=cfg.max_photo_dimension_px,
+            )
+        except ImageValidationError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        pm = PhotoMeta(
+            sequence_index=p.sequence_index,
+            path=p.path.name,
+            width=p.width,
+            height=p.height,
+            bytes_on_disk=p.bytes_on_disk,
+        )
+        session.record_photo(pm)
+        persisted.append(_photo_dict(pm))
+    return persisted
+
+
 @router.post("/api/sessions/{session_id}/photos")
 async def upload_photos(
     session_id: str,
@@ -376,40 +414,7 @@ async def upload_photos(
             ),
         )
 
-    persisted: List[Dict[str, Any]] = []
-    for upload in files:
-        raw = await upload.read()
-        seq = session.next_sequence_index()
-        try:
-            p = validate_and_persist(
-                raw=raw,
-                content_type=upload.content_type or "",
-                dest_folder=session.folder,
-                sequence_index=seq,
-                max_dim_px=cfg.max_photo_dimension_px,
-            )
-        except ImageValidationError as exc:
-            # Keep already-persisted photos in this batch — fail
-            # this single file with a useful message.
-            raise HTTPException(status_code=400, detail=str(exc))
-        session.record_photo(
-            PhotoMeta(
-                sequence_index=p.sequence_index,
-                path=p.path.name,
-                width=p.width,
-                height=p.height,
-                bytes_on_disk=p.bytes_on_disk,
-            )
-        )
-        persisted.append(
-            {
-                "sequence_index": p.sequence_index,
-                "path": p.path.name,
-                "width": p.width,
-                "height": p.height,
-                "bytes_on_disk": p.bytes_on_disk,
-            }
-        )
+    persisted = await _persist_uploads(session, files, cfg)
     session.write_meta()
     return {
         "session_id": session.session_id,
@@ -462,6 +467,85 @@ async def get_extract_status(session_id: str, request: Request) -> Dict[str, Any
     if session is None:
         raise HTTPException(status_code=404, detail=f"unknown session {session_id}")
     return _extract_status_payload(session)
+
+
+@router.post("/api/extract")
+async def extract_single_shot(
+    request: Request,
+    files: List[UploadFile] = File(...),
+) -> Dict[str, Any]:
+    """Synchronous single-shot OCR for downstream fleet consumers.
+
+    Create a session, ingest 1..N images, run extraction to completion
+    server-side, and return the clean text in **one call** — the
+    consumable counterpart to the async ``create → photos → extract →
+    poll`` flow. This is the surface app-launcher's "paste screenshot"
+    button (and any future fleet app) calls over loopback; see
+    ``docs/consuming-the-session-api.md``.
+
+    The take is kept in History (recoverable on disk) exactly like one
+    made in the PWA, unless ``incognito=true``. Query params, all
+    optional: ``model``, ``prompt_id``, ``incognito``.
+
+    Errors: ``400`` empty upload, ``413`` more than ``single_shot_max_photos``
+    images (use the async flow for big takes), ``400`` unknown model,
+    ``502`` on a hub/extraction failure.
+    """
+    cfg: WebappConfig = request.app.state.webapp_config
+    archive: SessionArchive = request.app.state.archive
+    if not files:
+        raise HTTPException(status_code=400, detail="no files in upload")
+    if len(files) > cfg.single_shot_max_photos:
+        raise HTTPException(
+            status_code=413,
+            detail=(
+                f"single-shot /api/extract accepts at most "
+                f"{cfg.single_shot_max_photos} photos; got {len(files)}. "
+                f"Use the async session flow (POST /api/sessions → "
+                f"/photos → /extract → poll status) for larger takes."
+            ),
+        )
+
+    params = request.query_params
+    model = _resolve_model(params.get("model"), cfg)
+    prompt = _resolve_prompt(params.get("prompt_id"), cfg)
+    incognito = params.get("incognito") in ("1", "true", "True")
+
+    session = archive.new_session(incognito=incognito)
+    await _persist_uploads(session, files, cfg)
+    session.write_meta()
+
+    # Reuse the exact extraction engine the async path uses (chunking,
+    # overlap merge, dedup, archival, search index) — run it to completion
+    # off the event loop. No duplicate OCR logic.
+    await asyncio.to_thread(
+        _execute_extract_job,
+        request.app,
+        session.session_id,
+        model,
+        prompt.system,
+        prompt.id,
+        cfg.extract_chunk_size,
+    )
+
+    final = archive.get(session.session_id)
+    if final is None:
+        raise HTTPException(
+            status_code=500, detail="session disappeared mid-extract"
+        )
+    if final.meta.extract_succeeded is not True:
+        raise HTTPException(
+            status_code=502, detail=final.meta.error or "extraction failed"
+        )
+    return {
+        "session_id": final.session_id,
+        "text": final.read_extracted() or "",
+        "model": final.meta.model,
+        "prompt_id": final.meta.prompt_id,
+        "chars": final.meta.extracted_chars,
+        "duration_s": final.meta.extract_duration_s,
+        "incognito": incognito,
+    }
 
 
 @router.get("/api/sessions/{session_id}/photo/{sequence_index}")
