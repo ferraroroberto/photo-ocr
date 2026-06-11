@@ -21,6 +21,8 @@
   "max_photo_dimension_px": 2048,
   "_comment_extract_chunk_size": "Photos are sent to the LLM hub in chunks of this size, with one-photo overlap between chunks. Python joins chunk outputs deterministically; there is no second LLM stitch call.",
   "extract_chunk_size": 4,
+  "_comment_single_shot_max_photos": "Cap on photos accepted by the synchronous single-shot POST /api/extract endpoint used by downstream fleet apps (see docs/consuming-the-session-api.md). A screenshot is 1-2 images; keep this small so a one-call consumer can't block on a large hub round-trip. Bigger takes use the async create -> photos -> extract -> poll session flow. Must be between 1 and max_photos_per_session.",
+  "single_shot_max_photos": 8,
   "_comment_search_enabled": "Full-text search over the session archive (SQLite FTS5). true exposes a 🔎 search box on the History panel and builds archive/index.sqlite from extracted.txt on boot. false hides the UI and writes no index.",
   "search_enabled": true,
   "_comment_quality_gate_enabled": "On-device pre-flight image quality gate. true makes the PWA score each added photo for blur/glare/exposure and show an advisory badge before Extract. false skips client-side scoring entirely.",

@@ -238,6 +238,7 @@ photo-ocr/
 │  Home PC                                                        │
 │                                                                 │
 │  photo-ocr webapp (FastAPI on :8444)                            │
+│   ├── /api/extract                   single-shot: images→text   │
 │   ├── /api/sessions                  create session             │
 │   ├── /api/sessions/{id}/photos      append 1..N photos         │
 │   ├── /api/sessions/{id}/extract     start OCR job              │
@@ -284,6 +285,7 @@ Created on first **💾 Save defaults** tap. Schema lives in
 | `max_photos_per_session` | `50` | Hard cap on photos per take. |
 | `max_photo_dimension_px` | `2048` | Long-edge resize before sending to the hub. |
 | `extract_chunk_size` | `4` | Photos per hub request. Chunks overlap by one photo when chunking is needed. |
+| `single_shot_max_photos` | `8` | Max images the synchronous `POST /api/extract` consumable endpoint accepts (see [Consumable API](#consumable-api-vendor-the-ocr-into-other-apps)). Bigger takes use the async session flow. |
 | `search_enabled` | `true` | Full-text search over the session archive (SQLite FTS5). `false` hides the search box and writes no index. |
 | `quality_gate_enabled` | `true` | On-device pre-flight image quality gate. `false` skips client-side blur/glare/exposure scoring entirely. |
 | `auth_token` | `""` | Empty = auth gate **off**. Set via `scripts/gen_token.py`. |
@@ -384,6 +386,21 @@ pwsh -File scripts/verify-before-ship.ps1
 ```
 
 Exits non-zero on the first failure with the output left visible; prints total wall time and `Ready to ship` when green. Re-runnable with no manual cleanup. Any change under `app/webapp/` must pass it before being declared done.
+
+---
+
+## Consumable API: vendor the OCR into other apps
+
+photo-ocr is the canonical local **image→text** service in the fleet — the pixel counterpart to `voice-transcriber` (audio→text) and `local-llm-hub` (the LLM plane). Any app on the same PC can hand it images and get clean text back over loopback, no auth, instead of re-implementing the capture → chunk → vision-hub → merge stack.
+
+The simplest path is one call:
+
+```bash
+curl -sk -X POST "https://127.0.0.1:8444/api/extract?model=gemini_flash" \
+  -F files=@screenshot.png | jq -r .text
+```
+
+Full contract — single-shot **and** the async progress-polling flow, base-URL/TLS/auth, error table, examples, and the stability changelog — is in **[`docs/consuming-the-session-api.md`](docs/consuming-the-session-api.md)**. First consumer: app-launcher's Coding-terminal "paste screenshot" button (`ferraroroberto/app-launcher#171`).
 
 ---
 

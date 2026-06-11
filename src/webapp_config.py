@@ -34,6 +34,11 @@ DEFAULT_RETENTION_DAYS = 30
 DEFAULT_MAX_PHOTOS = 50
 DEFAULT_MAX_DIM_PX = 2048
 DEFAULT_EXTRACT_CHUNK_SIZE = 4
+# Cap on photos accepted by the synchronous single-shot POST /api/extract
+# endpoint. A screenshot is 1–2 images; keep this small so a one-call
+# consumer can't block on a 50-photo hub round-trip. Larger takes use the
+# async create → photos → extract → poll session flow instead.
+DEFAULT_SINGLE_SHOT_MAX_PHOTOS = 8
 DEFAULT_SEARCH_ENABLED = True
 DEFAULT_QUALITY_GATE_ENABLED = True
 
@@ -74,6 +79,9 @@ class WebappConfig:
     max_photos_per_session: int = DEFAULT_MAX_PHOTOS
     max_photo_dimension_px: int = DEFAULT_MAX_DIM_PX
     extract_chunk_size: int = DEFAULT_EXTRACT_CHUNK_SIZE
+    # Max photos a single synchronous /api/extract call accepts (see
+    # DEFAULT_SINGLE_SHOT_MAX_PHOTOS). Bigger takes use the async flow.
+    single_shot_max_photos: int = DEFAULT_SINGLE_SHOT_MAX_PHOTOS
     # Feature flag: full-text search over the session archive (FTS5).
     # Off → no index file, /api/search short-circuits, search UI hides.
     search_enabled: bool = DEFAULT_SEARCH_ENABLED
@@ -137,6 +145,9 @@ def load_webapp_config(path: Optional[Path] = None) -> WebappConfig:
         extract_chunk_size=int(
             raw.get("extract_chunk_size", DEFAULT_EXTRACT_CHUNK_SIZE)
         ),
+        single_shot_max_photos=int(
+            raw.get("single_shot_max_photos", DEFAULT_SINGLE_SHOT_MAX_PHOTOS)
+        ),
         search_enabled=bool(
             raw.get("search_enabled", DEFAULT_SEARCH_ENABLED)
         ),
@@ -166,6 +177,7 @@ def save_webapp_config(cfg: WebappConfig, path: Optional[Path] = None) -> Path:
         "max_photos_per_session": cfg.max_photos_per_session,
         "max_photo_dimension_px": cfg.max_photo_dimension_px,
         "extract_chunk_size": cfg.extract_chunk_size,
+        "single_shot_max_photos": cfg.single_shot_max_photos,
         "search_enabled": cfg.search_enabled,
         "quality_gate_enabled": cfg.quality_gate_enabled,
         "auth_token": cfg.auth_token,
@@ -216,4 +228,11 @@ def _validate(cfg: WebappConfig) -> None:
     if cfg.extract_chunk_size < 1 or cfg.extract_chunk_size > cfg.max_photos_per_session:
         raise ValueError(
             "extract_chunk_size must be between 1 and max_photos_per_session"
+        )
+    if (
+        cfg.single_shot_max_photos < 1
+        or cfg.single_shot_max_photos > cfg.max_photos_per_session
+    ):
+        raise ValueError(
+            "single_shot_max_photos must be between 1 and max_photos_per_session"
         )
