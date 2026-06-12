@@ -104,6 +104,58 @@ def test_delete_session_removes_row(index: ArchiveIndex) -> None:
     assert index.search("findme") == []
 
 
+def test_source_is_returned_in_results(index: ArchiveIndex) -> None:
+    index.index_session(
+        "s1", "2026-05-01T10:00:00", "bakery receipt", source="app-launcher"
+    )
+    results = index.search("bakery")
+    assert len(results) == 1
+    assert results[0]["source"] == "app-launcher"
+
+
+def test_missing_source_returns_none(index: ArchiveIndex) -> None:
+    index.index_session("s1", "2026-05-01T10:00:00", "no source here")
+    assert index.search("source")[0]["source"] is None
+
+
+def test_source_is_searchable(index: ArchiveIndex) -> None:
+    """The indexed source column lets 'find the app-launcher OCRs' work."""
+    index.index_session(
+        "s1", "2026-05-01T10:00:00", "first take", source="app-launcher"
+    )
+    index.index_session("s2", "2026-05-01T10:01:00", "second take", source="webapp")
+    results = index.search("app-launcher")
+    assert [r["session_id"] for r in results] == ["s1"]
+
+
+def test_outdated_schema_is_migrated(tmp_path: Path) -> None:
+    """An index.sqlite built before the source column is rebuilt, not
+    left broken — reconcile restores rows from disk."""
+    import sqlite3
+
+    db = tmp_path / "index.sqlite"
+    conn = sqlite3.connect(str(db))
+    conn.execute(
+        "CREATE VIRTUAL TABLE sessions USING fts5("
+        " session_id UNINDEXED, created_at UNINDEXED, model UNINDEXED, text)"
+    )
+    conn.execute(
+        "INSERT INTO sessions (session_id, created_at, model, text)"
+        " VALUES ('old', '2026-01-01T00:00:00', 'm', 'legacy row')"
+    )
+    conn.commit()
+    conn.close()
+
+    idx = ArchiveIndex(db)
+    # First write provisions the connection → detects the missing column
+    # → drops + recreates with the new schema.
+    idx.index_session(
+        "s1", "2026-05-01T10:00:00", "fresh row", source="app-launcher"
+    )
+    results = idx.search("fresh")
+    assert len(results) == 1 and results[0]["source"] == "app-launcher"
+
+
 def test_corrupt_index_file_is_rebuilt(tmp_path: Path) -> None:
     db = tmp_path / "index.sqlite"
     db.write_bytes(b"this is not a sqlite database at all")
@@ -170,6 +222,22 @@ def test_reconcile_prunes_session_gone_from_disk(tmp_path: Path) -> None:
     shutil.rmtree(session.folder)
     archive.reconcile_index()
     assert archive.search("findme") == []
+
+
+def test_reconcile_carries_source(tmp_path: Path) -> None:
+    archive = SessionArchive(tmp_path / "archive")
+    session = archive.new_session(source="app-launcher")
+    session.write_extracted(
+        "invoice from acme corp",
+        model="gemini_flash",
+        request_payload={},
+        response_payload={},
+        prompt_id="verbatim-merge",
+    )
+    session.write_meta()
+    assert archive.reconcile_index() == 1
+    results = archive.search("acme")
+    assert len(results) == 1 and results[0]["source"] == "app-launcher"
 
 
 def test_archive_index_session_skips_incognito(tmp_path: Path) -> None:

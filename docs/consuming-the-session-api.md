@@ -69,7 +69,7 @@ Photos are persisted to disk (`archive/YYYY/MM/DD/HH-MM-SS-<id>/NN.jpg`) the mom
 One call: create a session, ingest the images, run extraction to completion server-side, return the text. **Multipart** form upload — field name `files` (repeatable for multiple images):
 
 ```
-POST /api/extract?model=gemini_flash&prompt_id=verbatim-merge&incognito=false
+POST /api/extract?model=gemini_flash&prompt_id=verbatim-merge&incognito=false&source=app-launcher
 Content-Type: multipart/form-data
   files=<screenshot.jpg>
   files=<screenshot2.jpg>   # optional, 1..N
@@ -80,6 +80,7 @@ Query params, all optional:
 - `model` — a vision alias on the hub (`gemini_flash` default, `gemini_pro`, `gemini_lite`, `claude_haiku`, `claude_sonnet`, `claude_opus`). Unknown model → `400`.
 - `prompt_id` — one of the entries in `config/ocr_prompts.json` (`verbatim-merge` default, `structured-markdown`, `plain-stripped`, `code-fenced`).
 - `incognito` — `true` keeps the take out of History; pair with `DELETE /api/sessions/{id}` if you also want it off disk. Default `false` (the take stays in History, recoverable, like a PWA session).
+- `source` — a short label identifying who triggered this take, recorded in History so the entry is attributable. Defaults to `"api"`; a consumer should pass its own name (e.g. `app-launcher`). Surfaces in `GET /api/sessions`, the History UI badge, and full-text search (`GET /api/search?q=app-launcher`). See [History as a single source of truth](#history-as-a-single-source-of-truth).
 
 Response:
 
@@ -91,7 +92,8 @@ Response:
   "prompt_id": "verbatim-merge",
   "chars": 1234,
   "duration_s": 3.7,
-  "incognito": false
+  "incognito": false,
+  "source": "app-launcher"
 }
 ```
 
@@ -101,7 +103,7 @@ Empty `text` is a **valid 200** — the prompt asks the model to emit nothing wh
 
 ### `POST /api/sessions` — create (async flow)
 
-Optional JSON body `{ "incognito": false }`. Response: `{ session_id, folder, created_at, incognito }`. `session_id` is the handle for every subsequent call.
+Optional JSON body `{ "incognito": false, "source": "app-launcher" }`. Response: `{ session_id, folder, created_at, incognito, source }`. `session_id` is the handle for every subsequent call. `source` defaults to `"webapp"` here (the PWA is this endpoint's dominant caller) — an async-flow consumer should pass its own label so the take is attributable, exactly as single-shot callers do.
 
 ### `POST /api/sessions/{id}/photos` — append photos
 
@@ -133,7 +135,7 @@ Optional JSON body `{ "model": "...", "prompt_id": "..." }`. Starts a **backgrou
 
 ### Reading back: list, delete
 
-- `GET /api/sessions?limit=10&offset=0` → `{ sessions: [...], total, offset, limit }` (per-session metadata + previews; incognito sessions are excluded).
+- `GET /api/sessions?limit=10&offset=0` → `{ sessions: [...], total, offset, limit }` (per-session metadata + previews; each summary carries its `source`; incognito sessions are excluded).
 - `DELETE /api/sessions/{id}` → `{ removed: "<id>" }` (`404` if unknown).
 - `DELETE /api/sessions` → `{ removed: <count> }`.
 
@@ -146,6 +148,15 @@ Optional JSON body `{ "model": "...", "prompt_id": "..." }`. Starts a **backgrou
 Exempt from auth. Use `git_sha` to pin the build you integration-tested against. `GET /healthz` → `{ "ok": true, "service": "photo-ocr-webapp" }` for a plain liveness probe.
 
 ---
+
+## History as a single source of truth
+
+photo-ocr is the fleet's canonical OCR service, so every extraction — including ones triggered by *other apps* through this API — lands in History and stays recoverable on disk (`archive/YYYY/MM/DD/…`), exactly like a take made in the PWA. That makes History a cross-fleet audit trail: you never lose the context of an extraction just because it was kicked off from app-launcher's "paste screenshot" button rather than a manual capture.
+
+Two things make that trail usable:
+
+- **Attribution.** Each session records a `source` label. Pass it on `POST /api/extract?source=…` (single-shot) or in the `POST /api/sessions` body (async flow). It surfaces in `GET /api/sessions`, as a badge in the History UI, and in full-text search — so `GET /api/search?q=app-launcher` finds every take a given consumer triggered. Single-shot defaults to `"api"`, the PWA to `"webapp"`; always pass your own label so the entry points back at you.
+- **Completeness.** Omitting `incognito` (the default) is what keeps History complete. `incognito=true` is still honored — it opts a take *out* of History and search — but an externally-triggered take you can't see defeats the single-source-of-truth guarantee, so use it only for genuinely throwaway extractions.
 
 ## Image format
 
@@ -230,4 +241,5 @@ The **async** `/extract` path never returns a hub error as a non-200 — it acce
 
 Breaking changes to the contract are recorded here. Pin a build via `GET /api/version` (`git_sha`) if you need certainty.
 
+- **2026-06-12** — Added **source attribution** (issue #39, additive — not breaking). `POST /api/extract` and `POST /api/sessions` accept an optional `source` label (single-shot default `"api"`, PWA default `"webapp"`); it is recorded per session and surfaces in `GET /api/sessions`, the `source` field of both create responses, the History UI, and full-text search. Documents History as the fleet's single-source-of-truth audit trail for all OCR. See [History as a single source of truth](#history-as-a-single-source-of-truth).
 - **2026-06-11** — Initial publication of the OCR API as a supported consumable surface, plus the new single-shot `POST /api/extract` endpoint (issue #37). The `/api/sessions*` routes already worked over loopback; this documents them as a contract and adds the one-call path for downstream consumers (first consumer: app-launcher#171).

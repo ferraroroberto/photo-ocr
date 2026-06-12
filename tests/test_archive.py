@@ -65,6 +65,24 @@ def test_incognito_hidden_from_list(tmp_path: Path) -> None:
     assert all(not s.meta.incognito for s in listed)
 
 
+def test_source_recorded_and_survives_hydrate(tmp_path: Path) -> None:
+    arc = SessionArchive(root=tmp_path)
+    s = arc.new_session(source="app-launcher")
+    assert s.meta.source == "app-launcher"
+    # Re-hydrate from meta.json on disk.
+    reloaded = arc.get(s.session_id)
+    assert reloaded is not None
+    assert reloaded.meta.source == "app-launcher"
+
+
+def test_source_defaults_to_none(tmp_path: Path) -> None:
+    arc = SessionArchive(root=tmp_path)
+    s = arc.new_session()
+    assert s.meta.source is None
+    reloaded = arc.get(s.session_id)
+    assert reloaded is not None and reloaded.meta.source is None
+
+
 def test_pagination(tmp_path: Path) -> None:
     arc = SessionArchive(root=tmp_path)
     for i in range(5):

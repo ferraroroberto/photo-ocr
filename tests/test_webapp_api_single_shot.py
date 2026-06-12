@@ -94,6 +94,42 @@ def test_single_shot_hub_error_returns_502(client: TestClient, jpeg_bytes: bytes
     assert "hub down" in r.json()["detail"]
 
 
+def test_single_shot_source_defaults_to_api(client: TestClient, jpeg_bytes: bytes) -> None:
+    with patch.object(
+        client.app.state.ocr_client, "extract", return_value=_ok_result()
+    ):
+        r = client.post(
+            "/api/extract",
+            params={"model": "gemini_flash"},
+            files=[("files", ("a.jpg", jpeg_bytes, "image/jpeg"))],
+        )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["source"] == "api"
+    # Attributable in the History listing too.
+    listed = client.get("/api/sessions").json()["sessions"]
+    match = next(s for s in listed if s["session_id"] == body["session_id"])
+    assert match["source"] == "api"
+
+
+def test_single_shot_source_label_recorded_and_searchable(
+    client: TestClient, jpeg_bytes: bytes
+) -> None:
+    with patch.object(
+        client.app.state.ocr_client, "extract", return_value=_ok_result()
+    ):
+        r = client.post(
+            "/api/extract",
+            params={"model": "gemini_flash", "source": "app-launcher"},
+            files=[("files", ("a.jpg", jpeg_bytes, "image/jpeg"))],
+        )
+    assert r.status_code == 200
+    assert r.json()["source"] == "app-launcher"
+    # "find the app-launcher OCRs" works via full-text search.
+    results = client.get("/api/search", params={"q": "app-launcher"}).json()["results"]
+    assert any(hit["source"] == "app-launcher" for hit in results)
+
+
 def test_single_shot_incognito_excluded_from_history(client: TestClient, jpeg_bytes: bytes) -> None:
     with patch.object(
         client.app.state.ocr_client, "extract", return_value=_ok_result()

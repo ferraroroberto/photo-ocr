@@ -56,3 +56,10 @@ def test_extract_uses_timeout_and_status_polling(js_source: str) -> None:
     assert "/extract/status" in js_source
     assert "Chunk " in js_source
     assert "Merging" in js_source
+
+
+def test_history_renders_source_badge(js_source: str) -> None:
+    # Externally-sourced takes (app-launcher, api, …) get a History badge;
+    # the unmarked default is the manual PWA take ("webapp").
+    assert "source-badge" in js_source
+    assert "'webapp'" in js_source

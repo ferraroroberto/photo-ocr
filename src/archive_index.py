@@ -42,9 +42,18 @@ CREATE VIRTUAL TABLE IF NOT EXISTS sessions USING fts5(
     created_at UNINDEXED,
     model UNINDEXED,
     text,
+    source,
     tokenize = 'porter unicode61 remove_diacritics 1'
 )
 """
+
+# Columns the live schema must carry. An ``index.sqlite`` created by an
+# older build lacks ``source``; we detect that mismatch and rebuild the
+# table from disk (``extracted.txt`` is canonical), so the migration is
+# free — see :meth:`ArchiveIndex._provision`.
+_EXPECTED_COLUMNS = frozenset(
+    {"session_id", "created_at", "model", "text", "source"}
+)
 
 
 def _phrase_query(q: str) -> str:
@@ -69,6 +78,23 @@ class ArchiveIndex:
 
     # ------------------------------------------------------ connection
 
+    @staticmethod
+    def _provision(conn: sqlite3.Connection) -> None:
+        """Create the FTS5 table, migrating an outdated schema in place.
+
+        ``CREATE … IF NOT EXISTS`` won't alter a table built by an older
+        build (which lacks the ``source`` column), so we compare the live
+        columns and drop+recreate on a mismatch. Safe because the index
+        is rebuilt from disk by :meth:`reconcile` on the next boot.
+        """
+        conn.execute(_CREATE_TABLE_SQL)
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(sessions)")}
+        if not _EXPECTED_COLUMNS.issubset(cols):
+            logger.info("🔎 Search index schema outdated; rebuilding from disk")
+            conn.execute("DROP TABLE sessions")
+            conn.execute(_CREATE_TABLE_SQL)
+        conn.commit()
+
     def _connect(self) -> sqlite3.Connection:
         """Return the live connection, opening + provisioning it lazily.
 
@@ -81,8 +107,7 @@ class ArchiveIndex:
         try:
             conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
             conn.row_factory = sqlite3.Row
-            conn.execute(_CREATE_TABLE_SQL)
-            conn.commit()
+            self._provision(conn)
         except sqlite3.DatabaseError as exc:
             logger.warning(
                 f"⚠️  Search index {self.db_path} unusable ({exc}); "
@@ -100,8 +125,7 @@ class ArchiveIndex:
                 pass
             conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
             conn.row_factory = sqlite3.Row
-            conn.execute(_CREATE_TABLE_SQL)
-            conn.commit()
+            self._provision(conn)
         self._conn = conn
         return conn
 
@@ -134,11 +158,14 @@ class ArchiveIndex:
         created_at: str,
         text: str,
         model: Optional[str] = None,
+        source: Optional[str] = None,
     ) -> None:
         """Upsert one session row, keyed on ``session_id``.
 
         Empty ``text`` is skipped — a failed extract leaves an empty
-        ``extracted.txt`` and there is nothing to search.
+        ``extracted.txt`` and there is nothing to search. ``source`` is an
+        indexed column, so ``MATCH 'app-launcher'`` finds the takes a
+        given consumer triggered.
         """
         if not session_id or not (text or "").strip():
             return
@@ -150,9 +177,9 @@ class ArchiveIndex:
                 )
                 conn.execute(
                     "INSERT INTO sessions"
-                    " (session_id, created_at, model, text)"
-                    " VALUES (?, ?, ?, ?)",
-                    (session_id, created_at or "", model or "", text),
+                    " (session_id, created_at, model, text, source)"
+                    " VALUES (?, ?, ?, ?, ?)",
+                    (session_id, created_at or "", model or "", text, source or ""),
                 )
                 conn.commit()
             except sqlite3.DatabaseError as exc:
@@ -171,7 +198,7 @@ class ArchiveIndex:
                 return []
             try:
                 rows = conn.execute(
-                    "SELECT session_id, created_at, model,"
+                    "SELECT session_id, created_at, model, source,"
                     f" snippet(sessions, {_TEXT_COLUMN_INDEX},"
                     " '[', ']', '…', 12) AS snippet"
                     " FROM sessions WHERE sessions MATCH ?"
@@ -186,6 +213,7 @@ class ArchiveIndex:
                 "session_id": r["session_id"],
                 "created_at": r["created_at"],
                 "model": r["model"] or None,
+                "source": r["source"] or None,
                 "snippet": r["snippet"] or "",
             }
             for r in rows
@@ -228,8 +256,8 @@ class ArchiveIndex:
         """Make the index match what is on disk.
 
         ``sessions`` is a list of ``{session_id, created_at, model,
-        text}`` dicts gathered by the caller from ``extracted.txt`` +
-        ``meta.json``. Sessions missing from the index are inserted;
+        source, text}`` dicts gathered by the caller from ``extracted.txt``
+        + ``meta.json``. Sessions missing from the index are inserted;
         index rows whose session no longer exists on disk are pruned.
         Idempotent. Returns the number of rows inserted.
         """
@@ -252,6 +280,7 @@ class ArchiveIndex:
                 created_at=str(s.get("created_at") or ""),
                 text=text,
                 model=s.get("model"),
+                source=s.get("source"),
             )
             inserted += 1
         if inserted:

@@ -53,6 +53,7 @@ def _session_summary(s: Session) -> Dict[str, Any]:
         "created_at": s.meta.created_at,
         "photo_count": len(s.meta.photos),
         "model": s.meta.model,
+        "source": s.meta.source,
         "prompt_id": s.meta.prompt_id,
         "extract_succeeded": s.meta.extract_succeeded,
         "extract_duration_s": s.meta.extract_duration_s,
@@ -85,6 +86,17 @@ def _resolve_model(model: Any, cfg: WebappConfig) -> str:
             ),
         )
     return candidate
+
+
+def _resolve_source(source: Any, default: str) -> str:
+    """Normalise a caller-supplied ``source`` label.
+
+    Trims whitespace, caps length so a consumer can't write an essay into
+    History meta, and falls back to ``default`` when unset/blank.
+    """
+    if isinstance(source, str) and source.strip():
+        return source.strip()[:64]
+    return default
 
 
 def _chunk_count(photo_count: int, chunk_size: int) -> int:
@@ -343,12 +355,16 @@ async def create_session(request: Request) -> Dict[str, Any]:
     body = await maybe_json(request)
     archive: SessionArchive = request.app.state.archive
     incognito = bool(body.get("incognito", False))
-    session = archive.new_session(incognito=incognito)
+    # The PWA is the dominant caller of this endpoint, so default to
+    # "webapp"; async-flow consumers can self-identify with their own label.
+    source = _resolve_source(body.get("source"), default="webapp")
+    session = archive.new_session(incognito=incognito, source=source)
     return {
         "session_id": session.session_id,
         "folder": str(session.folder),
         "created_at": session.meta.created_at,
         "incognito": incognito,
+        "source": source,
     }
 
 
@@ -484,8 +500,10 @@ async def extract_single_shot(
     ``docs/consuming-the-session-api.md``.
 
     The take is kept in History (recoverable on disk) exactly like one
-    made in the PWA, unless ``incognito=true``. Query params, all
-    optional: ``model``, ``prompt_id``, ``incognito``.
+    made in the PWA, unless ``incognito=true``, and is attributed to its
+    ``source`` so History stays a cross-fleet audit trail. Query params,
+    all optional: ``model``, ``prompt_id``, ``incognito``, ``source``
+    (defaults to ``"api"``; a consumer should pass e.g. ``"app-launcher"``).
 
     Errors: ``400`` empty upload, ``413`` more than ``single_shot_max_photos``
     images (use the async flow for big takes), ``400`` unknown model,
@@ -510,8 +528,11 @@ async def extract_single_shot(
     model = _resolve_model(params.get("model"), cfg)
     prompt = _resolve_prompt(params.get("prompt_id"), cfg)
     incognito = params.get("incognito") in ("1", "true", "True")
+    # Externally-triggered takes default to "api"; a consumer should pass
+    # its own label (e.g. "app-launcher") so History stays attributable.
+    source = _resolve_source(params.get("source"), default="api")
 
-    session = archive.new_session(incognito=incognito)
+    session = archive.new_session(incognito=incognito, source=source)
     await _persist_uploads(session, files, cfg)
     session.write_meta()
 
@@ -545,6 +566,7 @@ async def extract_single_shot(
         "chars": final.meta.extracted_chars,
         "duration_s": final.meta.extract_duration_s,
         "incognito": incognito,
+        "source": source,
     }
 
 

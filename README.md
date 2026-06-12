@@ -400,7 +400,9 @@ curl -sk -X POST "https://127.0.0.1:8444/api/extract?model=gemini_flash" \
   -F files=@screenshot.png | jq -r .text
 ```
 
-Full contract — single-shot **and** the async progress-polling flow, base-URL/TLS/auth, error table, examples, and the stability changelog — is in **[`docs/consuming-the-session-api.md`](docs/consuming-the-session-api.md)**. First consumer: app-launcher's Coding-terminal "paste screenshot" button (`ferraroroberto/app-launcher#171`).
+Every externally-triggered extraction lands in History attributed to its caller (pass `?source=app-launcher`), so History stays the fleet's single source of truth for all OCR — searchable and recoverable, not just PWA takes.
+
+Full contract — single-shot **and** the async progress-polling flow, base-URL/TLS/auth, source attribution, error table, examples, and the stability changelog — is in **[`docs/consuming-the-session-api.md`](docs/consuming-the-session-api.md)**. First consumer: app-launcher's Coding-terminal "paste screenshot" button (`ferraroroberto/app-launcher#171`).
 
 ---
 
