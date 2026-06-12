@@ -484,6 +484,17 @@ hr {
   flex-wrap: wrap;
   gap: 6px;
 }
+.history-item .source-badge {
+  display: inline-block;
+  background: var(--bg-elev, #161616);
+  color: var(--fg);
+  border: 1px solid #444;
+  border-radius: 999px;
+  padding: 0 7px;
+  font-size: 11px;
+  line-height: 16px;
+  vertical-align: middle;
+}
 .history-item .preview {
   font-size: 13px;
   color: var(--fg);

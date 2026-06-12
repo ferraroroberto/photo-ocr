@@ -25,6 +25,23 @@ def test_create_session(client: TestClient) -> None:
     body = r.json()
     assert "session_id" in body
     assert body["incognito"] is False
+    # The PWA is this endpoint's dominant caller → default source.
+    assert body["source"] == "webapp"
+
+
+def test_create_session_custom_source(client: TestClient) -> None:
+    r = client.post("/api/sessions", json={"source": "app-launcher"})
+    assert r.status_code == 200
+    assert r.json()["source"] == "app-launcher"
+
+
+def test_session_summary_surfaces_source(client: TestClient) -> None:
+    sid = client.post(
+        "/api/sessions", json={"source": "app-launcher"}
+    ).json()["session_id"]
+    listed = client.get("/api/sessions").json()["sessions"]
+    match = next(s for s in listed if s["session_id"] == sid)
+    assert match["source"] == "app-launcher"
 
 
 def test_upload_photos(client: TestClient, jpeg_bytes: bytes) -> None:

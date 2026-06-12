@@ -48,7 +48,7 @@ function highlightSnippet(snip) {
 // Shared row component for both the chronological history list and the
 // search-result list — one DOM shape, two data sources. The
 // Copy/Redo/Delete actions only need a { session_id } reference.
-function makeSessionRow(sessionId, leftText, rightText, previewText, isSnippet) {
+function makeSessionRow(sessionId, leftText, rightText, previewText, isSnippet, source) {
   const li = document.createElement('li');
   li.className = 'history-item';
 
@@ -56,6 +56,16 @@ function makeSessionRow(sessionId, leftText, rightText, previewText, isSnippet) 
   meta.className = 'meta';
   const left = document.createElement('span');
   left.textContent = leftText;
+  // Flag externally-sourced takes (app-launcher, api, …) so History is
+  // an attributable cross-fleet audit trail. Manual PWA takes ("webapp")
+  // are the unmarked default — no badge keeps the common case clean.
+  if (source && source !== 'webapp') {
+    const badge = document.createElement('span');
+    badge.className = 'source-badge';
+    badge.textContent = source;
+    left.appendChild(document.createTextNode(' '));
+    left.appendChild(badge);
+  }
   const right = document.createElement('span');
   right.textContent = rightText;
   meta.appendChild(left);
@@ -119,7 +129,8 @@ function renderHistory() {
             ? ' · ' + s.extract_duration_s.toFixed(1) + 's'
             : ''),
         s.extracted_preview || (s.error ? '⚠️ ' + s.error : '(no text)'),
-        false
+        false,
+        s.source
       )
     );
   });
@@ -145,7 +156,8 @@ function renderSearchResults() {
           formatDate(r.created_at),
           r.model || '—',
           r.snippet || '(match)',
-          true
+          true,
+          r.source
         )
       );
     });

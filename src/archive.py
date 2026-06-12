@@ -66,6 +66,7 @@ class SessionMeta:
     extracted_chars: int = 0
     error: Optional[str] = None
     incognito: bool = False  # filtered out of list_sessions when True
+    source: Optional[str] = None  # who triggered this take: "webapp", "api", "app-launcher", …
     extra: dict = field(default_factory=dict)
 
 
@@ -248,6 +249,7 @@ class SessionArchive:
             created_at=session.meta.created_at,
             text=session.read_extracted() or "",
             model=session.meta.model,
+            source=session.meta.source,
         )
 
     def search(self, q: str, limit: int = 20) -> List[Dict[str, Any]]:
@@ -272,6 +274,7 @@ class SessionArchive:
                     "session_id": s.session_id,
                     "created_at": s.meta.created_at,
                     "model": s.meta.model,
+                    "source": s.meta.source,
                     "text": text,
                 }
             )
@@ -283,6 +286,7 @@ class SessionArchive:
         self,
         now: Optional[datetime] = None,
         incognito: bool = False,
+        source: Optional[str] = None,
     ) -> Session:
         ts = now or datetime.now()
         session_id = ts.strftime("%H-%M-%S-") + uuid.uuid4().hex[:8]
@@ -299,6 +303,7 @@ class SessionArchive:
             session_id=session_id,
             created_at=ts.isoformat(timespec="seconds"),
             incognito=incognito,
+            source=source,
         )
         session = Session(session_id=session_id, folder=folder, meta=meta)
         session.write_meta()
@@ -460,6 +465,7 @@ class SessionArchive:
                     extracted_chars=int(raw.get("extracted_chars", 0)),
                     error=raw.get("error"),
                     incognito=bool(raw.get("incognito", False)),
+                    source=raw.get("source"),
                     extra=dict(raw.get("extra") or {}),
                 )
             except (OSError, json.JSONDecodeError, TypeError, ValueError) as exc:
