@@ -7,10 +7,7 @@ import { state, els, toast, HISTORY_PAGE_SIZE } from './state.js';
 import { jsonApi } from './api.js';
 import { renderExtracted } from './extract.js';
 import { renderThumbnails, setStatus } from './capture.js';
-
-function sleep(ms) {
-  return new Promise(function (resolve) { setTimeout(resolve, ms); });
-}
+import { pollUntilDone, extractStatusLine } from './poll.js';
 
 export async function loadHistory(offset) {
   state.historyOffset = offset || 0;
@@ -259,7 +256,7 @@ async function redoHistoryEntry(s) {
   setStatus('Queued redo…');
   let finalStatusText = null;
   try {
-    let body = await jsonApi(
+    const body = await jsonApi(
       '/api/sessions/' + encodeURIComponent(s.session_id) + '/redo',
       {
         method: 'POST',
@@ -268,23 +265,13 @@ async function redoHistoryEntry(s) {
         timeoutMs: 15000,
       }
     );
-    while (body.phase !== 'succeeded') {
-      if (body.phase === 'failed') throw new Error(body.error || 'redo failed');
-      if (body.phase === 'running') {
-        const total = body.chunks_total || 0;
-        const current = total ? Math.min((body.chunks_done || 0) + 1, total) : 1;
-        setStatus('Redo chunk ' + current + ' of ' + total + '…');
-      } else if (body.phase === 'merging') {
-        setStatus('Merging redo output…');
-      }
-      await sleep(1000);
-      body = await jsonApi(
-        '/api/sessions/' + encodeURIComponent(s.session_id) + '/extract/status',
-        { timeoutMs: 15000 }
-      );
-    }
+    const finalBody = body.phase === 'succeeded'
+      ? body
+      : await pollUntilDone(s.session_id, function (b) {
+          setStatus(extractStatusLine(b, 'Redo '));
+        });
     state.sessionId = s.session_id;
-    state.extracted = body.extracted || '';
+    state.extracted = finalBody.extracted || '';
     renderExtracted();
     refreshHistoryView();
     setStatus('Redo done — tap Copy');

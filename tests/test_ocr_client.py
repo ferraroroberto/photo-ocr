@@ -9,7 +9,7 @@ import pytest
 import requests
 
 from src.ocr_client import OcrClient, OcrError, _extract_text
-from src.ocr_client import _chunk_paths, _join_chunk_texts
+from src.ocr_client import _chunk_paths, _join_chunk_texts, chunk_count
 
 
 def _mock_response(json_body: dict, status_code: int = 200) -> MagicMock:
@@ -64,6 +64,19 @@ def test_chunk_paths_uses_one_photo_overlap() -> None:
         photos[12:14],
     ]
     assert len(_chunk_paths(photos, chunk_size=4)) == 17
+
+
+def test_chunk_count_matches_chunk_paths() -> None:
+    # The progress-bar prediction must equal the real number of hub calls
+    # for every photo count / chunk size — they share DEFAULT_CHUNK_OVERLAP
+    # so they can never silently desync.
+    photos = [Path(f"{i:02d}.jpg") for i in range(1, 51)]
+    assert chunk_count(0, 4) == 0
+    for chunk_size in (1, 2, 3, 4, 7):
+        for n in range(1, len(photos) + 1):
+            assert chunk_count(n, chunk_size) == len(
+                _chunk_paths(photos[:n], chunk_size=chunk_size)
+            ), f"desync at n={n} chunk_size={chunk_size}"
 
 
 def test_extract_chunks_large_take_and_dedups_seam(
