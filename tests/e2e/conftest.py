@@ -55,6 +55,16 @@ _IPHONE_DEVICE = "iPhone 14"
 
 _AUTOBOOT_ENV = "PHOTO_OCR_E2E_AUTOBOOT"
 
+# Bounded default Playwright timeout (issue #45).
+# Playwright's built-in default is 30 s — an implicit auto-wait that times
+# out with no locator name, stacking toward a multi-minute black-box CI
+# hang.  Capping it here means a stuck .click() / goto() / wait_for_*()
+# with no explicit timeout= fails at ~15 s and names the locator in the
+# error, making the hang self-diagnosing.  Set E2E_DEFAULT_TIMEOUT_MS to
+# override (e.g. 20000 for slower CI runners).  expect() assertions keep
+# their own 5 s default; per-call timeout= still overrides this cap.
+_DEFAULT_TIMEOUT_MS = int(os.environ.get("E2E_DEFAULT_TIMEOUT_MS", "15000"))
+
 
 def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addoption(
@@ -210,6 +220,19 @@ def _skip_desktop_only_on_webkit(
         "desktop_only"
     ):
         pytest.skip("desktop_only — not run on the WebKit/iPhone projection")
+
+
+@pytest.fixture(autouse=True)
+def _bound_default_timeouts(context: BrowserContext) -> None:
+    """Cap Playwright's implicit action + navigation timeout (issue #45).
+
+    Pages created from this context inherit the cap, so a stuck
+    wait_for_selector / click / goto with no explicit timeout= fails at
+    _DEFAULT_TIMEOUT_MS and names the locator — instead of silently
+    stacking toward Playwright's opaque 30 s default.
+    """
+    context.set_default_timeout(_DEFAULT_TIMEOUT_MS)
+    context.set_default_navigation_timeout(_DEFAULT_TIMEOUT_MS)
 
 
 @pytest.fixture(scope="session")
