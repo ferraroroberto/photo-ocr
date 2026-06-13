@@ -274,6 +274,33 @@ def _chunk_paths(image_paths: List[Path], chunk_size: int) -> List[List[Path]]:
     return chunks
 
 
+def chunk_count(photo_count: int, chunk_size: int) -> int:
+    """Predict how many chunks ``_chunk_paths`` will produce for
+    ``photo_count`` photos at ``chunk_size``.
+
+    Lives next to ``_chunk_paths`` and reuses the same
+    ``DEFAULT_CHUNK_OVERLAP`` constant so the prediction (used by the
+    webapp progress bar) can never silently desync from the actual number
+    of hub calls. Mirrors ``_chunk_paths``' stepping: the first chunk
+    covers ``chunk_size`` photos, each subsequent chunk advances by
+    ``chunk_size - DEFAULT_CHUNK_OVERLAP`` (no overlap when ``chunk_size``
+    is 1, matching ``_chunk_paths``).
+    """
+    if photo_count <= 0:
+        return 0
+    if chunk_size <= 1:
+        return photo_count
+    if photo_count <= chunk_size:
+        return 1
+    step = chunk_size - DEFAULT_CHUNK_OVERLAP
+    count = 1
+    covered = chunk_size
+    while covered < photo_count:
+        count += 1
+        covered += step
+    return count
+
+
 def _join_chunk_texts(texts: List[str]) -> str:
     """Join chunk outputs and remove duplicate lines at adjacent seams."""
     merged = ""

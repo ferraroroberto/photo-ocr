@@ -7,30 +7,21 @@ import { state, els, toast } from './state.js';
 import { jsonApi } from './api.js';
 import { renderThumbnails, setStatus } from './capture.js';
 import { loadHistory } from './sessions.js';
+import { pollUntilDone, extractStatusLine } from './poll.js';
 
 export function renderExtracted() {
   els.extracted.value = state.extracted || '';
   els.copyExtracted.disabled = !state.extracted;
 }
 
-function sleep(ms) {
-  return new Promise(function (resolve) { setTimeout(resolve, ms); });
-}
-
+// Render one poll body. The poll loop (poll.js) filters terminal phases,
+// so during polling only the queued/running/merging branch fires here; the
+// succeeded branch runs once at the end with the final body.
 function renderExtractStatus(body, startedAt) {
-  const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
-  const total = body.chunks_total || 0;
-  const done = body.chunks_done || 0;
-  if (body.phase === 'queued') {
-    setStatus('Queued · waiting to extract ' + total + ' chunk(s)…');
-  } else if (body.phase === 'running') {
-    const current = total ? Math.min(done + 1, total) : 1;
-    setStatus('Chunk ' + current + ' of ' + total + '…');
-  } else if (body.phase === 'merging') {
-    setStatus('Merging chunk output…');
-  } else if (body.phase === 'succeeded') {
+  if (body.phase === 'succeeded') {
     state.extracted = body.extracted || '';
     renderExtracted();
+    const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
     const seconds = body.duration_s ? Number(body.duration_s).toFixed(1) : elapsed;
     if (body.reused) {
       setStatus('Already extracted — showing cached result · ' + seconds + ' s');
@@ -41,18 +32,8 @@ function renderExtractStatus(body, startedAt) {
     }
   } else if (body.phase === 'failed') {
     throw new Error(body.error || 'extract failed');
-  }
-}
-
-async function pollExtractStatus(startedAt) {
-  while (true) {
-    const body = await jsonApi(
-      '/api/sessions/' + encodeURIComponent(state.sessionId) + '/extract/status',
-      { timeoutMs: 15000 }
-    );
-    renderExtractStatus(body, startedAt);
-    if (body.phase === 'succeeded') return body;
-    await sleep(1000);
+  } else {
+    setStatus(extractStatusLine(body, ''));
   }
 }
 
@@ -89,7 +70,10 @@ export async function extract() {
     );
     renderExtractStatus(body, t0);
     if (body.phase !== 'succeeded') {
-      await pollExtractStatus(t0);
+      const finalBody = await pollUntilDone(state.sessionId, function (b) {
+        renderExtractStatus(b, t0);
+      });
+      renderExtractStatus(finalBody, t0);
     }
     finalStatusText = els.captureStatus.textContent;
     loadHistory(0);

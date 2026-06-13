@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse
 from app.webapp.routers._helpers import maybe_json
 from src.archive import PhotoMeta, Session, SessionArchive
 from src.image_utils import ImageValidationError, validate_and_persist
-from src.ocr_client import OcrClient, OcrError
+from src.ocr_client import OcrClient, OcrError, chunk_count
 from src.ocr_prompts import OcrPrompt, get_prompt
 from src.webapp_config import WebappConfig
 
@@ -99,22 +99,6 @@ def _resolve_source(source: Any, default: str) -> str:
     return default
 
 
-def _chunk_count(photo_count: int, chunk_size: int) -> int:
-    if photo_count <= 0:
-        return 0
-    if chunk_size <= 1:
-        return photo_count
-    if photo_count <= chunk_size:
-        return 1
-    count = 1
-    covered = chunk_size
-    step = chunk_size - 1
-    while covered < photo_count:
-        count += 1
-        covered += step
-    return count
-
-
 def _progress_meta(session: Session) -> Dict[str, Any]:
     raw = session.meta.extra.get(_PROGRESS_KEY)
     return dict(raw) if isinstance(raw, dict) else {}
@@ -188,7 +172,7 @@ def _execute_extract_job(
             logger.warning(f"⚠️  Extract job lost unknown session {session_id}")
             return
 
-        total_chunks = _chunk_count(len(session.meta.photos), chunk_size)
+        total_chunks = chunk_count(len(session.meta.photos), chunk_size)
         _set_extract_progress(
             session,
             phase="running",
@@ -305,8 +289,8 @@ async def _start_extract(
         _set_extract_progress(
             session,
             phase="succeeded",
-            chunks_total=_chunk_count(len(session.meta.photos), cfg.extract_chunk_size),
-            chunks_done=_chunk_count(len(session.meta.photos), cfg.extract_chunk_size),
+            chunks_total=chunk_count(len(session.meta.photos), cfg.extract_chunk_size),
+            chunks_done=chunk_count(len(session.meta.photos), cfg.extract_chunk_size),
             model=session.meta.model,
             prompt_id=session.meta.prompt_id,
             error=None,
@@ -320,7 +304,7 @@ async def _start_extract(
 
     model = _resolve_model(body.get("model"), cfg)
     prompt = _resolve_prompt(body.get("prompt_id"), cfg)
-    total_chunks = _chunk_count(len(session.meta.photos), cfg.extract_chunk_size)
+    total_chunks = chunk_count(len(session.meta.photos), cfg.extract_chunk_size)
     _set_extract_progress(
         session,
         phase="queued",
