@@ -73,7 +73,7 @@ if defined WANT_RESTART (
     REM Matching the image path would miss the real webapp; the CommandLine
     REM scope keeps the sweep on THIS repo's children only.
     set "RECLAIM_VENV=%SCRIPT_DIR%.venv"
-    %PS% -NoProfile -NonInteractive -File "%TRAY_PS%" reclaim -VenvDir "%RECLAIM_VENV%" -Ports "8444"
+    %PS% -NoProfile -NonInteractive -File "%TRAY_PS%" reclaim -VenvDir "!RECLAIM_VENV!" -Ports "8444"
     REM Give Windows a moment to release :8444 before rebinding.
     ping 127.0.0.1 -n 3 >nul
 )
