@@ -264,9 +264,24 @@ photo-ocr/
 ```json
 {
   "log_level": "INFO",
-  "default_language_hint": null
+  "default_language_hint": null,
+  "webapp": {
+    "enabled": true,
+    "host": "0.0.0.0",
+    "port": 8444
+  }
 }
 ```
+
+The `webapp` section is optional (all three keys default as shown). **This is the bind config for the recommended tray/manager path** (`tray.bat` → `app/webapp/manager.py`). To change the port the tray listens on, set `webapp.port` here.
+
+| Key | Default | Notes |
+|---|---|---|
+| `log_level` | `INFO` | Python logging level. |
+| `default_language_hint` | `null` | Language hint passed to the OCR prompt (e.g. `"Spanish"`). `null` lets the model auto-detect. |
+| `webapp.enabled` | `true` | Set to `false` to run the tray without starting the webapp. |
+| `webapp.host` | `0.0.0.0` | Bind address used by the tray/manager. Change this to restrict access (e.g. `127.0.0.1`). |
+| `webapp.port` | `8444` | Port used by the tray/manager. |
 
 ### `config/webapp_config.json` (gitignored)
 
@@ -279,8 +294,8 @@ Created on first **💾 Save defaults** tap. Schema lives in
 | `ocr_models_available` | gemini × 3, claude × 3 | Drives the picker. |
 | `ocr_prompt_default` | `verbatim-merge` | One of the entries in `config/ocr_prompts.json`. |
 | `llm_hub_url` | `http://127.0.0.1:8000` | Local-llm-hub address. |
-| `host` | `0.0.0.0` | Bind address for the webapp server. |
-| `port` | `8444` | Webapp HTTPS/HTTP port. |
+| `host` | `0.0.0.0` | Bind address — **`launcher.py webapp` CLI only**. Ignored by the tray; use `config/config.json`'s `webapp.host` for that. |
+| `port` | `8444` | Port — **`launcher.py webapp` CLI only**. Ignored by the tray; use `config/config.json`'s `webapp.port` for that. |
 | `history_retention_days` | `30` | Sessions older than this are pruned on startup. |
 | `max_photos_per_session` | `50` | Hard cap on photos per take. |
 | `max_photo_dimension_px` | `2048` | Long-edge resize before sending to the hub. |
