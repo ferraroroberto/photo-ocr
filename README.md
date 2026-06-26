@@ -183,8 +183,7 @@ photo-ocr/
 │   ├── ocr_client.py            local-llm-hub /v1/messages client
 │   ├── ocr_prompts.py           prompt library loader
 │   ├── archive.py               dated session folders + retention
-│   ├── archive_index.py         SQLite FTS5 full-text search index
-│   └── diagnostics.py
+│   └── archive_index.py         SQLite FTS5 full-text search index
 ├── app/
 │   ├── cli/                     argparse dispatcher
 │   ├── webapp/                  FastAPI app + manager
