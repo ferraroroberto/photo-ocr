@@ -348,9 +348,7 @@ class SessionArchive:
     def delete_session(self, session_id: str) -> bool:
         for folder in self._iter_session_folders():
             if folder.name == session_id:
-                shutil.rmtree(folder, ignore_errors=True)
-                self._prune_empty_date_folders()
-                self.index.delete_session(session_id)
+                self._delete_sessions([folder])
                 return True
         return False
 
@@ -358,37 +356,40 @@ class SessionArchive:
 
     def cleanup_older_than(self, days: int) -> int:
         cutoff = time.time() - days * 86400
-        removed_ids: List[str] = []
-        for folder in list(self._iter_session_folders()):
+        stale: List[Path] = []
+        for folder in self._iter_session_folders():
             try:
                 mtime = folder.stat().st_mtime
             except OSError:
                 continue
             if mtime < cutoff:
-                shutil.rmtree(folder, ignore_errors=True)
-                removed_ids.append(folder.name)
-        if removed_ids:
-            logger.info(
-                f"🧹 Pruned {len(removed_ids)} sessions older than {days} days"
-            )
-        self._prune_empty_date_folders()
-        for sid in removed_ids:
-            self.index.delete_session(sid)
-        return len(removed_ids)
+                stale.append(folder)
+        removed = self._delete_sessions(stale)
+        if removed:
+            logger.info(f"🧹 Pruned {removed} sessions older than {days} days")
+        return removed
 
     def cleanup_all(self) -> int:
-        removed_ids: List[str] = []
-        for folder in list(self._iter_session_folders()):
-            removed_ids.append(folder.name)
-            shutil.rmtree(folder, ignore_errors=True)
-        self._prune_empty_date_folders()
-        for sid in removed_ids:
-            self.index.delete_session(sid)
-        if removed_ids:
-            logger.info(f"🧹 Cleared {len(removed_ids)} sessions")
-        return len(removed_ids)
+        removed = self._delete_sessions(list(self._iter_session_folders()))
+        if removed:
+            logger.info(f"🧹 Cleared {removed} sessions")
+        return removed
 
     # ---------------------------------------------------------------- helpers
+
+    def _delete_sessions(self, folders: List[Path]) -> int:
+        """Remove each session folder, drop it from the search index, then
+        prune any date folders left empty. Single home for the
+        delete → de-index → prune pattern shared by ``delete_session``,
+        ``cleanup_older_than`` and ``cleanup_all``."""
+        removed_ids = [folder.name for folder in folders]
+        for folder in folders:
+            shutil.rmtree(folder, ignore_errors=True)
+        if removed_ids:
+            self._prune_empty_date_folders()
+            for sid in removed_ids:
+                self.index.delete_session(sid)
+        return len(removed_ids)
 
     def _iter_session_folders(self) -> Iterator[Path]:
         if not self.root.exists():
