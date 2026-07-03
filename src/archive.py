@@ -87,6 +87,22 @@ class Session:
     def record_photo(self, photo: PhotoMeta) -> None:
         self.meta.photos.append(photo)
 
+    def reorder_photos(self, sequence_indexes: List[int]) -> bool:
+        """Reorder photos by their current sequence indexes.
+
+        Returns False when the requested order is not an exact permutation of
+        the current photos. A successful reorder renumbers filenames so OCR
+        sees the same order as the metadata.
+        """
+        if len(sequence_indexes) != len(self.meta.photos):
+            return False
+        by_index = {p.sequence_index: p for p in self.meta.photos}
+        if set(sequence_indexes) != set(by_index):
+            return False
+        self.meta.photos = [by_index[i] for i in sequence_indexes]
+        self._renumber_photos()
+        return True
+
     def remove_photo(self, sequence_index: int) -> bool:
         """Remove a not-yet-extracted photo by sequence index.
 
