@@ -58,6 +58,12 @@ def test_extract_uses_timeout_and_status_polling(js_source: str) -> None:
     assert "Merging" in js_source
 
 
+def test_extract_syncs_visible_photo_order(js_source: str) -> None:
+    assert "/photos/reorder" in js_source
+    assert "syncPhotoOrder" in js_source
+    assert "visual only" not in js_source.lower()
+
+
 def test_history_renders_source_badge(js_source: str) -> None:
     # Externally-sourced takes (app-launcher, api, …) get a History badge;
     # the unmarked default is the manual PWA take ("webapp").

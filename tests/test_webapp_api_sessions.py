@@ -65,6 +65,23 @@ def test_upload_rejects_bad_content_type(client: TestClient) -> None:
     assert r.status_code == 400
 
 
+def test_mixed_upload_failure_rolls_back_batch(
+    client: TestClient, jpeg_bytes: bytes
+) -> None:
+    sid = client.post("/api/sessions", json={}).json()["session_id"]
+    files = [
+        ("files", ("a.jpg", jpeg_bytes, "image/jpeg")),
+        ("files", ("bad.txt", b"not an image", "text/plain")),
+    ]
+    r = client.post(f"/api/sessions/{sid}/photos", files=files)
+    assert r.status_code == 400
+
+    session = client.app.state.archive.get(sid)
+    assert session is not None
+    assert session.meta.photos == []
+    assert not list(session.folder.glob("*.jpg"))
+
+
 def test_remove_photo_renumbers(client: TestClient, jpeg_bytes: bytes) -> None:
     sid = client.post("/api/sessions", json={}).json()["session_id"]
     client.post(
@@ -79,6 +96,35 @@ def test_remove_photo_renumbers(client: TestClient, jpeg_bytes: bytes) -> None:
     body = r.json()
     assert len(body["photos"]) == 1
     assert body["photos"][0]["sequence_index"] == 1
+
+
+def test_reorder_photos_persists_server_order(
+    client: TestClient, jpeg_bytes: bytes, png_bytes: bytes
+) -> None:
+    sid = client.post("/api/sessions", json={}).json()["session_id"]
+    client.post(
+        f"/api/sessions/{sid}/photos",
+        files=[
+            ("files", ("a.jpg", jpeg_bytes, "image/jpeg")),
+            ("files", ("b.png", png_bytes, "image/png")),
+        ],
+    )
+
+    r = client.post(
+        f"/api/sessions/{sid}/photos/reorder",
+        json={"order": [2, 1]},
+    )
+
+    assert r.status_code == 200
+    body = r.json()
+    assert [p["sequence_index"] for p in body["photos"]] == [1, 2]
+    assert [p["path"] for p in body["photos"]] == ["01.jpg", "02.jpg"]
+    assert [p["width"] for p in body["photos"]] == [64, 128]
+
+    session = client.app.state.archive.get(sid)
+    assert session is not None
+    assert [p.width for p in session.meta.photos] == [64, 128]
+    assert [p.path for p in session.meta.photos] == ["01.jpg", "02.jpg"]
 
 
 def test_list_sessions_pagination(client: TestClient) -> None:

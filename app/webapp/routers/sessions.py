@@ -359,12 +359,15 @@ async def _persist_uploads(
     into the session folder, recording its ``PhotoMeta``.
 
     Returns the list of added-photo dicts. Raises ``HTTPException(400)`` on
-    the first invalid file — files already persisted earlier in the batch
-    are kept. The caller owns any photo-count cap check and the final
-    ``session.write_meta()``. Shared by ``/api/sessions/{id}/photos`` and
-    the single-shot ``/api/extract`` so both ingest images identically.
+    the first invalid file after rolling back files and metadata added by
+    this batch. The caller owns any photo-count cap check and the final
+    ``session.write_meta()`` on success. Shared by
+    ``/api/sessions/{id}/photos`` and the single-shot ``/api/extract`` so
+    both ingest images identically.
     """
     persisted: List[Dict[str, Any]] = []
+    original_photos = list(session.meta.photos)
+    added_paths: List[str] = []
     for upload in files:
         raw = await upload.read()
         seq = session.next_sequence_index()
@@ -377,6 +380,16 @@ async def _persist_uploads(
                 max_dim_px=cfg.max_photo_dimension_px,
             )
         except ImageValidationError as exc:
+            for rel_path in added_paths:
+                try:
+                    (session.folder / rel_path).unlink(missing_ok=True)
+                except OSError as unlink_exc:
+                    logger.warning(
+                        f"⚠️  Could not roll back uploaded photo "
+                        f"{session.folder / rel_path}: {unlink_exc}"
+                    )
+            session.meta.photos = original_photos
+            session.write_meta()
             raise HTTPException(status_code=400, detail=str(exc))
         pm = PhotoMeta(
             sequence_index=p.sequence_index,
@@ -386,6 +399,7 @@ async def _persist_uploads(
             bytes_on_disk=p.bytes_on_disk,
         )
         session.record_photo(pm)
+        added_paths.append(pm.path)
         persisted.append(_photo_dict(pm))
     return persisted
 
@@ -420,6 +434,36 @@ async def upload_photos(
         "session_id": session.session_id,
         "photos": [_photo_dict(pm) for pm in session.meta.photos],
         "added": persisted,
+    }
+
+
+@router.post("/api/sessions/{session_id}/photos/reorder")
+async def reorder_photos(session_id: str, request: Request) -> Dict[str, Any]:
+    archive: SessionArchive = request.app.state.archive
+    session = archive.get(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail=f"unknown session {session_id}")
+    body = await maybe_json(request)
+    order = body.get("order")
+    if not isinstance(order, list) or any(
+        not isinstance(i, int) or isinstance(i, bool) for i in order
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="order must be a list of photo sequence_index integers",
+        )
+    if session.meta.extract_succeeded is not None:
+        logger.info(f"ℹ️  reordering already-extracted session {session_id}")
+    if not session.reorder_photos(order):
+        current = [p.sequence_index for p in session.meta.photos]
+        raise HTTPException(
+            status_code=400,
+            detail=f"order must match current photo sequence indexes {current}",
+        )
+    session.write_meta()
+    return {
+        "session_id": session.session_id,
+        "photos": [_photo_dict(pm) for pm in session.meta.photos],
     }
 
 
@@ -517,7 +561,11 @@ async def extract_single_shot(
     source = _resolve_source(params.get("source"), default="api")
 
     session = archive.new_session(incognito=incognito, source=source)
-    await _persist_uploads(session, files, cfg)
+    try:
+        await _persist_uploads(session, files, cfg)
+    except HTTPException:
+        archive.delete_session(session.session_id)
+        raise
     session.write_meta()
 
     # Reuse the exact extraction engine the async path uses (chunking,

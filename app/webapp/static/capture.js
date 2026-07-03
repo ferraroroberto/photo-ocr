@@ -11,6 +11,19 @@ function clientId() {
   return 'c' + Math.random().toString(36).slice(2, 10);
 }
 
+function readyPhotos() {
+  return state.photos.filter(function (p) {
+    return p.status === 'ready' && p.seq != null;
+  });
+}
+
+function applyServerPhotoOrder(serverPhotos) {
+  const ready = readyPhotos();
+  (serverPhotos || []).forEach(function (pm, idx) {
+    if (ready[idx]) ready[idx].seq = pm.sequence_index;
+  });
+}
+
 export function setStatus(text) {
   els.captureStatus.textContent = text || '';
 }
@@ -207,19 +220,34 @@ async function removePhoto(photo) {
   renderThumbnails();
   if (photo.status === 'ready' && state.sessionId && photo.seq != null) {
     try {
-      await jsonApi(
+      const body = await jsonApi(
         '/api/sessions/' +
           encodeURIComponent(state.sessionId) +
           '/photos/' +
           photo.seq,
         { method: 'DELETE' }
       );
-      // Server renumbers; refresh local seqs from server's truth.
-      // We rely on the next upload's response to re-sync.
+      applyServerPhotoOrder(body.photos);
     } catch (exc) {
       toast('Server delete failed: ' + (exc.message || exc), 'error');
     }
   }
+}
+
+export async function syncPhotoOrder() {
+  if (!state.sessionId) return;
+  const ready = readyPhotos();
+  if (!ready.length) return;
+  const order = ready.map(function (p) { return p.seq; });
+  const body = await jsonApi(
+    '/api/sessions/' + encodeURIComponent(state.sessionId) + '/photos/reorder',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ order: order }),
+    }
+  );
+  applyServerPhotoOrder(body.photos);
 }
 
 function movePhoto(fromIdx, toIdx) {
@@ -227,13 +255,21 @@ function movePhoto(fromIdx, toIdx) {
   const [moved] = state.photos.splice(fromIdx, 1);
   state.photos.splice(toIdx, 0, moved);
   renderThumbnails();
-  // Server-side reorder is intentionally not implemented in v1; the
-  // client picks the new order, then on extract the new order takes
-  // effect since the server reads photos by sequence_index which is
-  // re-stamped on every delete and on re-upload. For pure reorder
-  // without delete, the v1 server still extracts in stored order, so
-  // a re-upload of the affected photos is the workaround until v2.
-  toast('Reorder is visual only in v1 — Extract will use stored upload order.', 'good');
+  if (
+    !state.sessionId ||
+    readyPhotos().length < 2 ||
+    state.photos.some(function (p) { return p.status === 'pending' || p.status === 'uploading'; })
+  ) {
+    toast('Order will sync before Extract.', 'good');
+    return;
+  }
+  syncPhotoOrder()
+    .then(function () {
+      toast('Order saved for Extract.', 'good');
+    })
+    .catch(function (exc) {
+      toast('Order sync failed: ' + (exc.message || exc), 'error');
+    });
 }
 
 // --------------------------------------------------- quality gate

@@ -5,7 +5,7 @@
 
 import { state, els, toast } from './state.js';
 import { jsonApi } from './api.js';
-import { renderThumbnails, setStatus } from './capture.js';
+import { renderThumbnails, setStatus, syncPhotoOrder } from './capture.js';
 import { loadHistory } from './sessions.js';
 import { pollUntilDone, extractStatusLine } from './poll.js';
 
@@ -59,6 +59,7 @@ export async function extract() {
   const t0 = Date.now();
   let finalStatusText = null;
   try {
+    await syncPhotoOrder();
     const body = await jsonApi(
       '/api/sessions/' + encodeURIComponent(state.sessionId) + '/extract',
       {

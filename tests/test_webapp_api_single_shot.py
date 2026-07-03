@@ -72,6 +72,22 @@ def test_single_shot_over_cap_returns_413(client: TestClient, jpeg_bytes: bytes)
     assert "async session flow" in r.json()["detail"]
 
 
+def test_single_shot_mixed_upload_failure_removes_session_folder(
+    client: TestClient, jpeg_bytes: bytes
+) -> None:
+    archive = client.app.state.archive
+    r = client.post(
+        "/api/extract",
+        files=[
+            ("files", ("a.jpg", jpeg_bytes, "image/jpeg")),
+            ("files", ("bad.txt", b"not an image", "text/plain")),
+        ],
+    )
+    assert r.status_code == 400
+    assert archive.count_sessions() == 0
+    assert not list(archive.root.rglob("*.jpg"))
+
+
 def test_single_shot_unknown_model_returns_400(client: TestClient, jpeg_bytes: bytes) -> None:
     r = client.post(
         "/api/extract",
