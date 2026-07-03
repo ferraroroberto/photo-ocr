@@ -396,10 +396,10 @@ Then with the tray running (`tray.bat`):
 `scripts/verify-before-ship.ps1` is the single pre-ship gate. It byte-compiles `app`/`src`/`tests`, runs the non-e2e pytest suite, then runs the Playwright e2e suite (Chromium + WebKit/iPhone) against a **disposable webapp it boots itself on a free port** — so a forgotten tray can't let a regression slip through as a skipped suite.
 
 ```powershell
-pwsh -File scripts/verify-before-ship.ps1
+powershell.exe -File scripts/verify-before-ship.ps1
 ```
 
-Exits non-zero on the first failure with the output left visible; prints total wall time and `Ready to ship` when green. Re-runnable with no manual cleanup. Any change under `app/webapp/` must pass it before being declared done.
+Exits non-zero on the first failure with the output left visible; prints total wall time and `Ready to ship` when green. Re-runnable with no manual cleanup. Any change under `app/webapp/` must pass it before being declared done. Use Windows PowerShell 5.1 (`powershell.exe`), not `pwsh` — the default `pwsh` on PATH is a 0-byte WindowsApps reparse stub that fails non-interactively.
 
 ---
 
