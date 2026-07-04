@@ -1,0 +1,114 @@
+%% docs/architecture.mmd — photo-ocr's own internal structure.
+%% Hand-authored, not generated — this repo's own internal shape is semantic
+%% and can't be crawled the way the fleet-wide map is. Update this diagram in
+%% the same PR as any material structural change (a router added/moved, a
+%% src/ module relocated, a new external dependency) — same anti-staleness
+%% contract as this repo's own `.fleet.toml` description field and as
+%% fleet-config's own docs/architecture.mmd. See global-CLAUDE.md's "Every
+%% repo carries a `.fleet.toml`" section for the general convention.
+
+flowchart TB
+  subgraph entry["Entrypoints"]
+    LAUNCHER["launcher.py\nputs repo root on sys.path, dispatches to app/cli/main.py"]
+    TRAYBAT["tray.bat"]
+    WEBAPPBAT["webapp.bat"]
+    TUNNELBAT["webapp_tunnel_named.bat"]
+  end
+  TRAYBAT --> LAUNCHER
+  WEBAPPBAT --> LAUNCHER
+  TUNNELBAT --> LAUNCHER
+
+  subgraph cli["app/cli/ — argparse dispatcher"]
+    CLIMAIN["main.py — _build_parser, main()"]
+    CLICMDS["commands/\nbase.py · tray_cmd.py · webapp_cmd.py · extract_cmd.py"]
+  end
+  LAUNCHER --> CLIMAIN --> CLICMDS
+
+  subgraph tray["app/tray/ — system-tray launcher"]
+    TRAYPY["tray.py\npystray menu: open / copy URLs / restart / status / quit"]
+    SINGLEINST["single_instance.py\ncross-process lock, one tray per machine"]
+  end
+  CLICMDS -->|tray_cmd| TRAYPY
+  TRAYPY --> SINGLEINST
+
+  subgraph webapp["app/webapp/ — FastAPI app"]
+    SERVER["server.py\napp factory, static mount, lifespan retention prune"]
+    MANAGER["manager.py\nWebappManager — adopt-or-spawn uvicorn, status/start/stop"]
+    MIDDLEWARE["middleware.py\nBearerTokenMiddleware — loopback bypass, token/password gate"]
+    ROUTERS["routers/\nmisc · config · auth · sessions · search · _helpers"]
+    STATIC["static/ — PWA\nindex.html · main.js · capture.js · extract.js · poll.js\nsessions.js · quality.js · settings.js · state.js · api.js · styles.css"]
+  end
+  CLICMDS -->|webapp_cmd| SERVER
+  TRAYPY --> MANAGER --> SERVER
+  SERVER --> MIDDLEWARE
+  SERVER --> ROUTERS
+  SERVER --> STATIC
+  ROUTERS --> STATIC
+
+  subgraph srclayer["src/ — logic layer, no UI imports"]
+    APPCONFIG["app_config.py — config/config.json loader"]
+    WEBCONFIG["webapp_config.py — webapp_config.json + auth token/password"]
+    IMGUTILS["image_utils.py — EXIF-rotate, downscale, persist"]
+    OCRCLIENT["ocr_client.py — local-llm-hub /v1/messages client, chunking + merge"]
+    OCRPROMPTS["ocr_prompts.py — prompt library loader"]
+    ARCHIVE["archive.py — dated session folders + retention"]
+    ARCHIVEIDX["archive_index.py — SQLite FTS5 search index"]
+    CLOUDRUNNER["cloudflared_runner.py — spawn/monitor named tunnel"]
+    STATICVER["static_versioning.py — cache-busting query param"]
+  end
+  ROUTERS --> APPCONFIG
+  ROUTERS --> WEBCONFIG
+  ROUTERS --> IMGUTILS
+  ROUTERS --> OCRCLIENT
+  ROUTERS --> OCRPROMPTS
+  ROUTERS --> ARCHIVE
+  ROUTERS --> ARCHIVEIDX
+  SERVER --> STATICVER
+  CLICMDS -->|extract_cmd| OCRCLIENT
+  TRAYPY --> CLOUDRUNNER
+  TRAYPY --> WEBCONFIG
+
+  subgraph configdir["config/"]
+    CFGJSON["config.json (committed)"]
+    WEBCFGJSON["webapp_config.json (gitignored secrets + UI prefs)"]
+    PROMPTSJSON["ocr_prompts.json (committed prompt library)"]
+  end
+  APPCONFIG --> CFGJSON
+  WEBCONFIG --> WEBCFGJSON
+  OCRPROMPTS --> PROMPTSJSON
+
+  subgraph scripts["scripts/ — one-shot admin CLIs"]
+    GENICONS["gen_icons.py"]
+    GENCERT["gen_ssl_cert.py — self-signed loopback HTTPS cert"]
+    GENTOKEN["gen_token.py"]
+    SETPASS["set_password.py"]
+    RUNTUNNEL["run_named_tunnel.py — uvicorn + cloudflared"]
+  end
+  GENCERT -->|webapp/certificates/| SERVER
+  GENTOKEN --> WEBCFGJSON
+  SETPASS --> WEBCFGJSON
+
+  ARCHIVE --> ARCHIVEDISK["archive/YYYY/MM/DD/HH-MM-SS-<id>/\nNN.jpg + extracted.txt (gitignored)"]
+  ARCHIVEIDX --> ARCHIVEDISK
+
+  subgraph external["External dependencies"]
+    HUB["local-llm-hub :8000\nPOST /v1/messages (vision)"]
+    CLOUDFLARED["cloudflared\nnamed tunnel → public hostname"]
+    TAILSCALE["Tailscale\ntailnet hostname/IP for cert SAN + tray URLs"]
+  end
+  OCRCLIENT --> HUB
+  CLOUDRUNNER --> CLOUDFLARED
+  GENCERT --> TAILSCALE
+  TRAYPY --> TAILSCALE
+
+  subgraph testsdir["tests/"]
+    UNITTESTS["pytest suite — TestClient + mocked hub responses"]
+    E2E["tests/e2e/ — pytest-playwright smoke tests\n(Chromium + WebKit/iPhone), skipped if tray isn't up"]
+  end
+  UNITTESTS --> ROUTERS
+  UNITTESTS --> srclayer
+  E2E --> SERVER
+
+  VERIFYGATE["scripts/verify-before-ship.ps1\nbyte-compile + pytest + e2e vs. disposable webapp"]
+  VERIFYGATE --> UNITTESTS
+  VERIFYGATE --> E2E

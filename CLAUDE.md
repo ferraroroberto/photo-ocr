@@ -22,3 +22,7 @@ Mobile-first photo OCR — capture/upload N photos of a document, screen, or pag
   - app/webapp/static/**/*.{js,html}
 - key views:                      # single tabbed SPA served at `/`
   - /          (capture → extract → history panels)
+
+## Internal architecture
+
+[`docs/architecture.mmd`](docs/architecture.mmd) is a hand-authored Mermaid diagram of this repo's own internal structure (`app/cli`, `app/tray`, `app/webapp`, `src/`, `config/`, `scripts/`, `archive/`, `tests/`, and the external `local-llm-hub`/`cloudflared`/Tailscale dependencies) — the per-repo counterpart to the fleet-wide diagram `/system-map` generates centrally. Update it in the same PR as any material structural change (a router added/moved, a `src/` module relocated, a new external dependency) — same anti-staleness contract as this repo's own `.fleet.toml` description field (`ferraroroberto/fleet-config#256`). It is not auto-generated and not covered by `scripts/verify-before-ship.ps1`.
