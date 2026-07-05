@@ -1,81 +1,41 @@
-"""Generate PWA icons: solid white camera silhouette on pure-black background.
+"""Generate PWA/tray/Stream-Deck icons from the shared fleet icon-brand generator.
 
-Matches the voice-transcriber icon style (solid-white-on-black, flat, no outlines).
+Thin caller onto ``project-scaffolding``'s ``brand_gen.render_set()`` — the
+master art is photo-ocr's vendored Lucide ``camera.svg``, not a bespoke
+Pillow-drawn silhouette (app-launcher#65: a coherent icon family across the
+fleet).
 
-Writes ``icon-512.png``, ``icon-512-maskable.png``, ``icon-180.png``
-and a multi-size ``favicon.ico`` (16/32/48) into ``app/webapp/static/``.
+Writes into ``app/webapp/static/``: ``icon-512.png``, ``icon-512-maskable.png``,
+``icon-180.png``, ``icon-192.png``, ``favicon.ico``. Into ``assets/tray/``:
+``photo-ocr.ico``. Into ``assets/stream-deck/``: ``photo-ocr-144.png``.
+
+Usage:
+    python scripts/gen_icons.py
 """
+
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
-from PIL import Image, ImageDraw
+SCAFFOLDING_SCRIPTS = Path(r"E:\automation\project-scaffolding\scripts")
+sys.path.insert(0, str(SCAFFOLDING_SCRIPTS))
 
-BG = (10, 10, 10)
-FG = (240, 240, 240)
+from brand_gen import render_set  # noqa: E402
 
-OUT_DIR = Path(__file__).resolve().parent.parent / "app" / "webapp" / "static"
-
-
-def draw_camera(size: int, inset: float) -> Image.Image:
-    """Render a camera silhouette centered on a black square.
-
-    inset is the fraction of the canvas reserved as padding around the icon
-    (used to produce a 'maskable' variant with safe margins).
-    """
-    img = Image.new("RGB", (size, size), BG)
-    d = ImageDraw.Draw(img)
-
-    pad = int(size * inset)
-    content = size - 2 * pad
-
-    body_w = int(content * 0.86)
-    body_h = int(content * 0.62)
-    body_x = (size - body_w) // 2
-    body_y = pad + int(content * 0.30)
-    radius = int(min(body_w, body_h) * 0.14)
-    d.rounded_rectangle(
-        [body_x, body_y, body_x + body_w, body_y + body_h],
-        radius=radius,
-        fill=FG,
-    )
-
-    vf_w = int(body_w * 0.30)
-    vf_h = int(body_h * 0.18)
-    vf_x = (size - vf_w) // 2
-    vf_y = body_y - int(vf_h * 0.85)
-    vf_r = int(vf_h * 0.35)
-    d.rounded_rectangle(
-        [vf_x, vf_y, vf_x + vf_w, vf_y + vf_h],
-        radius=vf_r,
-        fill=FG,
-    )
-
-    cx = size // 2
-    cy = body_y + body_h // 2
-    outer_r = int(body_h * 0.38)
-    inner_r = int(outer_r * 0.62)
-    d.ellipse([cx - outer_r, cy - outer_r, cx + outer_r, cy + outer_r], fill=BG)
-    d.ellipse([cx - inner_r, cy - inner_r, cx + inner_r, cy + inner_r], fill=FG)
-    dot_r = int(inner_r * 0.45)
-    d.ellipse([cx - dot_r, cy - dot_r, cx + dot_r, cy + dot_r], fill=BG)
-
-    return img
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+STATIC_DIR = PROJECT_ROOT / "app" / "webapp" / "static"
 
 
 def main() -> None:
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-
-    draw_camera(512, inset=0.06).save(OUT_DIR / "icon-512.png", "PNG")
-    draw_camera(512, inset=0.20).save(OUT_DIR / "icon-512-maskable.png", "PNG")
-    draw_camera(180, inset=0.06).save(OUT_DIR / "icon-180.png", "PNG")
-    draw_camera(256, inset=0.06).save(
-        OUT_DIR / "favicon.ico",
-        "ICO",
-        sizes=[(16, 16), (32, 32), (48, 48)],
+    render_set(
+        master=Path(r"E:\automation\project-scaffolding\brand\camera.svg"),
+        out_dir=STATIC_DIR,
+        tray_out_dir=PROJECT_ROOT / "assets" / "tray",
+        stream_deck_out_dir=PROJECT_ROOT / "assets" / "stream-deck",
+        project_slug="photo-ocr",
     )
-
-    print(f"wrote icons to {OUT_DIR}")
+    print(f"wrote icons to {STATIC_DIR}")
 
 
 if __name__ == "__main__":
