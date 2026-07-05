@@ -48,6 +48,9 @@ TUNNEL_CONFIG_PATH = PROJECT_ROOT / "webapp" / "cloudflared.yml"
 def _build_icon():
     """Lazy import pystray + Pillow so plain CLI use doesn't drag them in."""
     from PIL import Image
+    tray_ico = PROJECT_ROOT / "assets" / "tray" / "photo-ocr.ico"
+    if tray_ico.exists():
+        return Image.open(tray_ico)
     icon_path = (
         PROJECT_ROOT / "app" / "webapp" / "static" / "icon-512.png"
     )
