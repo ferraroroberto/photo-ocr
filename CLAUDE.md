@@ -21,7 +21,7 @@ Mobile-first photo OCR — capture/upload N photos of a document, screen, or pag
   - app/webapp/static/**/*.css
   - app/webapp/static/**/*.{js,html}
 - key views:                      # single tabbed SPA served at `/`
-  - /          (capture → extract → history panels)
+  - /          (Capture / History / Settings tabs behind the vendored bottom-tab nav)
 
 ## Internal architecture
 

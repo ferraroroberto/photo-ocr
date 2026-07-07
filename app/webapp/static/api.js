@@ -14,11 +14,16 @@ const DEFAULT_TIMEOUT_MS = 45000;
 export function showLogin() {
   if (!els.loginOverlay) return;
   els.loginOverlay.hidden = false;
+  // The login overlay is not a <dialog>, so the vendored nav's automatic
+  // body:has(dialog[open]) hide rule can't see it — use the nav-hidden
+  // class contract instead (see _vendored/nav/README.md, modal-hide rule).
+  document.body.classList.add('nav-hidden');
   els.loginPassword.value = '';
   els.loginPassword.focus();
 }
 export function hideLogin() {
   if (els.loginOverlay) els.loginOverlay.hidden = true;
+  document.body.classList.remove('nav-hidden');
 }
 
 // ----------------------------------------------------------- fetch

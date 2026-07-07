@@ -14,6 +14,8 @@ import {
   writeToken,
   MODEL_KEY,
   PROMPT_KEY,
+  THEME_KEY,
+  TAB_KEY,
   HISTORY_PAGE_SIZE,
 } from './state.js';
 import { jsonApi, hideLogin } from './api.js';
@@ -36,6 +38,36 @@ import {
   refreshPromptPreview,
   loadVersion,
 } from './settings.js';
+import { icon } from './_vendored/icons/icons.js';
+import { initNavTabs } from './_vendored/nav/nav-tabs.js';
+
+// --------------------------------------------------------------- theme toggle
+// Same feature as home-automation / app-launcher: the pre-paint script in
+// index.html applies the stored theme (or the system preference) before first
+// render; this block owns the header sun/moon toggle + persistence.
+function applyTheme(dark) {
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  els.themeToggle.innerHTML = icon(dark ? 'sun' : 'moon');
+  localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light');
+}
+
+function toggleTheme() {
+  applyTheme(document.documentElement.dataset.theme !== 'dark');
+}
+
+(function initTheme() {
+  const stored = localStorage.getItem(THEME_KEY);
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  applyTheme(stored ? stored === 'dark' : prefersDark);
+})();
+
+els.themeToggle.addEventListener('click', toggleTheme);
+
+// --------------------------------------------------------------- bottom tabs
+// Vendored fleet nav (see _vendored/nav/README.md): discovers the three tabs
+// from the markup, persists the active one so the installed PWA reopens where
+// you left it, and owns the iOS pinning behaviour.
+initNavTabs({ storageKey: TAB_KEY });
 
 // ----------------------------------------------------------- boot
 async function boot() {
@@ -99,8 +131,11 @@ els.galleryInput.addEventListener('change', function () {
 els.extractBtn.addEventListener('click', extract);
 els.copyExtracted.addEventListener('click', copyExtracted);
 els.resetBtn.addEventListener('click', resetTake);
-els.incognitoToggle.addEventListener('change', function () {
-  state.incognito = !!els.incognitoToggle.checked;
+// Incognito is an aria-pressed toggle button (shadcn Toggle shape — the
+// fleet ships no native checkboxes).
+els.incognitoToggle.addEventListener('click', function () {
+  state.incognito = !state.incognito;
+  els.incognitoToggle.setAttribute('aria-pressed', state.incognito ? 'true' : 'false');
 });
 
 els.ocrModel.addEventListener('change', function () {

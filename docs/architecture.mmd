@@ -36,7 +36,7 @@ flowchart TB
     MANAGER["manager.py\nWebappManager — adopt-or-spawn uvicorn, status/start/stop"]
     MIDDLEWARE["middleware.py\nBearerTokenMiddleware — loopback bypass, token/password gate"]
     ROUTERS["routers/\nmisc · config · auth · sessions · search · _helpers"]
-    STATIC["static/ — PWA\nindex.html · main.js · capture.js · extract.js · poll.js\nsessions.js · quality.js · settings.js · state.js · api.js · styles.css"]
+    STATIC["static/ — PWA\nindex.html · main.js · capture.js · extract.js · poll.js\nsessions.js · quality.js · settings.js · state.js · api.js · styles.css\n_vendored/ — fleet components (nav · icons · card · disclosure · empty-state)\ncopied verbatim from project-scaffolding"]
   end
   CLICMDS -->|webapp_cmd| SERVER
   TRAYPY --> MANAGER --> SERVER

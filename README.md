@@ -24,13 +24,20 @@ same archive shape, same auth model, but for pixels instead of audio.
   the final result instead of freezing behind one long HTTP request.
 - **Clean output discipline.** The system prompt forbids preamble, commentary,
   `"Photo 1:"` labels, and translation. The result is drop-in-clipboard-ready.
-- **Searchable archive.** A 🔎 box on the history panel runs full-text search
+- **Fleet design canon.** The UI follows the fleet design system (tokens from
+  `design.md`/`design.dark.md`): three views — **Capture / History / Settings**
+  — behind the vendored floating bottom-tab nav, Lucide icons throughout (no
+  emoji glyphs), and a **light/dark theme** with a header sun/moon toggle that
+  follows the system preference until overridden (same feature as
+  home-automation and app-launcher). Shared components are vendored verbatim
+  under `app/webapp/static/_vendored/` from `project-scaffolding`.
+- **Searchable archive.** A search box on the History tab runs full-text search
   (SQLite FTS5) over every past extract — "find the bakery receipt". The index
   lives in `archive/index.sqlite` and rebuilds itself from `extracted.txt` on
   boot, so it can be deleted at any time. Toggle with `search_enabled` in
   `webapp_config.json`.
 - **History + redo.** Every take lands in `archive/YYYY/MM/DD/HH-MM-SS-<id>/`.
-  Re-run with a different model from the history panel without re-capturing.
+  Re-run with a different model from the History tab without re-capturing.
 - **Pre-flight quality gate.** Each photo is scored on-device for blur,
   glare, and exposure the moment it's added — a bad shot gets an advisory
   badge with a one-tap retake, before any hub round-trip is spent on it.
@@ -192,6 +199,8 @@ photo-ocr/
 │   │   ├── routers/             APIRouter per concern (misc, config, auth, sessions, search)
 │   │   ├── manager.py
 │   │   └── static/              PWA: index.html, ES-module JS, styles.css, icons
+│   │       └── _vendored/       fleet components (nav · icons · card · disclosure ·
+│   │                            empty-state), copied verbatim from project-scaffolding
 │   └── tray/                    system-tray launcher
 ├── config/
 │   ├── config.json              app-level (log level, language hint)

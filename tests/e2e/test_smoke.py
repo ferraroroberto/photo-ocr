@@ -62,17 +62,21 @@ def test_capture_zone_renders(authed_page: Page, base_url: str) -> None:
     expect(status).to_be_visible()
 
 
-def test_settings_panel_toggles(authed_page: Page, base_url: str) -> None:
-    """The settings panel is a <details> element collapsed by default;
-    clicking the summary expands it. Catches both a missing element and
-    a broken summary handler in one shot."""
+def test_settings_pane_shows_prompt_preview(
+    authed_page: Page, base_url: str
+) -> None:
+    """Settings lives behind the vendored bottom-tab nav; the prompt
+    preview inside it is always visible (unfolded by request — no
+    disclosure). Catches a broken tab switch, a missing pane, and a
+    missing prompt preview in one shot."""
     _navigate_collecting_errors(authed_page, base_url)
-    panel = authed_page.locator("#settingsPanel")
-    expect(panel).to_be_attached()
-    # <details> exposes its open state as a boolean attribute.
-    assert panel.evaluate("el => el.open") is False
-    panel.locator("summary").first.click()
-    expect(panel).to_have_attribute("open", "")
+    # The Capture pane is the default tab; Settings starts hidden.
+    expect(authed_page.locator("#paneSettings")).to_be_hidden()
+    authed_page.locator("#tabSettings").click()
+    expect(authed_page.locator("#paneSettings")).to_be_visible()
+    expect(authed_page.locator("#paneCapture")).to_be_hidden()
+    expect(authed_page.locator("#ocrPromptPreview")).to_be_visible()
+    expect(authed_page.locator("#saveSettings")).to_be_visible()
 
 
 def test_login_overlay_dom_present(authed_page: Page, base_url: str) -> None:

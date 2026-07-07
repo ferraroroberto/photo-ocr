@@ -8,6 +8,8 @@ import { jsonApi } from './api.js';
 import { renderExtracted } from './extract.js';
 import { renderThumbnails, setStatus } from './capture.js';
 import { pollUntilDone, extractStatusLine } from './poll.js';
+import { icon } from './_vendored/icons/icons.js';
+import { emptyStateEl } from './_vendored/empty-state/empty-state.js';
 
 export async function loadHistory(offset) {
   state.historyOffset = offset || 0;
@@ -85,21 +87,21 @@ function makeSessionRow(sessionId, leftText, rightText, previewText, isSnippet, 
   const copyBtn = document.createElement('button');
   copyBtn.className = 'copy-btn';
   copyBtn.type = 'button';
-  copyBtn.textContent = '📋 Copy';
+  copyBtn.innerHTML = icon('copy') + ' Copy';
   copyBtn.addEventListener('click', function () { copyHistoryEntry(ref); });
   actions.appendChild(copyBtn);
 
   const redoBtn = document.createElement('button');
   redoBtn.className = 'ghost-btn';
   redoBtn.type = 'button';
-  redoBtn.textContent = '🔁 Redo';
+  redoBtn.innerHTML = icon('redo-2') + ' Redo';
   redoBtn.addEventListener('click', function () { redoHistoryEntry(ref); });
   actions.appendChild(redoBtn);
 
   const delBtn = document.createElement('button');
   delBtn.className = 'ghost-btn';
   delBtn.type = 'button';
-  delBtn.textContent = '🗑️ Delete';
+  delBtn.innerHTML = icon('trash-2') + ' Delete';
   delBtn.addEventListener('click', function () { deleteHistoryEntry(ref); });
   actions.appendChild(delBtn);
 
@@ -116,6 +118,12 @@ function renderHistory() {
   els.historyCount.textContent =
     state.historyItems.length + '/' + state.historyTotal;
   els.historyList.innerHTML = '';
+  if (!state.historyItems.length) {
+    // Canonical fleet empty-state block — never a silent empty container.
+    const li = document.createElement('li');
+    li.appendChild(emptyStateEl('history', 'No saved takes yet'));
+    els.historyList.appendChild(li);
+  }
   state.historyItems.forEach(function (s) {
     els.historyList.appendChild(
       makeSessionRow(
@@ -125,7 +133,7 @@ function renderHistory() {
           (s.extract_duration_s
             ? ' · ' + s.extract_duration_s.toFixed(1) + 's'
             : ''),
-        s.extracted_preview || (s.error ? '⚠️ ' + s.error : '(no text)'),
+        s.extracted_preview || (s.error ? 'Error — ' + s.error : '(no text)'),
         false,
         s.source
       )
@@ -188,7 +196,7 @@ async function runSearch(q) {
   }
 }
 
-// Debounced handler for the 🔎 input. Empty query restores browse mode.
+// Debounced handler for the search input. Empty query restores browse mode.
 export function onSearchInput() {
   const q = (els.historySearch.value || '').trim();
   if (searchTimer) clearTimeout(searchTimer);
@@ -278,7 +286,7 @@ async function redoHistoryEntry(s) {
     finalStatusText = els.captureStatus.textContent;
     toast('Redo done.', 'good');
   } catch (exc) {
-    setStatus('❌ ' + (exc.message || exc));
+    setStatus('Failed: ' + (exc.message || exc));
     finalStatusText = els.captureStatus.textContent;
     toast('Redo failed: ' + (exc.message || exc), 'error');
   } finally {

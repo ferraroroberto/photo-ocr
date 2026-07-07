@@ -2,117 +2,292 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Photo OCR">
-  <meta name="theme-color" content="#0a0a0a">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0d1117" media="(prefers-color-scheme: dark)">
   <link rel="manifest" href="/static/manifest.webmanifest">
   <link rel="apple-touch-icon" href="/static/icon-180.png">
   <link rel="icon" href="/static/favicon.ico" sizes="any">
   <link rel="icon" type="image/png" href="/static/icon-512.png">
   <link rel="stylesheet" href="/static/styles.css">
-  <title>📷 Photo OCR</title>
+  <link rel="stylesheet" href="/static/_vendored/card/card.css">
+  <link rel="stylesheet" href="/static/_vendored/empty-state/empty-state.css">
+  <link rel="stylesheet" href="/static/_vendored/nav/nav-tabs.css">
+  <title>Photo OCR</title>
+  <script>
+    (function(){
+      var t = localStorage.getItem('photo-ocr.theme');
+      var dark = t ? t === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+      document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    })();
+  </script>
 </head>
 <body>
+  <!-- Lucide icon sprite — the single source for every app icon. Vendored from
+       _vendored/icons/ (template: /static/_vendored/icons/icons-sprite.html),
+       trimmed to the glyphs this app uses, per the icons README. Inline (not an
+       external icons.svg) so iOS Safari resolves the <use href="#i-NAME">
+       references — it does not load external sprite files. Hidden via the
+       0-size/absolute idiom, NOT display:none (which suppresses <use>
+       rendering in some engines). Glyphs from lucide-static v1.21.0 (ISC). -->
+  <svg width="0" height="0" aria-hidden="true" focusable="false"
+       style="position:absolute;width:0;height:0;overflow:hidden">
+    <symbol id="i-camera" viewBox="0 0 24 24" fill="none">
+      <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
+      <circle cx="12" cy="13" r="3" />
+    </symbol>
+    <symbol id="i-image" viewBox="0 0 24 24" fill="none">
+      <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+      <circle cx="9" cy="9" r="2" />
+      <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+    </symbol>
+    <symbol id="i-scan-text" viewBox="0 0 24 24" fill="none">
+      <path d="M3 7V5a2 2 0 0 1 2-2h2" />
+      <path d="M17 3h2a2 2 0 0 1 2 2v2" />
+      <path d="M21 17v2a2 2 0 0 1-2 2h-2" />
+      <path d="M7 21H5a2 2 0 0 1-2-2v-2" />
+      <path d="M7 8h8" />
+      <path d="M7 12h10" />
+      <path d="M7 16h6" />
+    </symbol>
+    <symbol id="i-eraser" viewBox="0 0 24 24" fill="none">
+      <path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21" />
+      <path d="M22 21H7" />
+      <path d="m5 11 9 9" />
+    </symbol>
+    <symbol id="i-venetian-mask" viewBox="0 0 24 24" fill="none">
+      <path d="M2 12a5 5 0 0 0 5 5 8 8 0 0 1 5 2 8 8 0 0 1 5-2 5 5 0 0 0 5-5V7h-5a8 8 0 0 0-5 2 8 8 0 0 0-5-2H2Z" />
+      <path d="M6 11c1.5 0 3 .5 3 2-2 0-3 0-3-2Z" />
+      <path d="M18 11c-1.5 0-3 .5-3 2 2 0 3 0 3-2Z" />
+    </symbol>
+    <symbol id="i-file-text" viewBox="0 0 24 24" fill="none">
+      <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+      <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+      <path d="M10 9H8" />
+      <path d="M16 13H8" />
+      <path d="M16 17H8" />
+    </symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24" fill="none">
+      <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+      <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+    </symbol>
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none">
+      <path d="M20 6 9 17l-5-5" />
+    </symbol>
+    <symbol id="i-save" viewBox="0 0 24 24" fill="none">
+      <path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
+      <path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7" />
+      <path d="M7 3v4a1 1 0 0 0 1 1h7" />
+    </symbol>
+    <symbol id="i-history" viewBox="0 0 24 24" fill="none">
+      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+      <path d="M3 3v5h5" />
+      <path d="M12 7v5l4 2" />
+    </symbol>
+    <symbol id="i-trash-2" viewBox="0 0 24 24" fill="none">
+      <path d="M3 6h18" />
+      <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+      <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+      <line x1="10" x2="10" y1="11" y2="17" />
+      <line x1="14" x2="14" y1="11" y2="17" />
+    </symbol>
+    <symbol id="i-chevron-down" viewBox="0 0 24 24" fill="none">
+      <path d="m6 9 6 6 6-6" />
+    </symbol>
+    <symbol id="i-chevron-left" viewBox="0 0 24 24" fill="none">
+      <path d="m15 18-6-6 6-6" />
+    </symbol>
+    <symbol id="i-chevron-right" viewBox="0 0 24 24" fill="none">
+      <path d="m9 18 6-6-6-6" />
+    </symbol>
+    <symbol id="i-redo-2" viewBox="0 0 24 24" fill="none">
+      <path d="m15 14 5-5-5-5" />
+      <path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5A5.5 5.5 0 0 0 9.5 20H13" />
+    </symbol>
+    <symbol id="i-refresh-cw" viewBox="0 0 24 24" fill="none">
+      <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+      <path d="M21 3v5h-5" />
+      <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+      <path d="M8 16H3v5" />
+    </symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24" fill="none">
+      <path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" />
+      <circle cx="12" cy="12" r="3" />
+    </symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24" fill="none">
+      <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+    </symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2" />
+      <path d="M12 20v2" />
+      <path d="m4.93 4.93 1.41 1.41" />
+      <path d="m17.66 17.66 1.41 1.41" />
+      <path d="M2 12h2" />
+      <path d="M20 12h2" />
+      <path d="m6.34 17.66-1.41 1.41" />
+      <path d="m19.07 4.93-1.41 1.41" />
+    </symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24" fill="none">
+      <path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401" />
+    </symbol>
+    <symbol id="i-x" viewBox="0 0 24 24" fill="none">
+      <path d="M18 6 6 18" />
+      <path d="m6 6 12 12" />
+    </symbol>
+  </svg>
+
+  <!-- Floating bottom-tab navigation (vendored contract — markup adapted per
+       _vendored/nav/README.md). Body-level sibling of <main class="app">,
+       never nested inside the scroller: iOS installed PWAs can capture fixed
+       descendants of scroll containers and anchor them to scrolled content. -->
+  <nav class="tabs" role="tablist" aria-label="Sections" data-active-tab="capture">
+    <button id="tabCapture" type="button" class="tab active" data-tab="capture"
+            role="tab" aria-selected="true" aria-controls="paneCapture">
+      <svg class="tab-icon" aria-hidden="true" focusable="false"><use href="#i-camera"></use></svg>
+      <span class="tab-label">Capture</span>
+    </button>
+    <button id="tabHistory" type="button" class="tab" data-tab="history"
+            role="tab" aria-selected="false" aria-controls="paneHistory" tabindex="-1">
+      <svg class="tab-icon" aria-hidden="true" focusable="false"><use href="#i-history"></use></svg>
+      <span class="tab-label">History</span>
+    </button>
+    <button id="tabSettings" type="button" class="tab" data-tab="settings"
+            role="tab" aria-selected="false" aria-controls="paneSettings" tabindex="-1">
+      <svg class="tab-icon" aria-hidden="true" focusable="false"><use href="#i-settings"></use></svg>
+      <span class="tab-label">Settings</span>
+    </button>
+  </nav>
+
   <main class="app">
     <header class="header">
-      <h1>📷 Photo OCR</h1>
+      <h1><svg class="icon" aria-hidden="true"><use href="#i-camera"></use></svg> Photo OCR</h1>
       <div class="header-actions">
-        <button id="resetBtn" type="button" class="header-icon-btn" title="Reset — clear photos and result" aria-label="Reset">🧽</button>
-        <label class="incognito-btn" title="Incognito — don't save this take to history">
-          <input id="incognitoToggle" type="checkbox" hidden>
-          <span class="icon">🕵️</span>
-        </label>
+        <button id="themeToggle" type="button" class="header-icon-btn"
+                title="Toggle theme" aria-label="Toggle dark mode"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
+        <button id="resetBtn" type="button" class="header-icon-btn"
+                title="Reset — clear photos and result" aria-label="Reset"><svg class="icon" aria-hidden="true"><use href="#i-eraser"></use></svg></button>
+        <button id="incognitoToggle" type="button" class="header-icon-btn" aria-pressed="false"
+                title="Incognito — don't save this take to history" aria-label="Incognito"><svg class="icon" aria-hidden="true"><use href="#i-venetian-mask"></use></svg></button>
       </div>
     </header>
 
-    <section class="capture-zone">
-      <ul id="thumbStrip" class="thumb-strip" aria-label="Photos in this take"></ul>
+    <section id="paneCapture" class="pane" role="tabpanel" aria-labelledby="tabCapture" aria-label="Capture">
+      <section class="capture-zone">
+        <ul id="thumbStrip" class="thumb-strip" aria-label="Photos in this take"></ul>
 
-      <div class="capture-actions">
-        <label class="big-btn add-photo-btn" for="cameraInput">
-          📷 Add photo
-        </label>
-        <label class="ghost-btn gallery-btn" for="galleryInput" title="Pick from gallery instead of camera">
-          🖼️
-        </label>
-      </div>
-      <input id="cameraInput" type="file" accept="image/*" capture="environment" multiple hidden>
-      <input id="galleryInput" type="file" accept="image/*" multiple hidden>
-
-      <button id="extractBtn" type="button" class="big-btn extract-btn" disabled>
-        🔍 Extract text
-      </button>
-      <div id="captureStatus" class="record-status">Add a photo to begin</div>
-    </section>
-
-    <section class="card extracted-card">
-      <div class="card-header">
-        <h2>📝 Extracted text</h2>
-        <div class="row card-header-actions">
-          <button id="copyExtracted" class="copy-btn" type="button" disabled>📋 Copy</button>
+        <div class="capture-actions">
+          <label class="big-btn add-photo-btn" for="cameraInput">
+            <svg class="icon" aria-hidden="true"><use href="#i-camera"></use></svg> Add photo
+          </label>
+          <label class="ghost-btn gallery-btn" for="galleryInput" title="Pick from gallery instead of camera" aria-label="Pick from gallery">
+            <svg class="icon" aria-hidden="true"><use href="#i-image"></use></svg>
+          </label>
         </div>
-      </div>
-      <textarea id="extracted" class="text-out editable" placeholder="Tap Extract — the text from your photos will appear here, deduplicated and copy-ready." rows="6"></textarea>
+        <input id="cameraInput" type="file" accept="image/*" capture="environment" multiple hidden>
+        <input id="galleryInput" type="file" accept="image/*" multiple hidden>
+
+        <button id="extractBtn" type="button" class="big-btn extract-btn" disabled>
+          <svg class="icon" aria-hidden="true"><use href="#i-scan-text"></use></svg> Extract text
+        </button>
+        <div id="captureStatus" class="record-status">Add a photo to begin</div>
+      </section>
+
+      <section class="card extracted-card">
+        <div class="card-head">
+          <h2 class="card-title"><svg class="icon" aria-hidden="true"><use href="#i-file-text"></use></svg> Extracted text</h2>
+          <div class="card-head-actions">
+            <button id="copyExtracted" class="copy-btn" type="button" disabled><svg class="icon" aria-hidden="true"><use href="#i-copy"></use></svg> Copy</button>
+          </div>
+        </div>
+        <textarea id="extracted" class="text-out editable" placeholder="Tap Extract — the text from your photos will appear here, deduplicated and copy-ready." rows="6"></textarea>
+      </section>
     </section>
 
-    <details id="settingsPanel" class="card settings-card">
-      <summary>⚙️ Settings</summary>
-      <label class="row">
-        <span>Model</span>
-        <select id="ocrModel" class="select-native"></select>
-      </label>
-      <label class="row">
-        <span>Style</span>
-        <select id="ocrStyle" class="select-native"></select>
-      </label>
-      <label class="stacked">
-        <span class="muted small">Prompt sent to the LLM (read-only preview)</span>
-        <textarea id="ocrPromptPreview" class="text-out prompt-preview" rows="6" readonly></textarea>
-      </label>
-      <label class="row">
-        <span>Auto-clean older than (days)</span>
-        <input id="retentionDays" type="number" min="1" max="365" class="input-native">
-      </label>
-      <label class="row">
-        <span>Max photos per take</span>
-        <input id="maxPhotos" type="number" min="1" max="100" class="input-native">
-      </label>
-      <div class="row">
-        <button id="saveSettings" type="button" class="big-btn">💾 Save defaults</button>
-      </div>
-      <hr>
-      <p class="muted small">
-        First time on iPhone? Install the trust profile:
-        <a href="/install-ca">/install-ca</a>
-      </p>
-      <p id="statusReadout" class="muted small"></p>
-      <p id="buildInfo" class="muted small" title="Which build of the webapp this device loaded — see issue #5">Build: …</p>
-    </details>
+    <section id="paneHistory" class="pane" role="tabpanel" aria-labelledby="tabHistory" aria-label="History" hidden>
+      <section class="card history-card">
+        <div class="card-head">
+          <h2 class="card-title"><svg class="icon" aria-hidden="true"><use href="#i-history"></use></svg> History</h2>
+          <span class="card-head-meta" id="historyCount">0</span>
+        </div>
+        <div class="history-actions">
+          <button id="refreshHistory" type="button" class="ghost-btn"><svg class="icon" aria-hidden="true"><use href="#i-refresh-cw"></use></svg> Refresh</button>
+          <button id="cleanAll" type="button" class="ghost-btn"><svg class="icon" aria-hidden="true"><use href="#i-trash-2"></use></svg> Clean</button>
+        </div>
+        <input id="historySearch" type="search" class="input-native history-search" placeholder="Search extracted text…" autocomplete="off" hidden>
+        <ul id="historyList" class="history-list"></ul>
+        <button id="loadMoreHistory" type="button" class="ghost-btn load-more-btn" hidden><svg class="icon" aria-hidden="true"><use href="#i-chevron-down"></use></svg> Load more</button>
+      </section>
+    </section>
 
-    <details class="card history-card" open>
-      <summary>📜 History (<span id="historyCount">0</span>)</summary>
-      <div class="history-actions">
-        <button id="refreshHistory" type="button" class="ghost-btn">🔄 Refresh</button>
-        <button id="cleanAll" type="button" class="ghost-btn">🗑️ Clean</button>
-      </div>
-      <input id="historySearch" type="search" class="input-native history-search" placeholder="🔎 Search extracted text…" autocomplete="off" hidden>
-      <ul id="historyList" class="history-list"></ul>
-      <button id="loadMoreHistory" type="button" class="ghost-btn load-more-btn" hidden>📥 Load more</button>
-    </details>
+    <section id="paneSettings" class="pane" role="tabpanel" aria-labelledby="tabSettings" aria-label="Settings" hidden>
+      <section class="card">
+        <div class="card-head">
+          <h2 class="card-title"><svg class="icon" aria-hidden="true"><use href="#i-scan-text"></use></svg> OCR</h2>
+        </div>
+        <label class="row">
+          <span>Model</span>
+          <select id="ocrModel" class="select-native"></select>
+        </label>
+        <label class="row">
+          <span>Style</span>
+          <select id="ocrStyle" class="select-native"></select>
+        </label>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2 class="card-title"><svg class="icon" aria-hidden="true"><use href="#i-file-text"></use></svg> Prompt preview</h2>
+        </div>
+        <label class="stacked">
+          <span class="muted small">Prompt sent to the LLM (read-only preview)</span>
+          <textarea id="ocrPromptPreview" class="text-out prompt-preview" rows="6" readonly></textarea>
+        </label>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2 class="card-title"><svg class="icon" aria-hidden="true"><use href="#i-save"></use></svg> Storage</h2>
+        </div>
+        <label class="row">
+          <span>Auto-clean older than (days)</span>
+          <input id="retentionDays" type="number" min="1" max="365" class="input-native">
+        </label>
+        <label class="row">
+          <span>Max photos per take</span>
+          <input id="maxPhotos" type="number" min="1" max="100" class="input-native">
+        </label>
+        <button id="saveSettings" type="button" class="shaded-btn"><svg class="icon" aria-hidden="true"><use href="#i-save"></use></svg> Save defaults</button>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2 class="card-title"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg> About</h2>
+        </div>
+        <p class="muted small">
+          First time on iPhone? Install the trust profile:
+          <a href="/install-ca">/install-ca</a>
+        </p>
+        <p id="statusReadout" class="muted small"></p>
+        <p id="buildInfo" class="muted small" title="Which build of the webapp this device loaded — see issue #5">Build: …</p>
+      </section>
+    </section>
 
     <div id="toast" class="toast" hidden></div>
   </main>
 
   <dialog id="previewDialog" class="preview-dialog">
-    <button id="previewClose" type="button" class="preview-close" aria-label="Close preview">✕</button>
+    <button id="previewClose" type="button" class="preview-close" aria-label="Close preview"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
     <img id="previewImg" class="preview-img" alt="Photo preview">
   </dialog>
 
   <div id="loginOverlay" class="login-overlay" hidden>
     <form id="loginForm" class="login-card" autocomplete="off">
-      <h2>🔐 Sign in</h2>
+      <h2><svg class="icon" aria-hidden="true"><use href="#i-lock"></use></svg> Sign in</h2>
       <p class="muted small">Enter the password to use this photo OCR app.</p>
       <input
         id="loginPassword"

@@ -30,7 +30,7 @@ pytestmark = pytest.mark.smoke
 
 _STATIC_DIR = Path(__file__).resolve().parents[2] / "app" / "webapp" / "static"
 _INDEX_ASSET_RE = re.compile(
-    r"""(?:href|src)=['"]/static/(?P<name>[\w\-.]+\.(?:css|js))"""
+    r"""(?:href|src)=['"]/static/(?P<name>[\w\-./]+\.(?:css|js))"""
     r"""\?v=(?P<hash>[a-f0-9]+)['"]"""
 )
 

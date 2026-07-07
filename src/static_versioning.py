@@ -50,14 +50,17 @@ _SKIP_DIRS = ("vendor",)
 # ``import ... from './foo.js'`` — captures the quoted relative module
 # path so ``?v=<hash>`` can be stamped onto it. Any existing ``?v=…`` is
 # captured too, so re-stamping an already-stamped body is idempotent.
+# The path may descend into subdirectories (``./_vendored/nav/nav-tabs.js``)
+# or climb out of one (``../icons/icons.js`` inside a vendored module).
 _JS_IMPORT_RE = re.compile(
-    r"""(from\s*['"])\./([\w\-.]+\.js)(\?v=[^'"]*)?(['"])"""
+    r"""(from\s*['"])((?:\.\./|\./)[\w\-./]+\.js)(\?v=[^'"]*)?(['"])"""
 )
 
 # ``href`` / ``src`` pointing at a hashable ``/static/`` asset in
-# index.html. Same idempotence rule as the JS import regex.
+# index.html — subdirectory paths (``_vendored/…``) included. Same
+# idempotence rule as the JS import regex.
 _INDEX_ASSET_RE = re.compile(
-    r"""(href|src)=(['"])/static/([\w\-.]+\.(?:css|js))(\?v=[^'"]*)?(['"])"""
+    r"""(href|src)=(['"])/static/([\w\-./]+\.(?:css|js))(\?v=[^'"]*)?(['"])"""
 )
 
 
@@ -90,8 +93,12 @@ def compute_asset_hashes(static_dir: Path) -> Dict[str, str]:
         return {}
     per_file: Dict[str, str] = {}
     for path in _iter_hashable_files(static_dir):
+        # Keyed by the slash-separated path relative to static/ — a root
+        # file's key is its plain filename, a vendored file's key carries
+        # its subdirectory (``_vendored/nav/nav-tabs.css``).
+        rel = path.relative_to(static_dir).as_posix()
         try:
-            per_file[path.name] = _short_hash(path.read_bytes())
+            per_file[rel] = _short_hash(path.read_bytes())
         except OSError as exc:
             logger.warning(f"⚠️  Could not hash {path} ({exc})")
     if not per_file:
@@ -132,20 +139,29 @@ def rewrite_index_html(body: str, hashes: Dict[str, str]) -> str:
 
 
 def rewrite_js_imports(body: str, hashes: Dict[str, str]) -> str:
-    """Stamp ``?v=<hash>`` onto every ``from './foo.js'`` import.
+    """Stamp ``?v=<hash>`` onto every relative ``from '…/foo.js'`` import.
 
     Imports with no matching entry in ``hashes`` are left alone. Existing
     ``?v=…`` is replaced, so re-rewriting a served body is idempotent.
+
+    A ``./``-rooted import matches its static/-relative key directly. A
+    ``../`` import (a vendored module reaching a sibling component) can't
+    be resolved without knowing the importing file's directory, so it
+    falls back to a basename lookup — safe because every entry carries
+    the same fleet hash (see the module docstring).
     """
     if not hashes:
         return body
+    by_basename = {name.rsplit("/", 1)[-1]: stamp for name, stamp in hashes.items()}
 
     def _sub(match: "re.Match[str]") -> str:
         prefix, filename, _existing, quote_close = match.group(1, 2, 3, 4)
-        stamp = hashes.get(filename)
+        stamp = hashes.get(filename[2:]) if filename.startswith("./") else None
+        if not stamp:
+            stamp = by_basename.get(filename.rsplit("/", 1)[-1])
         if not stamp:
             return match.group(0)
-        return f"{prefix}./{filename}?v={stamp}{quote_close}"
+        return f"{prefix}{filename}?v={stamp}{quote_close}"
 
     return _JS_IMPORT_RE.sub(_sub, body)
 

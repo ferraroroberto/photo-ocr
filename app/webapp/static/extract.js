@@ -8,6 +8,7 @@ import { jsonApi } from './api.js';
 import { renderThumbnails, setStatus, syncPhotoOrder } from './capture.js';
 import { loadHistory } from './sessions.js';
 import { pollUntilDone, extractStatusLine } from './poll.js';
+import { icon } from './_vendored/icons/icons.js';
 
 export function renderExtracted() {
   els.extracted.value = state.extracted || '';
@@ -79,7 +80,7 @@ export async function extract() {
     finalStatusText = els.captureStatus.textContent;
     loadHistory(0);
   } catch (exc) {
-    setStatus('❌ ' + (exc.message || exc));
+    setStatus('Failed: ' + (exc.message || exc));
     finalStatusText = els.captureStatus.textContent;
     toast('Extract failed: ' + (exc.message || exc), 'error');
   } finally {
@@ -114,11 +115,11 @@ export async function copyExtracted() {
       document.body.removeChild(ta);
     }
     els.copyExtracted.classList.add('copied');
-    const original = els.copyExtracted.textContent;
-    els.copyExtracted.textContent = '✓ Copied';
+    const original = els.copyExtracted.innerHTML;
+    els.copyExtracted.innerHTML = icon('check') + ' Copied';
     setTimeout(function () {
       els.copyExtracted.classList.remove('copied');
-      els.copyExtracted.textContent = original;
+      els.copyExtracted.innerHTML = original;
     }, 1200);
   } catch (exc) {
     toast('Copy failed: ' + (exc.message || exc), 'error');
