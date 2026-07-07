@@ -26,6 +26,8 @@
 export const TOKEN_KEY = 'photo-ocr.token';
 export const PROMPT_KEY = 'photo-ocr.promptId';
 export const MODEL_KEY = 'photo-ocr.model';
+export const THEME_KEY = 'photo-ocr.theme';
+export const TAB_KEY = 'photo-ocr.tab';
 export const HISTORY_PAGE_SIZE = 10;
 
 export const state = {
@@ -47,6 +49,7 @@ export const state = {
 
 // ----------------------------------------------------------------- DOM
 export const els = {
+  themeToggle: document.getElementById('themeToggle'),
   thumbStrip: document.getElementById('thumbStrip'),
   cameraInput: document.getElementById('cameraInput'),
   galleryInput: document.getElementById('galleryInput'),

@@ -6,6 +6,7 @@
 import { state, els, toast } from './state.js';
 import { jsonApi } from './api.js';
 import { assessImage } from './quality.js';
+import { icon } from './_vendored/icons/icons.js';
 
 function clientId() {
   return 'c' + Math.random().toString(36).slice(2, 10);
@@ -53,7 +54,8 @@ export function renderThumbnails() {
     removeBtn.className = 'remove';
     removeBtn.type = 'button';
     removeBtn.title = 'Remove';
-    removeBtn.textContent = '✕';
+    removeBtn.setAttribute('aria-label', 'Remove photo');
+    removeBtn.innerHTML = icon('x');
     removeBtn.addEventListener('click', function (ev) {
       ev.stopPropagation();
       removePhoto(photo);
@@ -65,7 +67,8 @@ export function renderThumbnails() {
       left.className = 'move left';
       left.type = 'button';
       left.title = 'Move left';
-      left.textContent = '◀';
+      left.setAttribute('aria-label', 'Move photo left');
+      left.innerHTML = icon('chevron-left');
       left.addEventListener('click', function (ev) {
         ev.stopPropagation();
         movePhoto(idx, idx - 1);
@@ -77,7 +80,8 @@ export function renderThumbnails() {
       right.className = 'move right';
       right.type = 'button';
       right.title = 'Move right';
-      right.textContent = '▶';
+      right.setAttribute('aria-label', 'Move photo right');
+      right.innerHTML = icon('chevron-right');
       right.addEventListener('click', function (ev) {
         ev.stopPropagation();
         movePhoto(idx, idx + 1);
@@ -276,12 +280,9 @@ function movePhoto(fromIdx, toIdx) {
 const WARNING_LABELS = { blurry: 'Blurry', 'too dark': 'Dark', glare: 'Glare' };
 
 function warningLabel(warnings) {
-  return (
-    '⚠️ ' +
-    warnings
-      .map(function (w) { return WARNING_LABELS[w] || w; })
-      .join(' · ')
-  );
+  return warnings
+    .map(function (w) { return WARNING_LABELS[w] || w; })
+    .join(' · ');
 }
 
 // Score a freshly-added photo on-device. Advisory only — any failure is

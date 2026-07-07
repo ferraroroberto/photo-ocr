@@ -56,7 +56,7 @@ export async function fetchConfig() {
     'verbatim-merge';
   renderSettings();
 
-  // The 🔎 search box only appears when the server has the feature on.
+  // The search box only appears when the server has the feature on.
   if (els.historySearch) {
     els.historySearch.hidden = !body.search_enabled;
   }
@@ -67,7 +67,7 @@ export async function fetchStatus() {
     const body = await jsonApi('/api/status');
     const hub = body.llm_hub || {};
     els.statusReadout.textContent =
-      'Hub: ' + (hub.reachable ? '✅' : '❌') + ' · ' + (hub.base_url || '?');
+      'Hub: ' + (hub.reachable ? 'reachable' : 'unreachable') + ' · ' + (hub.base_url || '?');
   } catch (_) {
     els.statusReadout.textContent = '';
   }
