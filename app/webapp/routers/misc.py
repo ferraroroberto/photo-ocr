@@ -1,5 +1,5 @@
-"""Unauthenticated entry points: page boot, liveness probe, the iOS CA
-profile, and the build-identity endpoint."""
+"""Unauthenticated entry points: page boot, liveness probe, and the
+build-identity endpoint."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from typing import Any, Dict
 
 # Third-party imports
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import HTMLResponse
 
 # Local imports
 from app.webapp.routers._helpers import BUILD_INFO, STATIC_DIR
@@ -41,21 +41,3 @@ async def version() -> Dict[str, str]:
     """Build identity so the phone (and tests) can confirm which build
     is loaded — see issue #5."""
     return BUILD_INFO.as_dict()
-
-
-@router.get("/install-ca")
-async def install_ca() -> FileResponse:
-    profile = STATIC_DIR / "photo-ocr-ca.mobileconfig"
-    if not profile.exists():
-        raise HTTPException(
-            status_code=404,
-            detail=(
-                "CA profile not generated yet. Run "
-                "`scripts/gen_ssl_cert.py` from the project root."
-            ),
-        )
-    return FileResponse(
-        str(profile),
-        media_type="application/x-apple-aspen-config",
-        filename="photo-ocr-ca.mobileconfig",
-    )

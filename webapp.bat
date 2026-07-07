@@ -22,9 +22,13 @@ set "CERT_DIR=%SCRIPT_DIR%webapp\certificates"
 set "CERT=%CERT_DIR%\cert.pem"
 set "KEY=%CERT_DIR%\key.pem"
 
+REM Auto-renew the Tailscale cert if it is expiring within 30 days (no-op
+REM when the cert is missing or not a .ts.net cert).
+"%VENV_PY%" "%SCRIPT_DIR%scripts\gen_tailscale_cert.py" --check
+
 if not exist "%CERT%" (
     echo [INFO] No HTTPS cert found, running HTTP-only on :8444.
-    echo        Run scripts\gen_ssl_cert.py to enable HTTPS.
+    echo        Run scripts\gen_tailscale_cert.py to enable HTTPS.
     "%VENV_PY%" -m uvicorn app.webapp.server:app --host 0.0.0.0 --port 8444
 ) else (
     echo [INFO] HTTPS via %CERT%

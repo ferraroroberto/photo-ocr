@@ -5,7 +5,6 @@ Routes (split across ``app/webapp/routers/``):
     GET    /                                  → static/index.html       (misc)
     GET    /static/{file}                     → CSS / JS / icons         (static mount)
     GET    /healthz                           → liveness probe           (misc)
-    GET    /install-ca                        → iOS .mobileconfig        (misc)
     GET    /api/version                       → build identity           (misc)
 
     GET    /api/config                        → config + prompts + models(config)

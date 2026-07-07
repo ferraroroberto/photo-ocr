@@ -41,7 +41,8 @@ from playwright.sync_api import BrowserContext, Page
 
 logger = logging.getLogger(__name__)
 
-# Self-signed cert on 8444 — silence the urllib3 noise from /healthz.
+# The cert on 8444 is for the .ts.net name, not loopback — silence the
+# urllib3 noise from /healthz.
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -281,7 +282,8 @@ def _require_live_tray(request: pytest.FixtureRequest, base_url: str) -> None:
 def browser_context_args(
     browser_context_args: dict, browser_name: str, playwright
 ) -> dict:
-    # Self-signed cert on 8444 — the SPA won't load otherwise.
+    # The cert on 8444 is for the .ts.net name, not 127.0.0.1 — the SPA
+    # won't load otherwise.
     args = {**browser_context_args, "ignore_https_errors": True}
     if browser_name == "webkit":
         # Project the WebKit engine onto an iPhone 14 — viewport,

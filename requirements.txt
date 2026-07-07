@@ -31,7 +31,7 @@ fastapi>=0.110
 uvicorn[standard]>=0.27
 python-multipart>=0.0.9
 
-# Self-signed cert + iOS .mobileconfig generation
+# Cert inspection for gen_tailscale_cert.py --check (SAN + expiry)
 cryptography>=42.0
 
 # Tray icon (optional surface — see app/tray/)

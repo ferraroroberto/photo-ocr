@@ -80,12 +80,17 @@ The webapp binds `0.0.0.0:8444`, so any device on your tailnet can reach it —
 no Cloudflare tunnel needed for tailnet-only access. Four steps on the home PC,
 once:
 
+HTTPS uses a **real Let's Encrypt certificate** issued for the tailnet MagicDNS
+name via `tailscale cert` — every device already on the tailnet trusts Let's
+Encrypt, so there are **no per-device trust steps**: no CA to install, no iOS
+profile, no Certificate Trust toggle.
+
 ```powershell
-# 1. Generate the self-signed cert. gen_ssl_cert.py auto-discovers your
-#    Tailscale hostname + IP via `tailscale status --json` / `tailscale ip -4`
-#    and adds them to the cert's SAN list — so https://<tailscale-hostname>:8444 is valid
-#    out of the box once the CA is trusted on the client device.
-.\.venv\Scripts\python.exe scripts\gen_ssl_cert.py
+# 1. One-time per tailnet: enable HTTPS in the Tailscale admin console
+#    (DNS → HTTPS Certificates), then provision the cert — it auto-detects
+#    this machine's MagicDNS name and writes cert.pem / key.pem into
+#    webapp/certificates/.
+.\.venv\Scripts\python.exe scripts\gen_tailscale_cert.py
 
 # 2. Open Windows Firewall on :8444 for the Private profile (Tailscale's
 #    interface is Private by default). Needs admin.
@@ -97,15 +102,17 @@ New-NetFirewallRule -DisplayName "photo-ocr 8444" -Direction Inbound `
 ```
 
 **Open on the phone or laptop** (any device on the same tailnet):
-- `https://<tailscale-hostname>:8444` — find your machine's name with
-  `tailscale status` on the home PC (or in the Tailscale admin console)
-- or `https://<100.x.y.z>:8444` — the home PC's tailnet IPv4 from
-  `tailscale ip -4`
+`https://<pc>.<tailnet>.ts.net:8444` — find your machine's MagicDNS name with
+`tailscale status` on the home PC. The lock is green immediately; **Add to Home
+Screen** installs the PWA with no certificate fuss. (`https://localhost:8444`
+warns — the cert is for the `.ts.net` name, not loopback; plain desktop access
+on the PC itself is `http://localhost:8444`.)
 
-**iOS PWA install** — open `https://<tailscale-hostname>:8444/install-ca` once,
-install the profile, then go to **Settings → General → About → Certificate
-Trust Settings** and enable full trust on "Photo OCR Local CA". After that
-Safari trusts the cert and you can **Add to Home Screen**.
+> **Auto-renew (no calendar reminder needed).** A Let's Encrypt leaf is valid
+> ~90 days, so renewal is automated rather than manual: both boot paths
+> (`webapp.bat` and the tray's `WebappManager.start()`) run
+> `gen_tailscale_cert.py --check` on startup, which re-issues the cert only
+> when it is a `.ts.net` cert expiring within 30 days (a no-op otherwise).
 
 **Auth gate (optional)** — by default the gate is **off** and any tailnet
 device can use the app. To require a token + password:
@@ -209,7 +216,7 @@ photo-ocr/
 │   └── webapp_config.sample.json
 ├── scripts/
 │   ├── gen_icons.py             thin caller onto project-scaffolding's shared brand_gen.py (camera master)
-│   ├── gen_ssl_cert.py          self-signed loopback HTTPS cert
+│   ├── gen_tailscale_cert.py    HTTPS via `tailscale cert` (real LE leaf, `--check` auto-renew)
 │   ├── gen_token.py             generate/rotate the bearer token
 │   ├── set_password.py          set/clear the login password
 │   └── run_named_tunnel.py      uvicorn + cloudflared

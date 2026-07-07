@@ -79,7 +79,7 @@ flowchart TB
 
   subgraph scripts["scripts/ — one-shot admin CLIs"]
     GENICONS["gen_icons.py"]
-    GENCERT["gen_ssl_cert.py — self-signed loopback HTTPS cert"]
+    GENCERT["gen_tailscale_cert.py — HTTPS via tailscale cert (LE leaf, --check auto-renew)"]
     GENTOKEN["gen_token.py"]
     SETPASS["set_password.py"]
     RUNTUNNEL["run_named_tunnel.py — uvicorn + cloudflared"]

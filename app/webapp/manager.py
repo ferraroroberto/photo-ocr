@@ -81,6 +81,29 @@ def cert_paths(project_root: Optional[Path] = None) -> Optional[tuple[Path, Path
     return None
 
 
+def _renew_tailscale_cert() -> None:
+    """Best-effort auto-renew of the Tailscale (Let's Encrypt) cert before spawn.
+
+    Mirrors the ``webapp.bat`` ``--check`` hook so the tray-owned boot path also
+    self-heals a cert expiring within 30 days. No-op when the cert is missing or
+    is not a ``.ts.net`` cert; never raises, so a renewal hiccup can't block the
+    webapp from starting.
+    """
+    script = PROJECT_ROOT / "scripts" / "gen_tailscale_cert.py"
+    if not script.exists():
+        return
+    try:
+        subprocess.run(
+            [sys.executable, str(script), "--check"],
+            cwd=str(PROJECT_ROOT),
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        logger.warning(f"⚠️  Tailscale cert renew check failed: {exc}")
+
+
 def _probe_url(scheme: str, host: str, port: int) -> str:
     return f"{scheme}://{host if host != '0.0.0.0' else '127.0.0.1'}:{port}"
 
@@ -92,7 +115,9 @@ class WebappManager:
         self.config = config or WebappManagerConfig()
         self._proc: Optional[subprocess.Popen] = None
         self._session = requests.Session()
-        self._session.verify = False  # self-signed cert in HTTPS mode
+        # Loopback probe against a cert issued for the .ts.net name (or a
+        # legacy self-signed one) — hostname never matches 127.0.0.1.
+        self._session.verify = False
         try:
             from urllib3.exceptions import InsecureRequestWarning
             import urllib3
@@ -174,6 +199,7 @@ class WebappManager:
                 logger.info(f"🔗 Adopting external webapp at {current.base_url}")
                 return current
 
+            _renew_tailscale_cert()
             cmd = self._build_command()
             logger.info(f"🚀 Starting webapp: {' '.join(cmd)}")
 
