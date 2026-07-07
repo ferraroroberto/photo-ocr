@@ -67,16 +67,27 @@ def test_settings_pane_shows_prompt_preview(
 ) -> None:
     """Settings lives behind the vendored bottom-tab nav; the prompt
     preview inside it is always visible (unfolded by request — no
-    disclosure). Catches a broken tab switch, a missing pane, and a
-    missing prompt preview in one shot."""
+    disclosure). Catches a broken tab switch, a missing pane, a missing
+    prompt preview, and a Save button that no longer tracks dirty state
+    (#76) in one shot."""
     _navigate_collecting_errors(authed_page, base_url)
+    # renderSettings (and so the dirty-state pass) runs after /api/config.
+    authed_page.wait_for_selector("#ocrModel option", state="attached", timeout=5_000)
     # The Capture pane is the default tab; Settings starts hidden.
     expect(authed_page.locator("#paneSettings")).to_be_hidden()
     authed_page.locator("#tabSettings").click()
     expect(authed_page.locator("#paneSettings")).to_be_visible()
     expect(authed_page.locator("#paneCapture")).to_be_hidden()
     expect(authed_page.locator("#ocrPromptPreview")).to_be_visible()
-    expect(authed_page.locator("#saveSettings")).to_be_visible()
+    # Save defaults is dirty-aware: disabled while the selection matches the
+    # persisted defaults, armed once an input differs.
+    save_btn = authed_page.locator("#saveSettings")
+    expect(save_btn).to_be_visible()
+    expect(save_btn).to_be_disabled()
+    max_photos = authed_page.locator("#maxPhotos")
+    current = int(max_photos.input_value() or "50")
+    max_photos.fill(str(current + 1))
+    expect(save_btn).to_be_enabled()
 
 
 def test_login_overlay_dom_present(authed_page: Page, base_url: str) -> None:
