@@ -16,14 +16,13 @@ from starlette.middleware.base import BaseHTTPMiddleware
 _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
 
 # Endpoints that must remain reachable without the token: liveness
-# probes, the iOS profile install, the page boot (so the JS can pick
-# up the token from ?token= and attach it to subsequent calls),
-# /api/login so a device with no token can swap a password for the
-# bearer token, and /api/version so the build line renders before the
-# user has authenticated.
-_AUTH_EXEMPT_PREFIXES = ("/static/", "/healthz", "/install-ca")
+# probes, the page boot (so the JS can pick up the token from ?token=
+# and attach it to subsequent calls), /api/login so a device with no
+# token can swap a password for the bearer token, and /api/version so
+# the build line renders before the user has authenticated.
+_AUTH_EXEMPT_PREFIXES = ("/static/", "/healthz")
 _AUTH_EXEMPT_EXACT = frozenset(
-    {"/", "/healthz", "/install-ca", "/api/login", "/api/version"}
+    {"/", "/healthz", "/api/login", "/api/version"}
 )
 
 
@@ -34,8 +33,7 @@ class BearerTokenMiddleware(BaseHTTPMiddleware):
 
     - Empty configured token → short-circuit, no gate.
     - Loopback callers bypass.
-    - `/`, `/static/*`, `/healthz`, `/install-ca`, `/api/login`,
-      `/api/version` exempt.
+    - `/`, `/static/*`, `/healthz`, `/api/login`, `/api/version` exempt.
     - Otherwise accept token from `Authorization: Bearer …` header or
       `?token=…` query string.
     """

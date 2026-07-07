@@ -26,19 +26,19 @@ Same-host callers need no auth and `verify=False` on the loopback cert.
 | Concern | Same-host (loopback) consumer | Remote consumer |
 |---|---|---|
 | Base URL | `https://127.0.0.1:8444` (HTTP if no cert) | your Cloudflare URL, e.g. `https://ocr.<domain>` |
-| TLS | self-signed loopback cert → `verify=False` | Cloudflare terminates TLS; normal verification |
+| TLS | cert is for the `.ts.net` name, not loopback → `verify=False` | Cloudflare terminates TLS; normal verification |
 | Auth | **none** — loopback IPs bypass the gate | bearer token required when enabled |
 
 **Loopback bypass.** `app/webapp/middleware.py` lets any caller from `127.0.0.1`, `::1`, or `localhost` through without a token. A downstream app running on the same PC needs no credentials at all.
 
-**Self-signed cert.** The webapp serves HTTPS on loopback (so the PWA keeps a secure context on the phone). A same-host HTTP client must skip verification (`httpx.Client(verify=False)` / `requests(..., verify=False)` / `curl -k`) — the cert is not in your client's trust store. If `webapp/certificates/` is absent the server falls back to plain HTTP.
+**Loopback TLS.** The webapp serves HTTPS with a Let's Encrypt cert issued for the tailnet `.ts.net` name (`scripts/gen_tailscale_cert.py`, issue #70). A same-host client hitting `127.0.0.1` must skip verification (`httpx.Client(verify=False)` / `requests(..., verify=False)` / `curl -k`) — the cert is valid but its hostname never matches loopback. If `webapp/certificates/` is absent the server falls back to plain HTTP.
 
 **Remote auth (only if the token gate is on).** When `auth_token` is set in `config/webapp_config.json`, non-loopback callers must present it as either:
 
 - `Authorization: Bearer <token>` header (preferred for API clients), or
 - `?token=<token>` query string.
 
-Exempt paths that never need the token: `/`, `/static/*`, `/healthz`, `/install-ca`, `/api/login`, `/api/version`.
+Exempt paths that never need the token: `/`, `/static/*`, `/healthz`, `/api/login`, `/api/version`.
 
 ---
 
@@ -169,7 +169,7 @@ Anything `src/image_utils.py` validates: JPEG / PNG / WebP / HEIC (iOS) etc. Ima
 ### curl — single-shot
 
 ```bash
-# loopback, no auth, -k for the self-signed cert
+# loopback, no auth, -k because the cert is for the .ts.net name
 curl -sk -X POST "https://127.0.0.1:8444/api/extract?model=gemini_flash" \
   -F files=@screenshot.png | jq -r .text
 ```
@@ -189,7 +189,7 @@ with open("screenshot.png", "rb") as fh:
         params={"model": "gemini_flash"},
         files={"files": ("screenshot.png", fh.read(), "image/png")},
         timeout=120.0,
-        verify=False,           # self-signed loopback cert
+        verify=False,           # cert is for the .ts.net name, not loopback
     )
 resp.raise_for_status()
 print(resp.json()["text"])

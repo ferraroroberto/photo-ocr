@@ -57,18 +57,6 @@ def test_status_returns_hub_block(app_factory) -> None:
         assert "reachable" in body["llm_hub"]
 
 
-def test_install_ca_404_when_missing(
-    app_factory, tmp_path: Path, monkeypatch
-) -> None:
-    # Point the route at an empty dir so the check is deterministic — a
-    # dev machine that already generated the cert has the real
-    # .mobileconfig sitting in app/webapp/static/.
-    monkeypatch.setattr("app.webapp.routers.misc.STATIC_DIR", tmp_path)
-    with TestClient(app_factory()) as client:
-        r = client.get("/install-ca")
-        assert r.status_code == 404
-
-
 class TestBuildVersion:
     """Cache hygiene + build identity — see issue #5."""
 

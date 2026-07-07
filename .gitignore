@@ -35,5 +35,3 @@ archive/
 webapp/last_tunnel_url.txt
 webapp/certificates/
 webapp/cloudflared.yml
-app/webapp/static/photo-ocr-ca.mobileconfig
-app/webapp/static/ca.crt

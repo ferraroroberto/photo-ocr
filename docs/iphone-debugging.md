@@ -28,7 +28,7 @@ logic — exactly what Playwright's bundled WebKit on Windows cannot reproduce:
   most likely place a real-device-only bug hides.
 - **Real WKWebView limits** — memory pressure when several multi-megapixel
   photos are held in a take, background-tab suspension policies.
-- **Real Safari clipboard, Trust Profile flows, Wi-Fi ↔ cellular switches.**
+- **Real Safari clipboard behaviour, Wi-Fi ↔ cellular switches.**
 - **Apple-silicon Safari rendering details** the Playwright WebKit build
   doesn't ship.
 

@@ -1,10 +1,12 @@
-"""Regression net for issue #3 (commit 279cc9c): the self-signed leaf
+"""Regression net for issue #3 (commit 279cc9c): the served leaf
 certificate must stay within Apple's 398-day maximum validity window.
 
 iOS/macOS reject a TLS leaf whose validity span exceeds 398 days
 (``NSURLErrorServerCertificateHasUnknownRoot`` family) — a too-long cert
 makes the whole PWA unreachable from an iPhone. This pulls the leaf the
-tray is actually serving over the wire and measures its window.
+tray is actually serving over the wire and measures its window. The
+Tailscale-issued Let's Encrypt leaf (issue #70) is ~90 days, comfortably
+inside the cap; the net stays because it guards whatever ends up served.
 
 Non-browser: inspects the served cert directly, so it runs once on the
 chromium projection rather than twice.
@@ -20,8 +22,8 @@ from cryptography import x509
 
 pytestmark = pytest.mark.smoke
 
-# Apple's hard cap. photo-ocr's gen_ssl_cert.py targets 396 days, a
-# small margin under this.
+# Apple's hard cap; the Let's Encrypt leaf from `tailscale cert` is ~90
+# days, far under it.
 _APPLE_MAX_VALIDITY_DAYS = 398
 
 
