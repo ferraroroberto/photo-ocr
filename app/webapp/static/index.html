@@ -14,7 +14,6 @@
   <link rel="icon" type="image/png" href="/static/icon-512.png">
   <link rel="stylesheet" href="/static/styles.css">
   <link rel="stylesheet" href="/static/_vendored/card/card.css">
-  <link rel="stylesheet" href="/static/_vendored/disclosure/disclosure.css">
   <link rel="stylesheet" href="/static/_vendored/empty-state/empty-state.css">
   <link rel="stylesheet" href="/static/_vendored/nav/nav-tabs.css">
   <title>Photo OCR</title>
@@ -240,21 +239,15 @@
         </label>
       </section>
 
-      <details id="promptPanel" class="card card--collapsible">
-        <summary class="collapse-summary">
-          <span class="collapse-main">
-            <svg class="icon" aria-hidden="true"><use href="#i-file-text"></use></svg>
-            <h3 class="collapse-title">Prompt preview</h3>
-          </span>
-          <span class="collapse-chevron" aria-hidden="true"><svg class="icon" aria-hidden="true"><use href="#i-chevron-right"></use></svg></span>
-        </summary>
-        <div class="collapse-body">
-          <label class="stacked">
-            <span class="muted small">Prompt sent to the LLM (read-only preview)</span>
-            <textarea id="ocrPromptPreview" class="text-out prompt-preview" rows="6" readonly></textarea>
-          </label>
+      <section class="card">
+        <div class="card-head">
+          <h2 class="card-title"><svg class="icon" aria-hidden="true"><use href="#i-file-text"></use></svg> Prompt preview</h2>
         </div>
-      </details>
+        <label class="stacked">
+          <span class="muted small">Prompt sent to the LLM (read-only preview)</span>
+          <textarea id="ocrPromptPreview" class="text-out prompt-preview" rows="6" readonly></textarea>
+        </label>
+      </section>
 
       <section class="card">
         <div class="card-head">
@@ -268,9 +261,7 @@
           <span>Max photos per take</span>
           <input id="maxPhotos" type="number" min="1" max="100" class="input-native">
         </label>
-        <div class="row">
-          <button id="saveSettings" type="button" class="big-btn"><svg class="icon" aria-hidden="true"><use href="#i-save"></use></svg> Save defaults</button>
-        </div>
+        <button id="saveSettings" type="button" class="shaded-btn"><svg class="icon" aria-hidden="true"><use href="#i-save"></use></svg> Save defaults</button>
       </section>
 
       <section class="card">

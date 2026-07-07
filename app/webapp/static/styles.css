@@ -485,6 +485,32 @@ html, body {
   border-color: var(--on);
 }
 
+/* Full-width shaded action — home-automation's .range-tab recipe (Network
+   tab Refresh / Reset router): card-off fill, hairline border, control
+   height, muted 600 label. The ::before extends the tap target to >=44px
+   vertically without inflating the visual pill. */
+.shaded-btn {
+  position: relative;
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35em;
+  height: var(--control-h);
+  margin-top: var(--space-xs);
+  background: var(--card-off);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 0 10px;
+  color: var(--muted);
+  font-size: var(--font-label);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.shaded-btn::before { content: ""; position: absolute; inset: -4px 0; }
+.shaded-btn:active { background: var(--line-muted); }
+
 .ghost-btn {
   display: inline-flex;
   align-items: center;
