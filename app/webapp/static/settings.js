@@ -1,5 +1,6 @@
-/* Photo OCR — the Settings panel: config + status fetch, the model /
- * style selectors, the prompt preview, and the build-identity line. */
+/* Photo OCR — the Settings panel: config fetch, the model / style
+ * selectors, the prompt preview, the dirty-aware Save defaults button,
+ * and the build-identity footer line. */
 
 'use strict';
 
@@ -38,6 +39,25 @@ export function renderSettings() {
 
   els.retentionDays.value = state.config.history_retention_days || 30;
   els.maxPhotos.value = state.config.max_photos_per_session || 50;
+
+  updateSaveDirty();
+}
+
+// Save defaults only arms when the current selection actually differs from
+// the persisted server defaults — disabled + quiet when clean, enabled +
+// accent-tinted when there is something to save (#76).
+export function updateSaveDirty() {
+  if (!state.config) return;
+  const cfg = state.config;
+  const dirty =
+    state.model !== (cfg.ocr_model_default || null) ||
+    state.promptId !== (cfg.ocr_prompt_default || null) ||
+    (parseInt(els.retentionDays.value, 10) || 0) !==
+      (cfg.history_retention_days || 30) ||
+    (parseInt(els.maxPhotos.value, 10) || 0) !==
+      (cfg.max_photos_per_session || 50);
+  els.saveSettings.disabled = !dirty;
+  els.saveSettings.classList.toggle('shaded-btn--accent', dirty);
 }
 
 export async function fetchConfig() {
@@ -62,23 +82,12 @@ export async function fetchConfig() {
   }
 }
 
-export async function fetchStatus() {
-  try {
-    const body = await jsonApi('/api/status');
-    const hub = body.llm_hub || {};
-    els.statusReadout.textContent =
-      'Hub: ' + (hub.reachable ? 'reachable' : 'unreachable') + ' · ' + (hub.base_url || '?');
-  } catch (_) {
-    els.statusReadout.textContent = '';
-  }
-}
-
-// Surface the loaded build in the Settings panel so "is the phone
-// running the current code?" is answerable at a glance — see issue #5.
-// /api/version is auth-exempt, so a plain fetch avoids the login
+// Surface the loaded build in the page footer so "is the phone running
+// the current code?" is answerable at a glance from any tab — see issue
+// #5. /api/version is auth-exempt, so a plain fetch avoids the login
 // overlay even before the user has signed in.
 export async function loadVersion() {
-  if (!els.buildInfo) return;
+  if (!els.buildReadout) return;
   try {
     const res = await fetch('/api/version');
     if (!res.ok) throw new Error(String(res.status));
@@ -86,10 +95,10 @@ export async function loadVersion() {
     const when = String(v.built_at || '')
       .replace('T', ' ')
       .replace(/(\+00:00|Z)$/, ' UTC');
-    els.buildInfo.textContent =
+    els.buildReadout.textContent =
       ('Build: ' + (v.git_sha || '?') + ' · ' + when).trim();
   } catch (_) {
-    // Non-critical — leave a quiet placeholder rather than alarming.
-    els.buildInfo.textContent = 'Build: unavailable';
+    // Non-critical — leave the footer quiet rather than alarming.
+    els.buildReadout.textContent = '';
   }
 }

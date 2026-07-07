@@ -164,29 +164,26 @@
   </nav>
 
   <main class="app">
-    <header class="header">
-      <h1><svg class="icon" aria-hidden="true"><use href="#i-camera"></use></svg> Photo OCR</h1>
-      <div class="header-actions">
-        <button id="themeToggle" type="button" class="header-icon-btn"
-                title="Toggle theme" aria-label="Toggle dark mode"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
-        <button id="resetBtn" type="button" class="header-icon-btn"
-                title="Reset — clear photos and result" aria-label="Reset"><svg class="icon" aria-hidden="true"><use href="#i-eraser"></use></svg></button>
-        <button id="incognitoToggle" type="button" class="header-icon-btn" aria-pressed="false"
-                title="Incognito — don't save this take to history" aria-label="Incognito"><svg class="icon" aria-hidden="true"><use href="#i-venetian-mask"></use></svg></button>
-      </div>
-    </header>
-
     <section id="paneCapture" class="pane" role="tabpanel" aria-labelledby="tabCapture" aria-label="Capture">
       <section class="capture-zone">
         <ul id="thumbStrip" class="thumb-strip" aria-label="Photos in this take"></ul>
 
+        <!-- One toolbar owns the whole take: Add photo (primary affordance,
+             accent-shaded), gallery pick, then the take-scoped toggles that
+             used to live in the app header (reset / incognito / theme). -->
         <div class="capture-actions">
           <label class="big-btn add-photo-btn" for="cameraInput">
             <svg class="icon" aria-hidden="true"><use href="#i-camera"></use></svg> Add photo
           </label>
-          <label class="ghost-btn gallery-btn" for="galleryInput" title="Pick from gallery instead of camera" aria-label="Pick from gallery">
+          <label class="ghost-btn tool-btn" for="galleryInput" title="Pick from gallery instead of camera" aria-label="Pick from gallery">
             <svg class="icon" aria-hidden="true"><use href="#i-image"></use></svg>
           </label>
+          <button id="resetBtn" type="button" class="ghost-btn tool-btn"
+                  title="Reset — clear photos and result" aria-label="Reset"><svg class="icon" aria-hidden="true"><use href="#i-eraser"></use></svg></button>
+          <button id="incognitoToggle" type="button" class="ghost-btn tool-btn" aria-pressed="false"
+                  title="Incognito — don't save this take to history" aria-label="Incognito"><svg class="icon" aria-hidden="true"><use href="#i-venetian-mask"></use></svg></button>
+          <button id="themeToggle" type="button" class="ghost-btn tool-btn"
+                  title="Toggle theme" aria-label="Toggle dark mode"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
         </div>
         <input id="cameraInput" type="file" accept="image/*" capture="environment" multiple hidden>
         <input id="galleryInput" type="file" accept="image/*" multiple hidden>
@@ -210,13 +207,17 @@
 
     <section id="paneHistory" class="pane" role="tabpanel" aria-labelledby="tabHistory" aria-label="History" hidden>
       <section class="card history-card">
+        <!-- Single-line head: title, then refresh/clean as icon buttons and
+             the loaded/total count — no second actions row. -->
         <div class="card-head">
           <h2 class="card-title"><svg class="icon" aria-hidden="true"><use href="#i-history"></use></svg> History</h2>
-          <span class="card-head-meta" id="historyCount">0</span>
-        </div>
-        <div class="history-actions">
-          <button id="refreshHistory" type="button" class="ghost-btn"><svg class="icon" aria-hidden="true"><use href="#i-refresh-cw"></use></svg> Refresh</button>
-          <button id="cleanAll" type="button" class="ghost-btn"><svg class="icon" aria-hidden="true"><use href="#i-trash-2"></use></svg> Clean</button>
+          <div class="card-head-actions">
+            <button id="refreshHistory" type="button" class="ghost-btn tool-btn"
+                    title="Refresh" aria-label="Refresh history"><svg class="icon" aria-hidden="true"><use href="#i-refresh-cw"></use></svg></button>
+            <button id="cleanAll" type="button" class="ghost-btn tool-btn"
+                    title="Clean — delete all saved takes" aria-label="Delete all saved takes"><svg class="icon" aria-hidden="true"><use href="#i-trash-2"></use></svg></button>
+            <span class="card-head-meta" id="historyCount">0</span>
+          </div>
         </div>
         <input id="historySearch" type="search" class="input-native history-search" placeholder="Search extracted text…" autocomplete="off" hidden>
         <ul id="historyList" class="history-list"></ul>
@@ -261,17 +262,14 @@
           <span>Max photos per take</span>
           <input id="maxPhotos" type="number" min="1" max="100" class="input-native">
         </label>
-        <button id="saveSettings" type="button" class="shaded-btn"><svg class="icon" aria-hidden="true"><use href="#i-save"></use></svg> Save defaults</button>
-      </section>
-
-      <section class="card">
-        <div class="card-head">
-          <h2 class="card-title"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg> About</h2>
-        </div>
-        <p id="statusReadout" class="muted small"></p>
-        <p id="buildInfo" class="muted small" title="Which build of the webapp this device loaded — see issue #5">Build: …</p>
+        <button id="saveSettings" type="button" class="shaded-btn" disabled><svg class="icon" aria-hidden="true"><use href="#i-save"></use></svg> Save defaults</button>
       </section>
     </section>
+
+    <!-- Build identity: which build the PWA is running. Filled by main.js. -->
+    <footer class="page-foot">
+      <p id="buildReadout" class="muted small" title="Which build of the webapp this device loaded — see issue #5"></p>
+    </footer>
 
     <div id="toast" class="toast" hidden></div>
   </main>

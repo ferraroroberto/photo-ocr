@@ -24,6 +24,8 @@
   /* derived surface roles (mapped onto the neutral tokens above) */
   --input-bg: var(--card-off);
   --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
+  --accent-border-soft: color-mix(in srgb, var(--accent) 24%, transparent);
+  --accent-border-strong: color-mix(in srgb, var(--accent) 28%, transparent);
   /* theme-invariant surfaces: the login scrim dims content and the photo
      lightbox/thumb overlays frame photos — neither is a themed surface. */
   --scrim: rgba(0, 0, 0, 0.5);
@@ -172,47 +174,21 @@ html, body {
 }
 
 /* ---------- header ---------- */
-.header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--gap) 0 var(--space-xs);
-}
-.header h1 {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4em;
-  margin: 0;
-  font-size: var(--font-body);
-  font-weight: 700;
-}
-.header h1 .icon { width: var(--icon-title); height: var(--icon-title); }
-
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-}
-
-.header-icon-btn {
-  display: inline-flex;
-  align-items: center;
+/* Icon-only ghost button — the capture-toolbar toggles (gallery / reset /
+   incognito / theme) and the History-head refresh/clean. Square-ish so a
+   row of them stays compact; the flex row it sits in controls height.
+   Compound selector so it outranks the .ghost-btn base later in the file. */
+.ghost-btn.tool-btn {
+  flex: 0 0 auto;
+  width: 44px;
+  padding: var(--space-xs) 0;
   justify-content: center;
   font-size: var(--icon-title);
-  padding: var(--space-xs) 10px;
-  min-height: var(--control-h);
-  background: transparent;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  color: var(--ink);
-  cursor: pointer;
   user-select: none;
-  transition: background 0.15s, border-color 0.15s;
 }
-.header-icon-btn:active { background: var(--card-off); }
 /* The incognito toggle is an aria-pressed icon button (shadcn Toggle shape). */
-.header-icon-btn[aria-pressed] { opacity: 0.55; }
-.header-icon-btn[aria-pressed="true"] {
+.ghost-btn.tool-btn[aria-pressed] { opacity: 0.55; }
+.ghost-btn.tool-btn[aria-pressed="true"] {
   opacity: 1;
   border-color: var(--accent);
   background: var(--accent-soft);
@@ -367,22 +343,16 @@ html, body {
   gap: 10px;
   align-items: stretch;
 }
-/* One primary per view (Extract); Add photo / gallery are quiet secondaries.
-   Compound selector so the secondary skin outranks the .big-btn base below. */
+/* One primary per view (Extract); Add photo is the accent-tinted ghost from
+   home-automation's Net tab (opt-in action that stands out without competing
+   with the solid primary). Compound selector so the skin outranks the
+   .big-btn base below. */
 .big-btn.add-photo-btn {
   flex: 1 1 auto;
   text-align: center;
-  background: var(--card-off);
-  color: var(--ink);
-  border: 1px solid var(--line);
-}
-.gallery-btn {
-  flex: 0 0 auto;
-  width: 56px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: var(--icon-title);
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid var(--accent-border-soft);
 }
 
 .big-btn {
@@ -441,8 +411,16 @@ html, body {
 .card-head { margin-bottom: var(--space-sm); }
 .card-head-actions {
   display: flex;
+  align-items: center;
   gap: var(--space-sm);
 }
+
+/* Build-identity footer (which build the PWA is running). */
+.page-foot {
+  margin: var(--space-md) var(--space-xs);
+  text-align: center;
+}
+.page-foot p { margin: 2px 0; }
 
 .text-out {
   width: 100%;
@@ -510,6 +488,15 @@ html, body {
 }
 .shaded-btn::before { content: ""; position: absolute; inset: -4px 0; }
 .shaded-btn:active { background: var(--line-muted); }
+.shaded-btn:disabled { opacity: 0.55; cursor: default; }
+.shaded-btn:disabled:active { background: var(--card-off); }
+/* Dirty state: unsaved changes — same accent tint as .add-photo-btn, so
+   "this button is armed" reads consistently across the app. */
+.shaded-btn--accent:not(:disabled) {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent-border-strong);
+}
 
 .ghost-btn {
   display: inline-flex;
@@ -568,12 +555,6 @@ hr {
 .small { font-size: var(--font-caption); }
 
 /* ---------- history ---------- */
-.history-actions {
-  display: flex;
-  gap: var(--space-sm);
-  margin: 10px 0;
-  flex-wrap: wrap;
-}
 .history-search {
   display: block;
   width: 100%;

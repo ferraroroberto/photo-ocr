@@ -34,9 +34,9 @@ import {
 } from './sessions.js';
 import {
   fetchConfig,
-  fetchStatus,
   refreshPromptPreview,
   loadVersion,
+  updateSaveDirty,
 } from './settings.js';
 import { icon } from './_vendored/icons/icons.js';
 import { initNavTabs } from './_vendored/nav/nav-tabs.js';
@@ -44,7 +44,7 @@ import { initNavTabs } from './_vendored/nav/nav-tabs.js';
 // --------------------------------------------------------------- theme toggle
 // Same feature as home-automation / app-launcher: the pre-paint script in
 // index.html applies the stored theme (or the system preference) before first
-// render; this block owns the header sun/moon toggle + persistence.
+// render; this block owns the capture-toolbar sun/moon toggle + persistence.
 function applyTheme(dark) {
   document.documentElement.dataset.theme = dark ? 'dark' : 'light';
   els.themeToggle.innerHTML = icon(dark ? 'sun' : 'moon');
@@ -87,7 +87,6 @@ async function boot() {
     }
     return;
   }
-  await fetchStatus();
   await loadHistory(0);
   renderThumbnails();
   renderExtracted();
@@ -141,12 +140,16 @@ els.incognitoToggle.addEventListener('click', function () {
 els.ocrModel.addEventListener('change', function () {
   state.model = els.ocrModel.value;
   localStorage.setItem(MODEL_KEY, state.model);
+  updateSaveDirty();
 });
 els.ocrStyle.addEventListener('change', function () {
   state.promptId = els.ocrStyle.value;
   localStorage.setItem(PROMPT_KEY, state.promptId);
   refreshPromptPreview();
+  updateSaveDirty();
 });
+els.retentionDays.addEventListener('input', updateSaveDirty);
+els.maxPhotos.addEventListener('input', updateSaveDirty);
 els.extracted.addEventListener('input', function () {
   state.extracted = els.extracted.value;
   els.copyExtracted.disabled = !state.extracted;
@@ -166,6 +169,7 @@ els.saveSettings.addEventListener('click', async function () {
       body: JSON.stringify(patch),
     });
     state.config = Object.assign({}, state.config, body.config || {});
+    updateSaveDirty();
     toast('Defaults saved.', 'good');
   } catch (exc) {
     toast('Save failed: ' + (exc.message || exc), 'error');
