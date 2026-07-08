@@ -13,6 +13,7 @@
   <link rel="icon" href="/static/favicon.ico" sizes="any">
   <link rel="icon" type="image/png" href="/static/icon-512.png">
   <link rel="stylesheet" href="/static/styles.css">
+  <link rel="stylesheet" href="/static/_vendored/button/button.css">
   <link rel="stylesheet" href="/static/_vendored/card/card.css">
   <link rel="stylesheet" href="/static/_vendored/empty-state/empty-state.css">
   <link rel="stylesheet" href="/static/_vendored/nav/nav-tabs.css">
@@ -172,7 +173,7 @@
              accent-shaded), gallery pick, then the take-scoped toggles that
              used to live in the app header (reset / incognito / theme). -->
         <div class="capture-actions">
-          <label class="big-btn add-photo-btn" for="cameraInput">
+          <label class="button-tint add-photo-btn" for="cameraInput">
             <svg class="icon" aria-hidden="true"><use href="#i-camera"></use></svg> Add photo
           </label>
           <label class="ghost-btn tool-btn" for="galleryInput" title="Pick from gallery instead of camera" aria-label="Pick from gallery">
@@ -188,7 +189,7 @@
         <input id="cameraInput" type="file" accept="image/*" capture="environment" multiple hidden>
         <input id="galleryInput" type="file" accept="image/*" multiple hidden>
 
-        <button id="extractBtn" type="button" class="big-btn extract-btn" disabled>
+        <button id="extractBtn" type="button" class="button-primary extract-btn" disabled>
           <svg class="icon" aria-hidden="true"><use href="#i-scan-text"></use></svg> Extract text
         </button>
         <div id="captureStatus" class="record-status">Add a photo to begin</div>
@@ -290,7 +291,7 @@
         placeholder="Password"
         required
       >
-      <button type="submit" class="big-btn">Unlock</button>
+      <button type="submit" class="button-primary">Unlock</button>
       <div id="loginError" class="login-error" hidden></div>
     </form>
   </div>

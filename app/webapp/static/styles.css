@@ -332,10 +332,25 @@ html, body {
   font-size: var(--font-caption);
   cursor: pointer;
 }
-.photo-warning .retake-btn { background: #d29922; color: #000; }
+/* Retake — a status-colored action on the warning banner: the attention
+   tint recipe (the vendored .button-tint.danger pattern, restated on
+   --attention) rather than a solid fill + fixed fg, which fails AA text
+   contrast against the dark theme's brighter attention value (~2.7:1 with
+   white, ~3.2:1 with the light-theme ink). Text-as-status-color on a
+   translucent wash is the same idiom home-automation/whatsapp-radar use for
+   every attention-tinted action. */
+.photo-warning .retake-btn {
+  border: 1px solid color-mix(in srgb, var(--attention) 55%, transparent);
+  background: color-mix(in srgb, var(--attention) 30%, transparent);
+  color: var(--attention);
+}
+/* Dismiss — the translucent-white "Keep" action restated as a color-mix over
+   --accent-fg (#fff in both themes per design.md/design.dark.md), so the
+   rendered color is byte-identical to the previous literal
+   rgba(255, 255, 255, 0.15) / #fff while being fully tokenized. */
 .photo-warning .dismiss-btn {
-  background: rgba(255, 255, 255, 0.15);
-  color: #fff;
+  background: color-mix(in srgb, var(--accent-fg) 15%, transparent);
+  color: var(--accent-fg);
 }
 
 .capture-actions {
@@ -343,48 +358,27 @@ html, body {
   gap: 10px;
   align-items: stretch;
 }
-/* One primary per view (Extract); Add photo is the accent-tinted ghost from
-   home-automation's Net tab (opt-in action that stands out without competing
-   with the solid primary). Compound selector so the skin outranks the
-   .big-btn base below. */
-.big-btn.add-photo-btn {
-  flex: 1 1 auto;
-  text-align: center;
-  background: var(--accent-soft);
-  color: var(--accent);
-  border: 1px solid var(--accent-border-soft);
-}
-
-.big-btn {
+/* One .button-primary per view (Extract); Add photo is the .button-tint —
+   the fleet's accent-soft secondary emphasis (opt-in action that stands out
+   without competing with the solid primary). The vendored button.css owns
+   the fill/border/disabled recipe for both tiers; this app layers only the
+   icon+label flex layout and flex-sizing on top (per-app markup extras,
+   never a re-statement of the vendored fill/color/border declarations). */
+.extract-btn,
+.add-photo-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.4em;
-  min-height: 48px;
-  padding: var(--gap) var(--space-md);
-  font-size: var(--font-body);
-  font-weight: 600;
-  border: 0;
-  border-radius: var(--radius-md);
-  background: var(--accent);
-  color: var(--accent-fg);
-  cursor: pointer;
   user-select: none;
   -webkit-user-select: none;
   touch-action: manipulation;
-  transition: background 0.15s, transform 0.1s;
 }
-.big-btn .icon { width: var(--icon-title); height: var(--icon-title); }
-.big-btn:active { transform: scale(0.98); }
-/* Authored disabled recipe — clears AA contrast in both themes (never the
-   browser default, which drops sub-AA). */
-.big-btn[disabled],
-.big-btn.disabled {
-  background: var(--card-off);
-  color: var(--muted);
-  border: 1px solid var(--line);
-  cursor: not-allowed;
-}
+.extract-btn .icon,
+.add-photo-btn .icon { width: var(--icon-title); height: var(--icon-title); }
+.button-primary:active { transform: scale(0.98); }
+
+.add-photo-btn { flex: 1 1 auto; }
 
 .extract-btn { width: 100%; }
 .extract-btn.busy {
