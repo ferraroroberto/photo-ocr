@@ -29,10 +29,10 @@ REM when the cert is missing or not a .ts.net cert).
 if not exist "%CERT%" (
     echo [INFO] No HTTPS cert found, running HTTP-only on :8444.
     echo        Run scripts\gen_tailscale_cert.py to enable HTTPS.
-    "%VENV_PY%" -m uvicorn app.webapp.server:app --host 0.0.0.0 --port 8444
+    "%VENV_PY%" -m uvicorn app.webapp.server:app --host 0.0.0.0 --port 8444 --loop app.webapp.event_loop:selector_loop_factory
 ) else (
     echo [INFO] HTTPS via %CERT%
-    "%VENV_PY%" -m uvicorn app.webapp.server:app --host 0.0.0.0 --port 8444 --ssl-keyfile "%KEY%" --ssl-certfile "%CERT%"
+    "%VENV_PY%" -m uvicorn app.webapp.server:app --host 0.0.0.0 --port 8444 --ssl-keyfile "%KEY%" --ssl-certfile "%CERT%" --loop app.webapp.event_loop:selector_loop_factory
 )
 
 exit /b %ERRORLEVEL%

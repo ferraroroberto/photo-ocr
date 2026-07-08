@@ -158,6 +158,7 @@ def _autoboot_server() -> Iterator[str]:
     A hard failure (``pytest.fail``) — never a skip — if it doesn't come
     up: under the pre-ship gate a missing server must not pass silently.
     """
+    from app.webapp.event_loop import LOOP_FACTORY
     from app.webapp.manager import cert_paths
 
     logs_dir = _REPO_ROOT / "webapp"  # gitignored runtime dir
@@ -184,6 +185,8 @@ def _autoboot_server() -> Iterator[str]:
             str(port),
             "--log-level",
             "warning",
+            "--loop",
+            LOOP_FACTORY,
         ]
         if certs:
             cert, key = certs
