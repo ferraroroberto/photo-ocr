@@ -319,7 +319,7 @@ html, body {
   background: rgba(0, 0, 0, 0.78);
 }
 .photo-warning .warn-text {
-  font-size: 10px;
+  font-size: var(--font-caption);
   font-weight: 600;
   line-height: 1.2;
   color: #fff;
