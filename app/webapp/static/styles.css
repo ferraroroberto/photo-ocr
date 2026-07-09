@@ -399,8 +399,8 @@ html, body {
 }
 
 /* ---------- cards ----------
-   Base .card + header row come from _vendored/card/card.css; the collapsible
-   modifier from _vendored/disclosure/disclosure.css. App-side extras only. */
+   Base .card + header row come from _vendored/card/card.css. App-side
+   extras only. */
 .card { margin: var(--gap) 0; }
 .card-head { margin-bottom: var(--space-sm); }
 .card-head-actions {

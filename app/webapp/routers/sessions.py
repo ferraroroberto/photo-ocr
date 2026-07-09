@@ -17,8 +17,9 @@ from fastapi.responses import FileResponse
 from app.webapp.routers._helpers import maybe_json
 from src.archive import PhotoMeta, Session, SessionArchive
 from src.image_utils import ImageValidationError, validate_and_persist
+from src.app_config import AppConfig
 from src.ocr_client import OcrClient, OcrError, chunk_count
-from src.ocr_prompts import OcrPrompt, get_prompt
+from src.ocr_prompts import OcrPrompt, apply_language_hint, get_prompt
 from src.webapp_config import WebappConfig
 
 logger = logging.getLogger(__name__)
@@ -163,6 +164,7 @@ def _execute_extract_job(
 ) -> None:
     archive: SessionArchive = app.state.archive
     cfg: WebappConfig = app.state.webapp_config
+    app_cfg: AppConfig = app.state.app_config
     ocr_client: OcrClient = app.state.ocr_client
     lock = app.state.extract_lock
 
@@ -203,7 +205,7 @@ def _execute_extract_job(
             result = ocr_client.extract(
                 image_paths=photo_paths,
                 model=model,
-                system=prompt_system,
+                system=apply_language_hint(prompt_system, app_cfg.default_language_hint),
                 chunk_size=chunk_size,
                 progress_callback=_on_chunk,
             )

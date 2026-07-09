@@ -208,7 +208,7 @@ photo-ocr/
 │   │   ├── routers/             APIRouter per concern (misc, config, auth, sessions, search)
 │   │   ├── manager.py
 │   │   └── static/              PWA: index.html, ES-module JS, styles.css, icons
-│   │       └── _vendored/       fleet components (nav · icons · card · disclosure ·
+│   │       └── _vendored/       fleet components (nav · icons · card · button ·
 │   │                            empty-state), copied verbatim from project-scaffolding
 │   └── tray/                    system-tray launcher
 ├── config/

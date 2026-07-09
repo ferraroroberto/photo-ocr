@@ -16,9 +16,10 @@ import tempfile
 import time
 from pathlib import Path
 
+from src.app_config import load_app_config
 from src.image_utils import ImageValidationError, validate_and_persist
 from src.ocr_client import OcrClient, OcrError
-from src.ocr_prompts import get_prompt
+from src.ocr_prompts import apply_language_hint, get_prompt
 from src.webapp_config import load_webapp_config
 
 from .base import BaseCommand
@@ -39,8 +40,10 @@ class ExtractCommand(BaseCommand):
 
     def execute(self, args: argparse.Namespace) -> int:
         cfg = load_webapp_config()
+        app_cfg = load_app_config()
         model = args.model or cfg.ocr_model_default
         prompt = get_prompt(args.prompt_id or cfg.ocr_prompt_default)
+        system = apply_language_hint(prompt.system, app_cfg.default_language_hint)
 
         for p in args.photos:
             if not p.exists() or not p.is_file():
@@ -80,7 +83,7 @@ class ExtractCommand(BaseCommand):
                 result = client.extract(
                     image_paths=persisted,
                     model=model,
-                    system=prompt.system,
+                    system=system,
                     chunk_size=cfg.extract_chunk_size,
                 )
             except OcrError as exc:
