@@ -94,6 +94,15 @@ def test_webapp_bat_wires_loop_factory():
     assert "--loop" in src
 
 
+def test_run_named_tunnel_wires_loop_factory():
+    """scripts/run_named_tunnel.py backs webapp_tunnel_named.bat (headless/
+    no-tray use) — the one uvicorn entrypoint the proactor-loop fix
+    (commit 5750f6c) didn't originally reach."""
+    src = (_REPO_ROOT / "scripts" / "run_named_tunnel.py").read_text(encoding="utf-8")
+    assert "from app.webapp.event_loop import LOOP_FACTORY" in src
+    assert '"--loop",\n        LOOP_FACTORY,' in src
+
+
 async def _noop_handler(reader, writer):
     writer.close()
 

@@ -135,6 +135,7 @@ export function resetTake() {
   });
   state.photos = [];
   state.sessionId = null;
+  state.sessionIdPromise = null;
   state.extracted = '';
   renderThumbnails();
   renderExtracted();
