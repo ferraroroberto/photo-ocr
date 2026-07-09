@@ -35,6 +35,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 # Local imports (root on sys.path per the bootstrap above)
+from app.webapp.event_loop import LOOP_FACTORY  # noqa: E402
 from src import cloudflared_runner  # noqa: E402
 
 logger = logging.getLogger("run_named_tunnel")
@@ -74,6 +75,8 @@ def _spawn_uvicorn(port: int) -> subprocess.Popen:
         str(port),
         "--log-level",
         "warning",
+        "--loop",
+        LOOP_FACTORY,
     ]
     if cert.exists() and key.exists():
         cmd.extend(["--ssl-keyfile", str(key), "--ssl-certfile", str(cert)])

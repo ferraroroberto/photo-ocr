@@ -3,6 +3,8 @@
  * State machine (single source of truth):
  *
  *   state.sessionId       — server-assigned on first photo upload (lazy)
+ *   state.sessionIdPromise — in-flight ensureSession() POST, memoized so
+ *                            concurrent multi-select uploads share one session
  *   state.photos          — [{ clientId, seq, file, previewUrl, status,
  *                              error, warnings, warningDismissed }]
  *   state.extracted       — current extracted text
@@ -32,6 +34,7 @@ export const HISTORY_PAGE_SIZE = 10;
 
 export const state = {
   sessionId: null,
+  sessionIdPromise: null,
   photos: [],
   extracted: '',
   model: null,

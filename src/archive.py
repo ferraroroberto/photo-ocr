@@ -134,7 +134,7 @@ class Session:
         existing old name.
         """
         # Phase 1: rename everything to a unique temp name.
-        temps: List[tuple[Path, int]] = []
+        temps: List[tuple[Path, int, PhotoMeta]] = []
         for new_idx, p in enumerate(self.meta.photos, start=1):
             current = self.folder / p.path
             if not current.exists():
@@ -145,11 +145,13 @@ class Session:
             except OSError as exc:
                 logger.warning(f"⚠️  Could not rename {current}: {exc}")
                 continue
-            temps.append((tmp, new_idx))
+            temps.append((tmp, new_idx, p))
 
-        # Phase 2: temp → final, and update meta.
+        # Phase 2: temp → final, and update meta. Each triple carries its
+        # own source PhotoMeta through, so a skip/failure in phase 1 can't
+        # desync the pairing for everything renamed after it.
         new_photos: List[PhotoMeta] = []
-        for (tmp, new_idx), p in zip(temps, self.meta.photos):
+        for tmp, new_idx, p in temps:
             final_name = f"{new_idx:02d}.jpg"
             final_path = self.folder / final_name
             try:

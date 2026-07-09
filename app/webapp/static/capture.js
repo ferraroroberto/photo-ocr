@@ -179,13 +179,23 @@ export function handleFilePick(files) {
 
 async function ensureSession() {
   if (state.sessionId) return state.sessionId;
-  const body = await jsonApi('/api/sessions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ incognito: state.incognito }),
-  });
-  state.sessionId = body.session_id;
-  return state.sessionId;
+  // Multi-select capture calls this once per photo without awaiting between
+  // them — memoize the in-flight request so concurrent callers share the
+  // same POST instead of each racing a fresh session into existence.
+  if (!state.sessionIdPromise) {
+    state.sessionIdPromise = (async function () {
+      const body = await jsonApi('/api/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ incognito: state.incognito }),
+      });
+      state.sessionId = body.session_id;
+      return state.sessionId;
+    })().finally(function () {
+      state.sessionIdPromise = null;
+    });
+  }
+  return state.sessionIdPromise;
 }
 
 async function uploadPhoto(photo) {
