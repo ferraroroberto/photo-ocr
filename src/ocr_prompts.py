@@ -143,3 +143,16 @@ def get_prompt(
             if p.id == prompt_id:
                 return p
     return plist[0]
+
+
+def apply_language_hint(system: str, hint: Optional[str]) -> str:
+    """Prepend ``AppConfig.default_language_hint`` to a system prompt.
+
+    Mirrors the field's own docstring (`src/app_config.py`): when a hint
+    is set, the model is told the photos are likely in that language
+    before the rest of the OCR rules. ``None``/empty hint is a no-op so
+    every call site can pass it through unconditionally.
+    """
+    if not hint:
+        return system
+    return f"These photos are likely in {hint}.\n\n{system}"

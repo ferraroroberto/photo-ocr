@@ -8,6 +8,7 @@ from pathlib import Path
 from src.ocr_prompts import (
     DEFAULT_PROMPT_ID,
     OcrPrompt,
+    apply_language_hint,
     get_prompt,
     load_ocr_prompts,
 )
@@ -62,3 +63,16 @@ def test_load_invalid_json_uses_builtin(tmp_path: Path) -> None:
     path.write_text("not json", encoding="utf-8")
     prompts = load_ocr_prompts(path)
     assert prompts[0].id == DEFAULT_PROMPT_ID
+
+
+def test_apply_language_hint_prepends_when_set() -> None:
+    result = apply_language_hint("SYSTEM RULES", "Spanish")
+    assert result == "These photos are likely in Spanish.\n\nSYSTEM RULES"
+
+
+def test_apply_language_hint_noop_when_none() -> None:
+    assert apply_language_hint("SYSTEM RULES", None) == "SYSTEM RULES"
+
+
+def test_apply_language_hint_noop_when_empty() -> None:
+    assert apply_language_hint("SYSTEM RULES", "") == "SYSTEM RULES"

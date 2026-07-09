@@ -64,6 +64,30 @@ def test_extract_success(client: TestClient, jpeg_bytes: bytes) -> None:
     mock_extract.assert_called_once()
 
 
+def test_extract_applies_default_language_hint(client: TestClient, jpeg_bytes: bytes) -> None:
+    client.app.state.app_config.default_language_hint = "Spanish"
+    sid = client.post("/api/sessions", json={}).json()["session_id"]
+    client.post(
+        f"/api/sessions/{sid}/photos",
+        files=[("files", ("a.jpg", jpeg_bytes, "image/jpeg"))],
+    )
+    fake_result = OcrResult(
+        extracted_text="hola mundo",
+        model="gemini_flash",
+        request_payload={"model": "gemini_flash", "images": ["01.jpg"]},
+        response_payload={"content": [{"type": "text", "text": "hola mundo"}]},
+    )
+    with patch.object(
+        client.app.state.ocr_client,
+        "extract",
+        return_value=fake_result,
+    ) as mock_extract:
+        client.post(f"/api/sessions/{sid}/extract", json={"model": "gemini_flash"})
+        _wait_for_phase(client, sid, "succeeded")
+    called_system = mock_extract.call_args.kwargs["system"]
+    assert called_system.startswith("These photos are likely in Spanish.\n\n")
+
+
 def test_extract_returns_424_on_hub_error(client: TestClient, jpeg_bytes: bytes) -> None:
     sid = client.post("/api/sessions", json={}).json()["session_id"]
     client.post(

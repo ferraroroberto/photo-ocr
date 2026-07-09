@@ -32,7 +32,6 @@ The fleet's canonical **card**: an elevated surface one step above the canvas (s
 ```
 
 - The header is optional — a bare `.card` is just the elevated surface.
-- A **collapsible** card is a different component: use [`disclosure/`](../disclosure/) (`<details class="card card--collapsible">`), which zeroes the card's own padding so closed cards align (the padding-doubling rule in `design.md`).
 
 ## Required design tokens
 
