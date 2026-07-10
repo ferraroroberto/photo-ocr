@@ -10,7 +10,7 @@ Writes into ``app/webapp/static/``: ``icon-512.png``, ``icon-512-maskable.png``,
 ``photo-ocr.ico``. Into ``assets/stream-deck/``: ``photo-ocr-144.png``.
 
 Usage:
-    python scripts/gen_icons.py
+    & .\\.venv\\Scripts\\python.exe scripts\\gen_icons.py
 """
 
 from __future__ import annotations
