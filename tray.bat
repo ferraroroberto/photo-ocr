@@ -73,11 +73,26 @@ if not exist "%TRAY_PS%" (
 REM === ADAPT (4/4): replace 8444 with this tray's exclusively-owned
 REM     ports as a comma list, e.g. 8445,8446 . Exclude any mutex-shared port. ===
 set "OWNED_PORTS=8444"
-REM Optional override. Leave blank to verify http://127.0.0.1:<first-owned-port>/api/version.
-set "VERSION_URL="
+REM PhotoOCR-specific: this webapp is HTTPS-only (tailscale cert issued for the
+REM tailnet MagicDNS name, per project-scaffolding#89 / this repo's CLAUDE.md).
+REM The template's default inferred URL is http://127.0.0.1:<port>, which this
+REM app never answers on; and https://127.0.0.1:<port> fails TLS hostname
+REM validation because the cert's SAN is the .ts.net name, not 127.0.0.1. So the
+REM override must point at the tailnet hostname. Update if `tailscale status`
+REM ever reports a different MagicDNS name for this machine.
+set "VERSION_URL=https://tower.tail1121fd.ts.net:8444/api/version"
+
+REM %~dp0 (SCRIPT_DIR) always ends in a trailing backslash. A quoted CLI arg
+REM ending "...\" is misparsed by Windows argv parsing: an odd run of
+REM backslashes before the closing quote escapes it instead of closing the
+REM string, so everything past -ScriptDir gets swallowed into one argument
+REM (observed: "positional parameter cannot be found that accepts argument
+REM 'tray -VersionUrl \"'"). Strip the trailing backslash before passing.
+set "SCRIPT_DIR_ARG=%SCRIPT_DIR%"
+if "%SCRIPT_DIR_ARG:~-1%"=="\" set "SCRIPT_DIR_ARG=%SCRIPT_DIR_ARG:~0,-1%"
 
 set "RESTART_ARG="
 if defined WANT_RESTART set "RESTART_ARG=-Restart"
 
-%PS% -NoProfile -NonInteractive -File "%TRAY_PS%" launch -AppName "%APP_NAME%" -ScriptDir "%SCRIPT_DIR%" -VenvDir "%TRAY_VENV%" -TrayMatch "launcher\.py\s+tray" -Ports "%OWNED_PORTS%" -TrayLaunch "%TRAY_LAUNCH%" -VersionUrl "%VERSION_URL%" !RESTART_ARG!
+%PS% -NoProfile -NonInteractive -File "%TRAY_PS%" launch -AppName "%APP_NAME%" -ScriptDir "%SCRIPT_DIR_ARG%" -VenvDir "%TRAY_VENV%" -TrayMatch "launcher\.py\s+tray" -Ports "%OWNED_PORTS%" -TrayLaunch "%TRAY_LAUNCH%" -VersionUrl "%VERSION_URL%" !RESTART_ARG!
 exit /b %ERRORLEVEL%
