@@ -2,21 +2,7 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
-import pytest
 from fastapi.testclient import TestClient
-
-from app.webapp.server import create_app
-from src.archive import SessionArchive
-
-
-@pytest.fixture
-def client(tmp_path: Path):
-    app = create_app()
-    app.state.archive = SessionArchive(root=tmp_path / "archive")
-    with TestClient(app) as c:
-        yield c
 
 
 def test_create_session(client: TestClient) -> None:

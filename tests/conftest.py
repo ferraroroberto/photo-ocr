@@ -8,11 +8,15 @@ import sys
 from pathlib import Path
 
 import pytest
+from fastapi.testclient import TestClient
 from PIL import Image
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+
+from app.webapp.server import create_app  # noqa: E402
+from src.archive import SessionArchive  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -30,6 +34,14 @@ def _isolated_webapp_config(tmp_path_factory, monkeypatch) -> None:
 
     isolated = tmp_path_factory.mktemp("webapp_cfg") / "webapp_config.json"
     monkeypatch.setattr(webapp_config, "DEFAULT_CONFIG_PATH", isolated)
+
+
+@pytest.fixture
+def client(tmp_path: Path):
+    app = create_app()
+    app.state.archive = SessionArchive(root=tmp_path / "archive")
+    with TestClient(app) as c:
+        yield c
 
 
 @pytest.fixture

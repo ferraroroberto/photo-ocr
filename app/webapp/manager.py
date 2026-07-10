@@ -17,7 +17,6 @@ from __future__ import annotations
 # Standard library imports
 import logging
 import os
-import signal
 import socket
 import subprocess
 import sys
@@ -32,6 +31,7 @@ import requests
 # Local imports
 from app.tray.single_instance import cross_process_lock
 from app.webapp.event_loop import LOOP_FACTORY
+from src.cloudflared_runner import stop_process
 
 logger = logging.getLogger(__name__)
 
@@ -249,19 +249,8 @@ class WebappManager:
             return status
 
         p = self._proc
-        logger.info(f"🛑 Stopping webapp (pid={p.pid})")
         try:
-            if sys.platform == "win32":
-                try:
-                    p.send_signal(signal.CTRL_BREAK_EVENT)
-                except Exception as exc:
-                    logger.debug(f"CTRL_BREAK_EVENT failed: {exc}")
-            p.terminate()
-            try:
-                p.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                p.kill()
-                p.wait(timeout=3)
+            stop_process(p, "webapp")
         finally:
             self._proc = None
 
