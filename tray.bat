@@ -75,12 +75,13 @@ REM     ports as a comma list, e.g. 8445,8446 . Exclude any mutex-shared port. =
 set "OWNED_PORTS=8444"
 REM PhotoOCR-specific: this webapp is HTTPS-only (tailscale cert issued for the
 REM tailnet MagicDNS name, per project-scaffolding#89 / this repo's CLAUDE.md).
-REM The template's default inferred URL is http://127.0.0.1:<port>, which this
-REM app never answers on; and https://127.0.0.1:<port> fails TLS hostname
-REM validation because the cert's SAN is the .ts.net name, not 127.0.0.1. So the
-REM override must point at the tailnet hostname. Update if `tailscale status`
-REM ever reports a different MagicDNS name for this machine.
-set "VERSION_URL=https://tower.tail1121fd.ts.net:8444/api/version"
+REM Leave VERSION_URL blank: post-project-scaffolding#147 the helper's default
+REM restart probe is https://127.0.0.1:<first-owned-port>/api/version, and its
+REM loopback cert-bypass skips TLS name validation for 127.0.0.1, so the app now
+REM answers the loopback probe correctly. The old tailnet-hostname override was a
+REM pre-#147 workaround for the loopback-SAN mismatch and is now obsolete -- worse,
+REM the #147 bypass is loopback-only, so a non-loopback override fails cert trust.
+set "VERSION_URL="
 
 REM %~dp0 (SCRIPT_DIR) always ends in a trailing backslash. A quoted CLI arg
 REM ending "...\" is misparsed by Windows argv parsing: an odd run of
