@@ -3,23 +3,11 @@
 from __future__ import annotations
 
 import time
-from pathlib import Path
 from unittest.mock import patch
 
-import pytest
 from fastapi.testclient import TestClient
 
-from app.webapp.server import create_app
-from src.archive import SessionArchive
 from src.ocr_client import OcrError, OcrResult
-
-
-@pytest.fixture
-def client(tmp_path: Path):
-    app = create_app()
-    app.state.archive = SessionArchive(root=tmp_path / "archive")
-    with TestClient(app) as c:
-        yield c
 
 
 def _wait_for_phase(
