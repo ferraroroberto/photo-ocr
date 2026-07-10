@@ -53,6 +53,7 @@ flowchart TB
     OCRPROMPTS["ocr_prompts.py — prompt library loader"]
     ARCHIVE["archive.py — dated session folders + retention"]
     ARCHIVEIDX["archive_index.py — SQLite FTS5 search index"]
+    EXTRACTJOB["extract_job.py — chunked extraction job engine:\nlocking, progress state machine, archive writes, search index"]
     CLOUDRUNNER["cloudflared_runner.py — spawn/monitor named tunnel"]
     STATICVER["static_versioning.py — cache-busting query param"]
   end
@@ -63,6 +64,13 @@ flowchart TB
   ROUTERS --> OCRPROMPTS
   ROUTERS --> ARCHIVE
   ROUTERS --> ARCHIVEIDX
+  ROUTERS --> EXTRACTJOB
+  EXTRACTJOB --> APPCONFIG
+  EXTRACTJOB --> WEBCONFIG
+  EXTRACTJOB --> OCRCLIENT
+  EXTRACTJOB --> OCRPROMPTS
+  EXTRACTJOB --> ARCHIVE
+  EXTRACTJOB --> ARCHIVEIDX
   SERVER --> STATICVER
   CLICMDS -->|extract_cmd| OCRCLIENT
   TRAYPY --> CLOUDRUNNER
