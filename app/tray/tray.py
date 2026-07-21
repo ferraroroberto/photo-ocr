@@ -72,6 +72,7 @@ def _clipboard_copy(text: str) -> bool:
                 text=True,
                 check=False,
                 encoding="utf-8",
+                creationflags=subprocess.CREATE_NO_WINDOW,
             )
             return p.returncode == 0
         except OSError as exc:
@@ -89,6 +90,7 @@ def _tailscale_hostname() -> Optional[str]:
             text=True,
             timeout=4,
             check=False,
+            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
         )
     except (FileNotFoundError, OSError, subprocess.TimeoutExpired) as exc:
         logger.debug(f"tailscale lookup failed: {exc}")
