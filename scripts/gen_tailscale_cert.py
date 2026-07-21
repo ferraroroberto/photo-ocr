@@ -44,6 +44,7 @@ def _tailscale_hostname() -> str:
         ["tailscale", "status", "--json"],
         capture_output=True,
         text=True,
+        creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
     )
     if result.returncode != 0:
         raise SystemExit("tailscale status failed. Is tailscale running?")
@@ -97,6 +98,7 @@ def _provision(hostname: str) -> None:
         ],
         capture_output=True,
         text=True,
+        creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
     )
     if result.returncode != 0:
         msg = (result.stderr or result.stdout).strip()
