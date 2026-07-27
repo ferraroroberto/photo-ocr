@@ -393,7 +393,7 @@ The `smoke` marker is the slow live-tray bucket — see the Playwright section b
 
 ### Playwright browser smoke tests
 
-A `pytest-playwright` suite under `tests/e2e/` catches SPA boot regressions (JS errors, empty `<select>`s, broken settings toggle, missing login overlay) plus regression nets for past iPhone-only bugs (cache-busting, cert lifetime, photo upload). Runs against the **live tray on `https://127.0.0.1:8444`** — does not boot anything itself; if the tray isn't up, every test is skipped with a clear message.
+A `pytest-playwright` suite under `tests/e2e/` catches SPA boot regressions (JS errors, empty `<select>`s, broken settings toggle, missing login overlay) plus regression nets for past iPhone-only bugs (cache-busting, cert lifetime, photo upload). Instance selection is guarded by the vendor-verbatim `tests/e2e/_e2e_live_guard.py` (project-scaffolding issue #191/#194, adopted fleet-wide byte-identical — issue #108): a bare `pytest tests/e2e` with the tray up **refuses to run** with a guard message rather than silently adopting it; with the tray down it boots its own disposable instance instead. Set `PHOTO_OCR_E2E_LIVE=1` (`scripts/run-e2e.ps1` does) to explicitly *adopt* the live tray on `https://127.0.0.1:8444` for read-only smoke checks — this repo never kills it to satisfy the opt-in (`tray.bat --restart` owns that).
 
 By default the suite runs in **two projections**: Chromium desktop and WebKit projected onto an iPhone 14 (viewport, user-agent, touch). WebKit is iOS Mobile Safari's engine family, so the second projection catches most "Safari is unhappy" regressions on Windows. Pin one engine with `--browser chromium` for a faster dev loop; a test tagged `@pytest.mark.desktop_only` skips the WebKit projection.
 
@@ -409,8 +409,11 @@ Then with the tray running (`tray.bat`):
 ```powershell
 .\scripts\run-e2e.ps1
 # or directly:
+$env:PHOTO_OCR_E2E_LIVE = "1"
 & .\.venv\Scripts\python.exe -m pytest -m smoke -v tests/e2e
 ```
+
+Without a tray, a bare run already boots its own disposable webapp on a free port (the live-tray port being free means nothing to adopt). `--e2e-autoboot` (or `PHOTO_OCR_E2E_AUTOBOOT=1`) forces that same disposable path unconditionally, regardless of whether a tray is running — this is what the pre-ship gate uses, so it never touches a live tray.
 
 ### Verifying changes before ship
 

@@ -1,11 +1,23 @@
 """Fixtures for the photo-ocr Playwright smoke suite.
 
-Two run modes:
+Three run modes:
 
-* **Default (ad-hoc).** Runs against a live tray the user already has up
-  on https://127.0.0.1:8444. The autouse ``_require_live_tray`` fixture
-  skips the whole suite with a clear message if /healthz isn't reachable,
-  so a forgotten tray fails fast instead of hanging in browser.goto.
+* **Default (bare ``pytest tests/e2e``).** Guarded by the vendor-verbatim
+  ``tests/e2e/_e2e_live_guard.py`` (project-scaffolding issue #191/#194;
+  same module every fleet adopter copies byte-identical). If the live
+  tray's port is occupied and ``PHOTO_OCR_E2E_LIVE`` isn't set, it
+  refuses via ``pytest.exit`` naming the flag — an accidental bare run
+  must not silently load-test the tray a phone may be using. If the
+  port is free, the suite falls back to booting its own disposable
+  instance, same as autoboot below. See issue #108.
+* **Live (explicit opt-in).** ``PHOTO_OCR_E2E_LIVE=1``
+  (``scripts/run-e2e.ps1`` sets it — the deliberate dev-loop entry
+  point) means the caller has chosen to *act* on the already-running
+  tray at https://127.0.0.1:8444. What "act" means is caller-owned and
+  repo-specific per the guard's own contract; this repo's choice is
+  read-only smoke checks against the live tray, never a kill (the
+  canonical restart path is ``tray.bat --restart``, reserved for an
+  actual restart need, not a test opt-in).
 * **Autoboot (pre-ship gate).** Enabled with ``--e2e-autoboot`` or the
   ``PHOTO_OCR_E2E_AUTOBOOT=1`` env var. ``_autoboot_server`` spawns a
   disposable webapp on a free TCP port (HTTPS, reusing
@@ -39,6 +51,8 @@ import pytest
 import requests
 from playwright.sync_api import BrowserContext, Page
 
+from tests.e2e._e2e_live_guard import require_disposable_instance
+
 logger = logging.getLogger(__name__)
 
 # The cert on 8444 is for the .ts.net name, not loopback — silence the
@@ -55,6 +69,13 @@ _TOKEN_KEY = "photo-ocr.token"  # must match TOKEN_KEY in app/webapp/static/stat
 _IPHONE_DEVICE = "iPhone 14"
 
 _AUTOBOOT_ENV = "PHOTO_OCR_E2E_AUTOBOOT"
+# Explicit opt-in for adopting the LIVE tray on :8444 (issue #108) — the
+# flag name passed to the vendored _e2e_live_guard.require_disposable_instance.
+# Without it a bare `pytest tests/e2e` must not silently load-test whatever
+# instance is currently listening — that instance may be the one a phone
+# is using.
+_LIVE_ENV = "PHOTO_OCR_E2E_LIVE"
+_LIVE_PORT = 8444
 
 # Bounded default Playwright timeout (issue #45).
 # Playwright's built-in default is 30 s — an implicit auto-wait that times
@@ -243,7 +264,17 @@ def _bound_default_timeouts(context: BrowserContext) -> None:
 def base_url(request: pytest.FixtureRequest) -> str:
     if _autoboot_enabled(request.config):
         return request.getfixturevalue("_autoboot_server")
-    return _BASE_URL
+
+    # Vendored guard (issue #108): refuses via pytest.exit if the live
+    # port is occupied and PHOTO_OCR_E2E_LIVE isn't set. This repo's
+    # caller-side choice on an opt-in hit is to *adopt* the live tray for
+    # read-only smoke checks, never kill it — see the module docstring
+    # above.
+    live_opt_in = require_disposable_instance(_LIVE_PORT, _LIVE_ENV)
+    if live_opt_in and _wait_healthz(_BASE_URL, timeout=2):
+        logger.info("✅ %s=1 — adopting live tray at %s", _LIVE_ENV, _BASE_URL)
+        return _BASE_URL
+    return request.getfixturevalue("_autoboot_server")
 
 
 @pytest.fixture(scope="session")
@@ -262,23 +293,6 @@ def auth_token(webapp_config: dict) -> str:
     # for these local tests. We still seed it when present so the SPA boot
     # path mirrors a real phone session.
     return (webapp_config.get("auth_token") or "").strip()
-
-
-@pytest.fixture(scope="session", autouse=True)
-def _require_live_tray(request: pytest.FixtureRequest, base_url: str) -> None:
-    # Under autoboot the disposable server is already up — `_autoboot_server`
-    # hard-fails if it isn't, so the skip-guard below would be wrong there.
-    # The guard only protects the default ad-hoc path against a forgotten tray.
-    if _autoboot_enabled(request.config):
-        return
-    try:
-        res = requests.get(f"{base_url}/healthz", timeout=2, verify=False)
-        res.raise_for_status()
-    except Exception as exc:
-        pytest.skip(
-            f"Tray not running on 8444 ({exc.__class__.__name__}) — "
-            "start tray.bat first, then re-run the suite."
-        )
 
 
 @pytest.fixture(scope="session")
