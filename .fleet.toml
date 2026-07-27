@@ -6,3 +6,6 @@ layer       = "enabling"
 icon        = "📷"
 port        = ":8444"
 description = "Mobile OCR — photos → clean text. Reusable capture surface."
+
+[vendored]
+e2e_live_guard = { src = "tests/e2e/_e2e_live_guard.py", sha = "727dfe8b9e4e625993c0e0286836e510015411cc", dest = "tests/e2e/_e2e_live_guard.py" }
