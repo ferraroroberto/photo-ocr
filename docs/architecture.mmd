@@ -25,11 +25,14 @@ flowchart TB
   LAUNCHER --> CLIMAIN --> CLICMDS
 
   subgraph tray["app/tray/ — system-tray launcher"]
-    TRAYPY["tray.py\npystray menu: open / copy URLs / restart / status / quit"]
+    TRAYPY["tray.py\npystray menu: open / copy URLs / restart / status / quit\nretries initial webapp spawn with backoff"]
     SINGLEINST["single_instance.py\ncross-process lock, one tray per machine"]
+    WATCHDOG["watchdog.py\nHealthWatchdog — polls /healthz, auto-respawns a dead\nwebapp, alerts (no auto-kill) on a wedged one"]
   end
   CLICMDS -->|tray_cmd| TRAYPY
   TRAYPY --> SINGLEINST
+  TRAYPY --> WATCHDOG
+  WATCHDOG -.->|webapp/watchdog.log breadcrumbs| WATCHDOGLOG["webapp/watchdog.log (gitignored)"]
 
   subgraph webapp["app/webapp/ — FastAPI app"]
     SERVER["server.py\napp factory, static mount, lifespan retention prune"]
