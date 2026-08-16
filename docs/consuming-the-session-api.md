@@ -2,7 +2,7 @@
 
 A guide for **downstream apps** that want clean, deduplicated text out of one or more photos/screenshots without re-implementing the `capture → validate → chunk → vision-hub → overlap-merge` plumbing. Call this app's API instead.
 
-This is a **supported, consumable integration surface**. photo-ocr is the canonical local **image→text** service in the fleet — the pixel counterpart to [`voice-transcriber`](https://github.com/ferraroroberto/voice-transcriber) (the canonical local **audio→text** service) and [`claude-local-calls`](https://github.com/ferraroroberto/claude-local-calls) (the canonical LLM hub). Downstream apps proxy to it over loopback rather than duplicating the OCR stack.
+This is a **supported, consumable integration surface**. photo-ocr is the canonical local **image→text** service in the fleet — the pixel counterpart to [`voice-transcriber`](https://github.com/ferraroroberto/voice-transcriber) (the canonical local **audio→text** service) and [`local-llm-hub`](https://github.com/ferraroroberto/local-llm-hub) (the canonical LLM plane). Downstream apps proxy to it over loopback rather than duplicating the OCR stack.
 
 First consumer: **app-launcher**'s Coding-terminal "paste screenshot" button (companion issue `ferraroroberto/app-launcher#171`), which proxies a screenshot here and drops the extracted text into the compose bar — exactly how its 🎤 dictation button consumes the voice-transcriber.
 
