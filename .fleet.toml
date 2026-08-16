@@ -9,3 +9,55 @@ description = "Mobile OCR — photos → clean text. Reusable capture surface."
 
 [vendored]
 e2e_live_guard = { src = "tests/e2e/_e2e_live_guard.py", sha = "727dfe8b9e4e625993c0e0286836e510015411cc", dest = "tests/e2e/_e2e_live_guard.py" }
+
+# Diff-proportionate e2e routing (project-scaffolding docs/e2e-routing.md).
+# `scripts/classify_e2e.py` maps this branch's changed files to a tier; rules
+# are tried in declaration order, first match wins. Only plainly inert paths
+# get a "none" rule -- anything unmatched fail-safes to the full suite by
+# construction, so leaving a path out is always the safe choice. Keep this
+# table current in the same PR as any new e2e-relevant directory, and mirror
+# each rule with a representative assertion in tests/test_classify_e2e.py.
+[e2e]
+static_pytest_target = "tests/e2e/test_smoke.py"
+static_browsers = ["chromium"]
+full_pytest_target = "tests/e2e"
+
+# --- inert: no browser surface at all -------------------------------------
+[[e2e.rule]]
+tier = "none"
+prefix = "docs/"
+label = "docs"
+
+[[e2e.rule]]
+tier = "none"
+extensions = ["md"]
+label = "markdown"
+
+[[e2e.rule]]
+tier = "none"
+path = "LICENSE"
+label = "license"
+
+# Desktop tray / Stream Deck icons -- never served to the browser.
+[[e2e.rule]]
+tier = "none"
+prefix = "assets/"
+label = "desktop-assets"
+
+# --- narrow: served image assets, smoke slice is enough --------------------
+[[e2e.rule]]
+tier = "static"
+prefix = "app/webapp/static/"
+extensions = ["png", "ico", "jpg", "jpeg", "webp", "gif", "svg"]
+label = "static-images"
+
+# --- full: the rendered PWA and the modules behind it ----------------------
+[[e2e.rule]]
+tier = "full"
+prefix = "app/webapp/"
+label = "webapp"
+
+[[e2e.rule]]
+tier = "full"
+prefix = "src/"
+label = "webapp-facing-src"

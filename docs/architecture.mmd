@@ -123,3 +123,6 @@ flowchart TB
   VERIFYGATE["scripts/verify-before-ship.ps1\nbyte-compile + pytest + e2e vs. disposable webapp"]
   VERIFYGATE --> UNITTESTS
   VERIFYGATE --> E2E
+
+  CLASSIFY["scripts/classify_e2e.py — changed files → e2e tier\n(skip/static/full); rules declared in .fleet.toml [e2e]\nconsumed by the /e2e flow; gate still runs the full suite"]
+  CLASSIFY --> E2E
