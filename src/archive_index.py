@@ -5,7 +5,9 @@ queryable paper memory — "find the receipt from the bakery".
 
 Design notes:
 
-* One file, ``archive/index.sqlite`` (gitignored with the rest of
+* One file — the production archive's index lives in the fleet runtime-data
+  root (see ``src/runtime_data.py``); any other archive keeps its index
+  beside itself (gitignored with the rest of
   ``archive/``). No external service, no migration ceremony.
 * ``extracted.txt`` on disk stays the canonical source of truth. The
   index can be deleted at any time and is rebuilt from disk on the next
