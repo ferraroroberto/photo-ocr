@@ -33,6 +33,7 @@ from typing import Any, Dict, Iterator, List, Optional
 
 # Local imports
 from src.archive_index import INDEX_FILENAME, ArchiveIndex
+from src.runtime_data import runtime_db_path
 
 logger = logging.getLogger(__name__)
 
@@ -251,8 +252,26 @@ class SessionArchive:
         ``index.sqlite`` file is only materialised on the first write.
         """
         if self._index is None:
-            self._index = ArchiveIndex(self.root / INDEX_FILENAME)
+            self._index = ArchiveIndex(self._index_path())
         return self._index
+
+    def _index_path(self) -> Path:
+        """Where this archive's index file lives.
+
+        The production archive's index goes to the fleet runtime-data root
+        (project-scaffolding#243) — it is written on every OCR run, and the
+        archive tree sits on whichever drive this repo was cloned onto, a
+        spinning HDD here.
+
+        Any *other* root keeps its index beside itself. That is not a special
+        case for tests, it is the invariant: an ``Archive``'s index describes
+        that archive, so a disposable archive must not read or write the
+        production index. Every test constructs ``Archive(tmp_path)``, so this
+        keeps their isolation exactly as it was, with no fixture to remember.
+        """
+        if self.root != DEFAULT_ARCHIVE_DIR:
+            return self.root / INDEX_FILENAME
+        return runtime_db_path("photo-ocr", INDEX_FILENAME, env_var="PHOTO_OCR_INDEX_PATH")
 
     def index_session(self, session: Session) -> None:
         """Upsert one session's extracted text into the search index.
