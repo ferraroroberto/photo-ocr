@@ -18,6 +18,8 @@
   /* colors — accent + status (status colors signal state only, never decoration) */
   --accent: #0969da;
   --accent-fg: #ffffff;     /* text/icon on an accent fill */
+  --accent-fill: #0969da;   /* solid primary fill (button-primary) */
+  --accent-text: #0550ae;   /* accent text on an accent-soft tint (fleet-config#963) */
   --on: #1a7f37;            /* success */
   --danger: #cf222e;
   --attention: #9a6700;
@@ -56,6 +58,9 @@
   --icon-inline: 16px;
   --icon-title: 18px;
   --icon-feature: 24px;
+  /* row/hit-target heights the vendored nav uses (sm = hit-target.min, lg = rail tab) */
+  --row-sm: 44px;
+  --row-lg: 60px;
   /* elevation — cards lean on surface + hairline border; the floating nav and
      toasts are the only elements with a real shadow. */
   --shadow: 0 8px 24px rgba(31, 35, 40, 0.12);
@@ -83,6 +88,8 @@
   --line-muted: #21262d;    /* border-muted */
   --accent: #2f81f7;
   --accent-fg: #ffffff;
+  --accent-fill: #1f6feb;   /* one step below accent so white text holds AA */
+  --accent-text: #58a6ff;
   --on: #3fb950;            /* success */
   --danger: #f85149;
   --attention: #d29922;
@@ -98,12 +105,14 @@
 @media (color-gamut: p3) {
   :root {
     --accent: oklch(0.52 0.18 256);
+    --accent-fill: oklch(0.52 0.18 256);
     --on: oklch(0.55 0.14 150);
     --danger: oklch(0.55 0.20 25);
     --attention: oklch(0.55 0.11 80);
   }
   [data-theme="dark"] {
     --accent: oklch(0.64 0.18 256);
+    --accent-fill: oklch(0.57 0.21 260);
     --on: oklch(0.72 0.18 150);
     --danger: oklch(0.68 0.20 25);
     --attention: oklch(0.77 0.13 85);
