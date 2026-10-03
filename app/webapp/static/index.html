@@ -35,6 +35,7 @@
   <link rel="stylesheet" href="/static/styles.css">
   <link rel="stylesheet" href="/static/_vendored/button/button.css">
   <link rel="stylesheet" href="/static/_vendored/card/card.css">
+  <link rel="stylesheet" href="/static/_vendored/home-head/home-head.css">
   <link rel="stylesheet" href="/static/_vendored/empty-state/empty-state.css">
   <link rel="stylesheet" href="/static/_vendored/nav/nav-tabs.css">
   <link rel="stylesheet" href="/static/_vendored/range-tab/range-tab.css">
@@ -161,9 +162,10 @@
   </svg>
 
   <!-- Floating bottom-tab navigation (vendored contract — markup adapted per
-       _vendored/nav/README.md). Body-level sibling of <main class="app">,
-       never nested inside the scroller: iOS installed PWAs can capture fixed
-       descendants of scroll containers and anchor them to scrolled content. -->
+       _vendored/nav/README.md). Settings is the header gear, never a tab.
+       Body-level sibling of <main class="app">, never nested inside the
+       scroller: iOS installed PWAs can capture fixed descendants of scroll
+       containers and anchor them to scrolled content. -->
   <nav class="tabs" role="tablist" aria-label="Sections" data-active-tab="capture">
     <button id="tabCapture" type="button" class="tab active" data-tab="capture"
             role="tab" aria-selected="true" aria-controls="paneCapture">
@@ -175,26 +177,16 @@
       <svg class="tab-icon" aria-hidden="true" focusable="false"><use href="#i-history"></use></svg>
       <span class="tab-label">History</span>
     </button>
-    <button id="tabSettings" type="button" class="tab" data-tab="settings"
-            role="tab" aria-selected="false" aria-controls="paneSettings" tabindex="-1">
-      <svg class="tab-icon" aria-hidden="true" focusable="false"><use href="#i-settings"></use></svg>
-      <span class="tab-label">Settings</span>
-    </button>
   </nav>
 
   <main class="app">
     <section id="paneCapture" class="pane" role="tabpanel" aria-labelledby="tabCapture" aria-label="Capture">
-      <!-- Titled like every other pane's first card (History, Settings);
-           the theme toggle is the header's trailing action, per the
-           page-header contract. -->
+      <div class="card home-head">
+        <span class="home-title"><svg class="icon" aria-hidden="true"><use href="#i-camera"></use></svg> Capture</span>
+        <button type="button" class="home-toggle theme-toggle" title="Toggle theme" aria-label="Toggle dark mode"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
+        <button type="button" class="button-surface home-toggle home-settings" title="Settings" aria-label="Settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg></button>
+      </div>
       <section class="card capture-zone">
-        <div class="card-head">
-          <h2 class="card-title"><svg class="icon" aria-hidden="true"><use href="#i-camera"></use></svg> Capture</h2>
-          <div class="card-head-actions">
-            <button id="themeToggle" type="button" class="ghost-btn tool-btn"
-                    title="Toggle theme" aria-label="Toggle dark mode"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
-          </div>
-        </div>
         <ul id="thumbStrip" class="thumb-strip" aria-label="Photos in this take"></ul>
 
         <!-- One toolbar owns the whole take: Add photo (primary affordance,
@@ -237,17 +229,21 @@
     </section>
 
     <section id="paneHistory" class="pane" role="tabpanel" aria-labelledby="tabHistory" aria-label="History" hidden>
+      <div class="card home-head">
+        <span class="home-title"><svg class="icon" aria-hidden="true"><use href="#i-history"></use></svg> History</span>
+        <span id="historyCount" class="status" title="Loaded / total saved takes">0</span>
+        <button type="button" class="home-toggle theme-toggle" title="Toggle theme" aria-label="Toggle dark mode"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
+        <button type="button" class="button-surface home-toggle home-settings" title="Settings" aria-label="Settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg></button>
+      </div>
       <section class="card history-card">
-        <!-- Single-line head: title, then refresh/clean as icon buttons and
-             the loaded/total count — no second actions row. -->
-        <div class="card-head">
-          <h2 class="card-title"><svg class="icon" aria-hidden="true"><use href="#i-history"></use></svg> History</h2>
+        <!-- Refresh / clean as icon buttons; the title and the loaded/total
+             count live in the pane's header row above. -->
+        <div class="card-head history-tools">
           <div class="card-head-actions">
             <button id="refreshHistory" type="button" class="ghost-btn tool-btn"
                     title="Refresh" aria-label="Refresh history"><svg class="icon" aria-hidden="true"><use href="#i-refresh-cw"></use></svg></button>
             <button id="cleanAll" type="button" class="ghost-btn tool-btn"
                     title="Clean — delete all saved takes" aria-label="Delete all saved takes"><svg class="icon" aria-hidden="true"><use href="#i-trash-2"></use></svg></button>
-            <span class="card-head-meta" id="historyCount">0</span>
           </div>
         </div>
         <input id="historySearch" type="search" class="input-native history-search" placeholder="Search extracted text…" autocomplete="off" hidden>
@@ -256,7 +252,14 @@
       </section>
     </section>
 
-    <section id="paneSettings" class="pane" role="tabpanel" aria-labelledby="tabSettings" aria-label="Settings" hidden>
+    <!-- Settings is never a tab (fleet NAV-03): every pane's header gear opens
+         it, so it carries no tabpanel role and no nav button. -->
+    <section id="paneSettings" class="pane" aria-label="Settings" hidden>
+      <div class="card home-head">
+        <span class="home-title"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg> Settings</span>
+        <button type="button" class="home-toggle theme-toggle" title="Toggle theme" aria-label="Toggle dark mode"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
+        <button type="button" class="button-surface home-toggle home-settings" title="Settings" aria-label="Settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg></button>
+      </div>
       <section class="card">
         <div class="card-head">
           <h2 class="card-title"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg> Display</h2>

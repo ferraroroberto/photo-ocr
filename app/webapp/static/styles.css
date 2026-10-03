@@ -197,10 +197,9 @@ html, body {
 }
 
 /* ---------- header ---------- */
-/* Icon-only ghost button — the capture-toolbar toggles (gallery / reset /
-   reset), the Capture-head theme toggle and the History-head
-   refresh/clean. Square-ish so a
-   row of them stays compact; the flex row it sits in controls height.
+/* Icon-only ghost button — the capture-toolbar toggles (gallery / reset) and
+   the History refresh/clean. Square-ish so a row of them stays compact; the
+   flex row it sits in controls height.
    Compound selector so it outranks the .ghost-btn base later in the file. */
 .ghost-btn.tool-btn {
   flex: 0 0 auto;
@@ -217,14 +216,13 @@ html, body {
 .save-switch { display: inline-flex; }
 
 /* ---------- capture zone ---------- */
-/* The Capture pane's first card; its column gap spaces the header too. */
+/* The Capture pane's take card; its column gap spaces its rows. */
 .capture-zone {
   display: flex;
   flex-direction: column;
   align-items: stretch;
   gap: var(--gap);
 }
-.capture-zone .card-head { margin-bottom: 0; }
 
 .thumb-strip {
   list-style: none;
@@ -425,6 +423,7 @@ html, body {
    extras only. */
 .card { margin: var(--gap) 0; }
 .card-head { margin-bottom: var(--space-sm); }
+.history-tools { justify-content: flex-end; }
 .card-head-actions {
   display: flex;
   align-items: center;

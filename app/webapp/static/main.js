@@ -47,10 +47,10 @@ import { switchEl, setSwitch } from './_vendored/switch/switch.js';
 // --------------------------------------------------------------- theme toggle
 // Same feature as home-automation / app-launcher: the pre-paint script in
 // index.html applies the stored theme (or the system preference) before first
-// render; this block owns the capture-toolbar sun/moon toggle + persistence.
+// render; this block owns the sun/moon toggle in every pane's header + persistence.
 function applyTheme(dark) {
   document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-  els.themeToggle.innerHTML = icon(dark ? 'sun' : 'moon');
+  for (const toggle of els.themeToggles) toggle.innerHTML = icon(dark ? 'sun' : 'moon');
   localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light');
 }
 
@@ -64,17 +64,42 @@ function toggleTheme() {
   applyTheme(stored ? stored === 'dark' : prefersDark);
 })();
 
-els.themeToggle.addEventListener('click', toggleTheme);
+for (const toggle of els.themeToggles) toggle.addEventListener('click', toggleTheme);
 
 // Text size (A11Y-02): the zoom lock's escape. The pre-paint script in index.html
 // stamps html[data-textsize]; this wires the Settings control to it.
 bindTextSize(document.getElementById('textSizeControl'), 'photo-ocr');
 
 // --------------------------------------------------------------- bottom tabs
-// Vendored fleet nav (see _vendored/nav/README.md): discovers the three tabs
+// Vendored fleet nav (see _vendored/nav/README.md): discovers the tabs
 // from the markup, persists the active one so the installed PWA reopens where
-// you left it, and owns the iOS pinning behaviour.
-initNavTabs({ storageKey: TAB_KEY });
+// you left it, and owns the iOS pinning behaviour. Settings is no tab (fleet
+// NAV-03): every pane's header gear opens it, and choosing any tab leaves it,
+// so onChange hides the pane.
+initNavTabs({
+  storageKey: TAB_KEY,
+  onChange: function () { els.settingsPane.hidden = true; },
+});
+
+// Show the Settings pane over the current tab. The vendored nav only manages
+// its own tabs' panes, so hide them here and leave no tab selected; the nav's
+// next setTab (any tab tap) shows that tab's pane again. The stored tab is
+// untouched, so a reload from Settings reopens the last real tab.
+function openSettings() {
+  document.querySelectorAll('main.app > section.pane').forEach(function (pane) {
+    pane.hidden = pane !== els.settingsPane;
+  });
+  const nav = document.querySelector('nav.tabs');
+  nav.querySelectorAll('.tab').forEach(function (tab) {
+    tab.classList.remove('active');
+    tab.setAttribute('aria-selected', 'false');
+  });
+  nav.dataset.activeTab = 'settings';
+  const scroller = document.querySelector('.app');
+  if (scroller) scroller.scrollTop = 0;
+  window.scrollTo(0, 0);
+}
+for (const gear of els.settingsGears) gear.addEventListener('click', openSettings);
 
 // ----------------------------------------------------------- boot
 async function boot() {
