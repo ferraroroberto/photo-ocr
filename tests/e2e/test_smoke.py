@@ -14,11 +14,21 @@ from playwright.sync_api import Page, expect
 pytestmark = pytest.mark.smoke
 
 
-def _navigate_collecting_errors(page: Page, base_url: str) -> list[str]:
-    """Open the SPA and capture any uncaught JS errors during boot."""
+def _navigate_collecting_errors(
+    page: Page, base_url: str, *, boot_settled: bool = False
+) -> list[str]:
+    """Open the SPA and capture any uncaught JS errors during boot.
+
+    ``boot_settled`` also waits for boot's last network step (the History
+    request), so the response's render is the only thing left to run.
+    """
     errors: list[str] = []
     page.on("pageerror", lambda exc: errors.append(str(exc)))
-    page.goto(f"{base_url}/", wait_until="domcontentloaded")
+    if boot_settled:
+        with page.expect_response(lambda r: "/api/sessions?" in r.url):
+            page.goto(f"{base_url}/", wait_until="domcontentloaded")
+    else:
+        page.goto(f"{base_url}/", wait_until="domcontentloaded")
     # #extractBtn is rendered server-side in index.html; waiting for it
     # confirms the static document parsed without an early script crash.
     page.wait_for_selector("#extractBtn", state="attached", timeout=5_000)
@@ -26,10 +36,14 @@ def _navigate_collecting_errors(page: Page, base_url: str) -> list[str]:
 
 
 def test_page_loads_without_console_errors(authed_page: Page, base_url: str) -> None:
-    errors = _navigate_collecting_errors(authed_page, base_url)
-    # Give the boot script a beat to settle: fetchConfig, history poll.
-    # Anything thrown during that fans out as pageerror.
-    authed_page.wait_for_timeout(500)
+    errors = _navigate_collecting_errors(authed_page, base_url, boot_settled=True)
+    # boot() awaits fetchConfig, then the History request, then renders.
+    # Two animation frames after that response let the continuation that
+    # consumes it run, so anything thrown during boot has fanned out as
+    # pageerror — no fixed timer.
+    authed_page.evaluate(
+        "() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))"
+    )
     assert errors == [], "JS errors during boot:\n  - " + "\n  - ".join(errors)
 
 
