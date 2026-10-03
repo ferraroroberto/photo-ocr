@@ -470,7 +470,13 @@ async def get_session_photo(
     path = session.folder / match.path
     if not path.exists():
         raise HTTPException(status_code=404, detail="photo file missing on disk")
-    return FileResponse(str(path), media_type="image/jpeg")
+    # A JPEG is already compressed: ``Content-Encoding: identity`` makes
+    # the gzip middleware leave it alone instead of burning CPU for ~0 gain.
+    return FileResponse(
+        str(path),
+        media_type="image/jpeg",
+        headers={"Content-Encoding": "identity"},
+    )
 
 
 @router.get("/api/sessions/{session_id}/text")

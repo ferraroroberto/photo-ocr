@@ -42,6 +42,7 @@ from pathlib import Path
 
 # Third-party imports
 from fastapi import FastAPI
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import Response
 from starlette.types import Scope
@@ -63,6 +64,8 @@ logger = logging.getLogger(__name__)
 # never change but we don't want a year of staleness either.
 _LONG_CACHE = "public, max-age=31536000, immutable"
 _DAY_CACHE = "public, max-age=86400"
+# Bodies under this size go out as-is: gzip framing costs more than it saves.
+_GZIP_MIN_BYTES = 1000
 _IMMUTABLE_SUFFIXES = frozenset({".js", ".css"})
 _DAILY_SUFFIXES = frozenset({".webmanifest", ".png", ".ico"})
 
@@ -154,6 +157,14 @@ def create_app() -> FastAPI:
         title="Photo OCR",
         version="0.1.0",
         lifespan=_lifespan,
+    )
+
+    # Gzip the entry document, JS/CSS and JSON. Registered *before* the
+    # auth gate so it sits inside it: ``BaseHTTPMiddleware`` re-streams
+    # every body, which would make an outer gzip ignore ``minimum_size``
+    # and compress even empty bodies.
+    app.add_middleware(
+        GZipMiddleware, minimum_size=_GZIP_MIN_BYTES, compresslevel=6
     )
 
     # Read the token from app.state on every request so a /api/config
