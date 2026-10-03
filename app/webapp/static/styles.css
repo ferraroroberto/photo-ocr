@@ -23,12 +23,16 @@
   --accent-text: #0550ae;   /* accent text on an accent-soft tint (fleet-config#963) */
   --on: #1a7f37;            /* success */
   --danger: #cf222e;
+  --danger-text: #a40e26;   /* danger text on its own tint (fleet-config#963) */
   --attention: #9a6700;
   /* derived surface roles (mapped onto the neutral tokens above) */
   --input-bg: var(--card-off);
   --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
   --accent-border-soft: color-mix(in srgb, var(--accent) 24%, transparent);
   --accent-border-strong: color-mix(in srgb, var(--accent) 28%, transparent);
+  --deficit-soft: color-mix(in srgb, var(--danger) 12%, transparent);
+  --deficit-border-soft: color-mix(in srgb, var(--danger) 30%, transparent);
+  --close-bg: var(--card-off);  /* modal close button fill */
   /* theme-invariant surfaces: the login scrim dims content and the photo
      lightbox/thumb overlays frame photos — neither is a themed surface. */
   --scrim: rgba(0, 0, 0, 0.5);
@@ -60,6 +64,7 @@
   --font-heading-xl: 2rem;
   --font-heading-lg: 1.5rem;
   --font-body: 1rem;
+  --font-body-sm: 0.875rem;
   --font-label: 0.92rem;
   --font-caption: 0.75rem;
   /* icon-size steps (icons.size — inline / title / feature) */
@@ -68,6 +73,7 @@
   --icon-feature: 24px;
   /* row/hit-target heights the vendored nav uses (sm = hit-target.min, lg = rail tab) */
   --row-sm: 44px;
+  --row-md: 52px;
   --row-lg: 60px;
   /* elevation — cards lean on surface + hairline border; the floating nav and
      toasts are the only elements with a real shadow. */
@@ -101,8 +107,10 @@
   --accent-text: #58a6ff;
   --on: #3fb950;            /* success */
   --danger: #f85149;
+  --danger-text: #ff7b72;
   --attention: #d29922;
   --input-bg: var(--bg);
+  --close-bg: var(--line);
   /* Depth on a near-black canvas comes from surface lightness, not shadow. */
   --shadow: 0 8px 24px rgba(1, 4, 9, 0.6);
   --tabbar-bg: rgba(22, 27, 34, 0.86);
@@ -610,23 +618,9 @@ hr {
   border-radius: var(--radius-md);
   padding: 0 2px;
 }
-/* Flat rows with hairline separators, not per-entry cards (#73) — the
-   meta/preview/actions inside each row are unchanged. */
-.history-item {
-  padding: 12px 0;
-}
-.history-item + .history-item {
-  border-top: 1px solid var(--line-muted);
-}
-.history-item .meta {
-  display: flex;
-  justify-content: space-between;
-  font-size: var(--font-caption);
-  color: var(--muted);
-  margin-bottom: 6px;
-  flex-wrap: wrap;
-  gap: 6px;
-}
+/* A take is an action-row (_vendored/action-row): the row layout, title/meta
+   type and 44px kebab all come from the component; only the source badge and
+   the overflow menu are app-side. */
 .history-item .source-badge {
   display: inline-block;
   background: var(--card);
@@ -638,28 +632,24 @@ hr {
   line-height: 16px;
   vertical-align: middle;
 }
-.history-item .preview {
-  font-size: var(--font-caption);
-  color: var(--ink);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+
+/* The overflow menu (a <dialog> on the vendored modal shell): full-width
+   actions, the destructive one last, after a divider. */
+.take-menu { width: min(360px, 92vw); }
+.take-menu .detail-card { display: flex; flex-direction: column; }
+.take-menu-when { margin: 0 0 var(--space-sm); font-size: var(--font-body-sm); }
+.take-menu hr { margin: var(--space-sm) 0; width: 100%; }
+.take-menu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  width: 100%;
+  min-height: 48px;
+  font-size: var(--font-label);
+  font-weight: 600;
 }
-.history-item .actions {
-  display: flex;
-  gap: 6px;
-  margin-top: var(--space-sm);
-  flex-wrap: wrap;
-}
-.history-item .actions button {
-  flex: 0 0 auto;
-  min-height: var(--hit-min);
-  padding: var(--space-xs) 10px;
-  font-size: var(--font-caption);
-}
-/* The row glyphs would inherit the 12px caption size (.icon is 1em), off the
-   icons.size steps; they take the 16px inline step. */
-.history-item .actions .icon { width: var(--icon-inline); height: var(--icon-inline); }
+.take-menu-btn .icon { width: var(--icon-inline); height: var(--icon-inline); }
 .load-more-btn {
   width: 100%;
   margin-top: 10px;

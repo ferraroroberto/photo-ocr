@@ -43,6 +43,9 @@ same archive shape, same auth model, but for pixels instead of audio.
   `webapp_config.json`.
 - **History + redo.** Every take lands in `archive/YYYY/MM/DD/HH-MM-SS-<id>/`.
   Re-run with a different model from the History tab without re-capturing.
+  A History row is one tap-to-copy row (snippet first, date · photos · model
+  as its meta line); **Redo** and **Delete** live in the row's overflow menu,
+  Delete last and behind a confirm.
 - **Pre-flight quality gate.** Each photo is scored on-device for blur,
   glare, and exposure the moment it's added — a bad shot gets an advisory
   badge with a one-tap retake, before any hub round-trip is spent on it.
@@ -222,7 +225,8 @@ photo-ocr/
 │   │   ├── manager.py
 │   │   └── static/              PWA: index.html, ES-module JS, styles.css, icons
 │   │       └── _vendored/       fleet components (nav · icons · card · button ·
-│   │                            empty-state · base · range-tab · text-size), copied verbatim from project-scaffolding
+│   │                            empty-state · base · range-tab · text-size ·
+│   │                            action-row · modal), copied verbatim from project-scaffolding
 │   └── tray/                    system-tray launcher
 ├── config/
 │   ├── config.json              app-level (log level, language hint)
