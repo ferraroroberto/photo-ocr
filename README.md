@@ -27,10 +27,11 @@ same archive shape, same auth model, but for pixels instead of audio.
 - **Fleet design canon.** The UI follows the fleet design system (tokens from
   `design.md`/`design.dark.md`): three views — **Capture / History / Settings**
   — behind the vendored floating bottom-tab nav, Lucide icons throughout (no
-  emoji glyphs), no app header (the Capture toolbar carries the take-scoped
-  controls: add photo / gallery / reset / incognito / sun-moon **theme
-  toggle**, which follows the system preference until overridden — same
-  feature as home-automation and app-launcher), and a build-identity footer
+  emoji glyphs), no app header (the Capture card's toolbar carries the
+  take-scoped controls: add photo / gallery / reset / incognito; its header
+  carries the sun-moon **theme toggle**, which follows the system preference
+  until overridden — same feature as home-automation and app-launcher), and
+  a build-identity footer
   visible from every tab. Shared components are vendored verbatim under
   `app/webapp/static/_vendored/` from `project-scaffolding`.
 - **Searchable archive.** A search box on the History tab runs full-text search

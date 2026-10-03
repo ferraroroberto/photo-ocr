@@ -191,7 +191,8 @@ html, body {
 
 /* ---------- header ---------- */
 /* Icon-only ghost button — the capture-toolbar toggles (gallery / reset /
-   incognito / theme) and the History-head refresh/clean. Square-ish so a
+   incognito), the Capture-head theme toggle and the History-head
+   refresh/clean. Square-ish so a
    row of them stays compact; the flex row it sits in controls height.
    Compound selector so it outranks the .ghost-btn base later in the file. */
 .ghost-btn.tool-btn {
@@ -212,13 +213,14 @@ html, body {
 }
 
 /* ---------- capture zone ---------- */
+/* The Capture pane's first card; its column gap spaces the header too. */
 .capture-zone {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  margin: var(--gap) 0 var(--space-md);
   gap: var(--gap);
 }
+.capture-zone .card-head { margin-bottom: 0; }
 
 .thumb-strip {
   list-style: none;
