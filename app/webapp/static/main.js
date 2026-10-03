@@ -42,6 +42,7 @@ import {
 import { icon } from './_vendored/icons/icons.js';
 import { initNavTabs } from './_vendored/nav/nav-tabs.js';
 import { bindTextSize } from './_vendored/text-size/text-size.js';
+import { switchEl, setSwitch } from './_vendored/switch/switch.js';
 
 // --------------------------------------------------------------- theme toggle
 // Same feature as home-automation / app-launcher: the pre-paint script in
@@ -136,12 +137,20 @@ els.galleryInput.addEventListener('change', function () {
 els.extractBtn.addEventListener('click', extract);
 els.copyExtracted.addEventListener('click', copyExtracted);
 els.resetBtn.addEventListener('click', resetTake);
-// Incognito is an aria-pressed toggle button (shadcn Toggle shape — the
-// fleet ships no native checkboxes).
-els.incognitoToggle.addEventListener('click', function () {
-  state.incognito = !state.incognito;
-  els.incognitoToggle.setAttribute('aria-pressed', state.incognito ? 'true' : 'false');
+// "Save to history" is the vendored switch (the fleet ships no native
+// checkboxes for on/off). On = saved, the default; its inverse is the
+// session's `incognito` flag, so the API contract is unchanged.
+const saveSwitch = switchEl(!state.incognito, {
+  label: 'Save to history',
+  onToggle: function (saved, btn) {
+    state.incognito = !saved;
+    setSwitch(btn, saved);
+  },
 });
+els.saveToHistoryHost.appendChild(saveSwitch);
+// The row's text is a tap target too. Not a wrapping <label>: a label around
+// a button can double-fire its click on WebKit, flipping the switch back.
+els.saveToHistoryLabel.addEventListener('click', function () { saveSwitch.click(); });
 
 els.ocrModel.addEventListener('change', function () {
   state.model = els.ocrModel.value;
