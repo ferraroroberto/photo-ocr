@@ -32,7 +32,9 @@ same archive shape, same auth model, but for pixels instead of audio.
   carries the sun-moon **theme toggle**, which follows the system preference
   until overridden — same feature as home-automation and app-launcher), and
   a build-identity footer
-  visible from every tab. Shared components are vendored verbatim under
+  visible from every tab. Settings carries the persisted **Text size**
+  (Small / Default / Large) control that makes the viewport zoom lock
+  acceptable. Shared components are vendored verbatim under
   `app/webapp/static/_vendored/` from `project-scaffolding`.
 - **Searchable archive.** A search box on the History tab runs full-text search
   (SQLite FTS5) over every past extract — "find the bakery receipt". The index
@@ -220,7 +222,7 @@ photo-ocr/
 │   │   ├── manager.py
 │   │   └── static/              PWA: index.html, ES-module JS, styles.css, icons
 │   │       └── _vendored/       fleet components (nav · icons · card · button ·
-│   │                            empty-state), copied verbatim from project-scaffolding
+│   │                            empty-state · base · range-tab · text-size), copied verbatim from project-scaffolding
 │   └── tray/                    system-tray launcher
 ├── config/
 │   ├── config.json              app-level (log level, language hint)

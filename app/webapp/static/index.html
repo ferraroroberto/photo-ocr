@@ -2,6 +2,25 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <!-- Pre-paint boot, verbatim from _vendored/text-size/text-size-boot.html
+       (only `app` is per-app): stamps html[data-theme] and html[data-textsize]
+       before any stylesheet so nothing flashes or reflows. -->
+  <script>
+    (function () {
+      var app = 'photo-ocr';
+      var root = document.documentElement;
+      var theme = null;
+      var size = null;
+      try {
+        theme = localStorage.getItem(app + '.theme');
+        size = localStorage.getItem(app + '.textsize');
+      } catch (e) {}
+      var dark = theme ? theme === 'dark'
+        : window.matchMedia('(prefers-color-scheme: dark)').matches;
+      root.dataset.theme = dark ? 'dark' : 'light';
+      root.dataset.textsize = size === 'small' || size === 'large' ? size : 'default';
+    })();
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -12,19 +31,15 @@
   <link rel="apple-touch-icon" href="/static/icon-180.png">
   <link rel="icon" href="/static/favicon.ico" sizes="any">
   <link rel="icon" type="image/png" href="/static/icon-512.png">
+  <link rel="stylesheet" href="/static/_vendored/base/base.css">
   <link rel="stylesheet" href="/static/styles.css">
   <link rel="stylesheet" href="/static/_vendored/button/button.css">
   <link rel="stylesheet" href="/static/_vendored/card/card.css">
   <link rel="stylesheet" href="/static/_vendored/empty-state/empty-state.css">
   <link rel="stylesheet" href="/static/_vendored/nav/nav-tabs.css">
+  <link rel="stylesheet" href="/static/_vendored/range-tab/range-tab.css">
+  <link rel="stylesheet" href="/static/_vendored/text-size/text-size.css">
   <title>Photo OCR</title>
-  <script>
-    (function(){
-      var t = localStorage.getItem('photo-ocr.theme');
-      var dark = t ? t === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
-      document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-    })();
-  </script>
 </head>
 <body>
   <!-- Lucide icon sprite — the single source for every app icon. Vendored from
@@ -235,6 +250,20 @@
     </section>
 
     <section id="paneSettings" class="pane" role="tabpanel" aria-labelledby="tabSettings" aria-label="Settings" hidden>
+      <section class="card">
+        <div class="card-head">
+          <h2 class="card-title"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg> Display</h2>
+        </div>
+        <div class="row">
+          <span id="textSizeLabel">Text size</span>
+          <nav class="range-tabs" id="textSizeControl" aria-labelledby="textSizeLabel">
+            <button type="button" class="range-tab" data-textsize="small">Small</button>
+            <button type="button" class="range-tab" data-textsize="default">Default</button>
+            <button type="button" class="range-tab" data-textsize="large">Large</button>
+          </nav>
+        </div>
+      </section>
+
       <section class="card">
         <div class="card-head">
           <h2 class="card-title"><svg class="icon" aria-hidden="true"><use href="#i-scan-text"></use></svg> OCR</h2>
