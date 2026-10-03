@@ -117,6 +117,14 @@ def test_settings_pane_shows_prompt_preview(
     max_photos.fill(str(current + 1))
     expect(save_btn).to_be_enabled()
 
+    # Type scale (TYPE-01): read lines sit on body-sm (14px) or above, never
+    # the 12px caption, and the label role is the spec's 0.875rem.
+    sizes = authed_page.evaluate(
+        "['#ocrPromptPreview', '.row > span', '.stacked > span']"
+        ".map(q => getComputedStyle(document.querySelector(q)).fontSize)"
+    )
+    assert sizes == ["14px", "14px", "14px"], sizes
+
     # Text size (A11Y-02): the zoom lock's escape. Large scales the root
     # font-size, survives a reload through the pre-paint boot, and form
     # controls inherit the page font (TYPE-02, the vendored base layer).
