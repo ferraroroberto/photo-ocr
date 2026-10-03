@@ -24,6 +24,8 @@ nav = { src = "app/webapp/static/_vendored/nav", sha = "56e76aa373c6cb689b100f1c
 static_pytest_target = "tests/e2e/test_smoke.py"
 static_browsers = ["chromium"]
 full_pytest_target = "tests/e2e"
+# JUnit XML the pre-ship gate writes (timing source for /e2e-audit).
+junit_xml = "webapp/e2e-junit.xml"
 
 # --- inert: no browser surface at all -------------------------------------
 [[e2e.rule]]

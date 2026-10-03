@@ -44,7 +44,7 @@ try {
     Write-Host "==> pytest e2e (Chromium + WebKit/iPhone, auto-booted)..." -ForegroundColor Cyan
     $env:PHOTO_OCR_E2E_AUTOBOOT = "1"
     try {
-        & $python -m pytest tests/e2e -q --browser chromium --browser webkit
+        & $python -m pytest tests/e2e -q --browser chromium --browser webkit --junitxml=webapp/e2e-junit.xml
         $e2eExit = $LASTEXITCODE
     }
     finally {
