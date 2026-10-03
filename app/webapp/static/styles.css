@@ -477,9 +477,9 @@ html, body {
 .shaded-btn .icon { width: var(--icon-inline); height: var(--icon-inline); }
 .copy-btn[disabled] { color: var(--muted); cursor: not-allowed; }
 .copy-btn.copied {
-  background: var(--accent-fill);
-  color: var(--accent-fg);
-  border-color: var(--accent-fill);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  border-color: var(--accent-border-soft);
 }
 
 /* Full-width shaded action — home-automation's .range-tab recipe (Network
