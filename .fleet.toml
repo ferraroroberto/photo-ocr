@@ -13,6 +13,14 @@ runtime_data = { src = "src/runtime_data.py", sha = "346765f7c14af0ec61e960333c0
 classify_e2e = { src = "scripts/classify_e2e.py", sha = "bede95f00aee0b17d5007246a29fa881a71f24f4", dest = "scripts/classify_e2e.py" }
 nav = { src = "app/webapp/static/_vendored/nav", sha = "56e76aa373c6cb689b100f1ce14aa8171d872085", dest = "app/webapp/static/_vendored/nav" }
 
+# /perf-review (fleet-config skills/perf-review): "ready" is the primary
+# "Add photo" button visible on the Capture tab (the phone's landing view),
+# not first contentful paint. Capture has no card that waits on live data
+# (config and history only fill the Settings and History panes), so the
+# affordance the user needs to start a take is the honest ready signal.
+[perf.review]
+ready_selector = ".add-photo-btn"
+
 # Diff-proportionate e2e routing (project-scaffolding docs/e2e-routing.md).
 # `scripts/classify_e2e.py` maps this branch's changed files to a tier; rules
 # are tried in declaration order, first match wins. Only plainly inert paths
