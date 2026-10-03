@@ -116,3 +116,20 @@ def test_settings_pane_shows_prompt_preview(
     current = int(max_photos.input_value() or "50")
     max_photos.fill(str(current + 1))
     expect(save_btn).to_be_enabled()
+
+    # Text size (A11Y-02): the zoom lock's escape. Large scales the root
+    # font-size, survives a reload through the pre-paint boot, and form
+    # controls inherit the page font (TYPE-02, the vendored base layer).
+    authed_page.locator('#textSizeControl [data-textsize="large"]').click()
+    expect(authed_page.locator("html")).to_have_attribute("data-textsize", "large")
+    root_px = authed_page.evaluate(
+        "getComputedStyle(document.documentElement).fontSize"
+    )
+    assert root_px == "18px", f"Large should be 112.5% of 16px, got {root_px}"
+    authed_page.reload(wait_until="domcontentloaded")
+    expect(authed_page.locator("html")).to_have_attribute("data-textsize", "large")
+    fonts = authed_page.evaluate(
+        "[document.body, document.getElementById('tabSettings')]"
+        ".map(e => getComputedStyle(e).fontFamily)"
+    )
+    assert fonts[0] == fonts[1], f"controls must inherit the page font: {fonts}"

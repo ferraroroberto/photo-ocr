@@ -40,6 +40,7 @@ import {
 } from './settings.js';
 import { icon } from './_vendored/icons/icons.js';
 import { initNavTabs } from './_vendored/nav/nav-tabs.js';
+import { bindTextSize } from './_vendored/text-size/text-size.js';
 
 // --------------------------------------------------------------- theme toggle
 // Same feature as home-automation / app-launcher: the pre-paint script in
@@ -62,6 +63,10 @@ function toggleTheme() {
 })();
 
 els.themeToggle.addEventListener('click', toggleTheme);
+
+// Text size (A11Y-02): the zoom lock's escape. The pre-paint script in index.html
+// stamps html[data-textsize]; this wires the Settings control to it.
+bindTextSize(document.getElementById('textSizeControl'), 'photo-ocr');
 
 // --------------------------------------------------------------- bottom tabs
 // Vendored fleet nav (see _vendored/nav/README.md): discovers the three tabs

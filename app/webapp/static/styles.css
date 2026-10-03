@@ -15,6 +15,7 @@
   --muted: #656d76;         /* fg-muted (secondary text) */
   --line: #d1d9e0;          /* border (default hairline) */
   --line-muted: #d8dee4;    /* border-muted (divider inside a card) */
+  --control-border: #818b98; /* control-border: input/select boundary, 3.45:1 on card (WCAG 1.4.11) — cards keep --line */
   /* colors — accent + status (status colors signal state only, never decoration) */
   --accent: #0969da;
   --accent-fg: #ffffff;     /* text/icon on an accent fill */
@@ -93,6 +94,7 @@
   --muted: #7d8590;         /* fg-muted */
   --line: #30363d;          /* border */
   --line-muted: #21262d;    /* border-muted */
+  --control-border: #6e7681; /* control-border: 3.77:1 on card */
   --accent: #2f81f7;
   --accent-fg: #ffffff;
   --accent-fill: #1f6feb;   /* one step below accent so white text holds AA */
@@ -437,7 +439,7 @@ html, body {
 .text-out {
   width: 100%;
   background: var(--input-bg);
-  border: 1px solid var(--line);
+  border: 1px solid var(--control-border);
   border-radius: var(--radius-md);
   padding: var(--gap);
   min-height: 120px;
@@ -552,7 +554,7 @@ html, body {
   border-color: transparent;
   border-width: var(--control-inset) 0;
   border-radius: var(--radius-md) / calc(var(--radius-md) + var(--control-inset));
-  box-shadow: inset 0 0 0 1px var(--line);
+  box-shadow: inset 0 0 0 1px var(--control-border);
   font-size: var(--font-label);
   max-width: 60%;
 }
@@ -588,7 +590,7 @@ hr {
   padding: var(--space-sm) 10px;
   background: var(--input-bg);
   color: var(--ink);
-  border: 1px solid var(--line);
+  border: 1px solid var(--control-border);
   border-radius: var(--radius-md);
   font-size: var(--font-label);
 }
@@ -760,7 +762,7 @@ hr {
   padding: var(--gap) 14px;
   background: var(--input-bg);
   color: var(--ink);
-  border: 1px solid var(--line);
+  border: 1px solid var(--control-border);
   border-radius: var(--radius-md);
   font-size: var(--font-body);
   min-height: 48px;
