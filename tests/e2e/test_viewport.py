@@ -18,7 +18,7 @@ pytestmark = pytest.mark.smoke
 _IPHONE_14_WIDTH = 390
 
 
-def test_iphone_viewport_active_on_webkit(
+def test_iphone_projection_active_on_webkit(
     authed_page: Page, base_url: str, browser_name: str
 ) -> None:
     if browser_name != "webkit":
@@ -29,14 +29,6 @@ def test_iphone_viewport_active_on_webkit(
         f"expected iPhone 14 width {_IPHONE_14_WIDTH}, got {width} — the "
         "device descriptor merge in conftest.py didn't take effect"
     )
-
-
-def test_touch_is_enabled_on_webkit(
-    authed_page: Page, base_url: str, browser_name: str
-) -> None:
-    if browser_name != "webkit":
-        pytest.skip("touch projection only applies to the WebKit browser")
-    authed_page.goto(f"{base_url}/", wait_until="domcontentloaded")
     # iPhone descriptors set has_touch — ontouchstart exists on a real
     # touch context. Pins that the photo-capture UI is tested touch-first.
     has_touch = authed_page.evaluate("'ontouchstart' in window")
