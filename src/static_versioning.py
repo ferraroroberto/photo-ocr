@@ -209,6 +209,19 @@ class BuildInfo:
         """Stamp the relative ``import`` URLs in a served JS module."""
         return rewrite_js_imports(body, self.asset_hashes)
 
+    def fingerprint(self) -> str:
+        """Digest of everything that makes this build's served pages differ.
+
+        Mixed into the entry document's ETag so a 304 can never outlive a
+        build: the stamped HTML only names some assets, so a changed
+        transitive ``.js`` module or a new commit must still change the
+        validator.
+        """
+        digest = hashlib.sha256(self.git_sha.encode("utf-8"))
+        for name, asset in sorted(self.asset_hashes.items()):
+            digest.update(f"|{name}={asset}".encode("utf-8"))
+        return digest.hexdigest()
+
     def as_dict(self) -> Dict[str, str]:
         """Payload for the ``/api/version`` endpoint."""
         return {
