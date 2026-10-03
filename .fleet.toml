@@ -17,6 +17,7 @@ text-size = { src = "app/webapp/static/_vendored/text-size", sha = "91bf2dc77e28
 range-tab = { src = "app/webapp/static/_vendored/range-tab", sha = "91bf2dc77e2845d072d34944eb61bd461bf08041", dest = "app/webapp/static/_vendored/range-tab" }
 action-row = { src = "app/webapp/static/_vendored/action-row", sha = "91bf2dc77e2845d072d34944eb61bd461bf08041", dest = "app/webapp/static/_vendored/action-row" }
 modal = { src = "app/webapp/static/_vendored/modal", sha = "91bf2dc77e2845d072d34944eb61bd461bf08041", dest = "app/webapp/static/_vendored/modal" }
+switch = { src = "app/webapp/static/_vendored/switch", sha = "91bf2dc77e2845d072d34944eb61bd461bf08041", dest = "app/webapp/static/_vendored/switch" }
 
 # /perf-review (fleet-config skills/perf-review): "ready" is the primary
 # "Add photo" button visible on the Capture tab (the phone's landing view),

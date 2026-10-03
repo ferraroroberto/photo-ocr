@@ -201,7 +201,7 @@ html, body {
 
 /* ---------- header ---------- */
 /* Icon-only ghost button — the capture-toolbar toggles (gallery / reset /
-   incognito), the Capture-head theme toggle and the History-head
+   reset), the Capture-head theme toggle and the History-head
    refresh/clean. Square-ish so a
    row of them stays compact; the flex row it sits in controls height.
    Compound selector so it outranks the .ghost-btn base later in the file. */
@@ -213,14 +213,11 @@ html, body {
   font-size: var(--icon-title);
   user-select: none;
 }
-/* The incognito toggle is an aria-pressed icon button (shadcn Toggle shape). */
-.ghost-btn.tool-btn[aria-pressed] { opacity: 0.55; }
-.ghost-btn.tool-btn[aria-pressed="true"] {
-  opacity: 1;
-  border-color: var(--accent);
-  background: var(--accent-soft);
-  color: var(--accent);
-}
+/* "Save to history": a labelled row in the Capture card, the switch trailing.
+   The row's own margins would double the card's column gap. */
+.save-row { margin: 0; }
+.save-row > span:first-child { cursor: pointer; }
+.save-switch { display: inline-flex; }
 
 /* ---------- capture zone ---------- */
 /* The Capture pane's first card; its column gap spaces the header too. */

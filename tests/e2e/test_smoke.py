@@ -133,3 +133,52 @@ def test_settings_pane_shows_prompt_preview(
         ".map(e => getComputedStyle(e).fontFamily)"
     )
     assert fonts[0] == fonts[1], f"controls must inherit the page font: {fonts}"
+
+
+def test_save_to_history_switch_sets_incognito(
+    authed_page: Page, base_url: str
+) -> None:
+    """The Capture card's labelled "Save to history" switch is on by default
+    and its inverse is the session's ``incognito`` flag: turning it off makes
+    the next take's ``POST /api/sessions`` carry ``incognito: true``."""
+    import io
+    import json
+
+    pil = pytest.importorskip("PIL.Image", reason="Pillow needed to pick a photo")
+    buf = io.BytesIO()
+    pil.new("RGB", (64, 48), color=(180, 190, 200)).save(buf, format="JPEG")
+
+    created: list[dict] = []
+
+    def create_session(route) -> None:
+        created.append(json.loads(route.request.post_data or "{}"))
+        route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps({"session_id": "mocked"}),
+        )
+
+    # Only the create call matters; the photo upload that follows is dropped.
+    authed_page.route("**/api/sessions", create_session)
+    authed_page.route("**/api/sessions/mocked/photos", lambda r: r.abort())
+    _navigate_collecting_errors(authed_page, base_url)
+
+    switch = authed_page.get_by_role("switch", name="Save to history")
+    expect(switch).to_have_attribute("aria-checked", "true")
+    switch.click()
+    expect(switch).to_have_attribute("aria-checked", "false")
+    # The row's text toggles it too.
+    label = authed_page.locator("#saveToHistoryLabel")
+    label.click()
+    expect(switch).to_have_attribute("aria-checked", "true")
+    label.click()
+    expect(switch).to_have_attribute("aria-checked", "false")
+
+    authed_page.locator("#galleryInput").set_input_files(
+        {"name": "p.jpg", "mimeType": "image/jpeg", "buffer": buf.getvalue()}
+    )
+    for _ in range(50):
+        if created:
+            break
+        authed_page.wait_for_timeout(100)
+    assert created and created[0].get("incognito") is True, created

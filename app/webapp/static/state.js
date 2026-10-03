@@ -13,7 +13,8 @@
  *   state.prompts         — [{ id, label, description, system }]
  *   state.config          — full /api/config response
  *   state.busy            — boolean: an extract is in flight
- *   state.incognito       — boolean: don't save this take to history
+ *   state.incognito       — boolean: don't save this take to history (the
+ *                           Save to history switch shows its inverse)
  *   state.searchQuery     — active archive-search phrase ('' = browse mode)
  *   state.searchResults   — [{ session_id, created_at, model, snippet }]
  *
@@ -61,7 +62,8 @@ export const els = {
   extracted: document.getElementById('extracted'),
   copyExtracted: document.getElementById('copyExtracted'),
   resetBtn: document.getElementById('resetBtn'),
-  incognitoToggle: document.getElementById('incognitoToggle'),
+  saveToHistoryHost: document.getElementById('saveToHistoryHost'),
+  saveToHistoryLabel: document.getElementById('saveToHistoryLabel'),
   ocrModel: document.getElementById('ocrModel'),
   ocrStyle: document.getElementById('ocrStyle'),
   ocrPromptPreview: document.getElementById('ocrPromptPreview'),

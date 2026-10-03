@@ -28,7 +28,8 @@ same archive shape, same auth model, but for pixels instead of audio.
   `design.md`/`design.dark.md`): three views — **Capture / History / Settings**
   — behind the vendored floating bottom-tab nav, Lucide icons throughout (no
   emoji glyphs), no app header (the Capture card's toolbar carries the
-  take-scoped controls: add photo / gallery / reset / incognito; its header
+  take-scoped controls: add photo / gallery / reset, then a labelled **Save to history** switch
+  that keeps a take out of History when off; its header
   carries the sun-moon **theme toggle**, which follows the system preference
   until overridden — same feature as home-automation and app-launcher), and
   a build-identity footer
@@ -226,7 +227,7 @@ photo-ocr/
 │   │   └── static/              PWA: index.html, ES-module JS, styles.css, icons
 │   │       └── _vendored/       fleet components (nav · icons · card · button ·
 │   │                            empty-state · base · range-tab · text-size ·
-│   │                            action-row · modal), copied verbatim from project-scaffolding
+│   │                            action-row · modal · switch), copied verbatim from project-scaffolding
 │   └── tray/                    system-tray launcher
 ├── config/
 │   ├── config.json              app-level (log level, language hint)
