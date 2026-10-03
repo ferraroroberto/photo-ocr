@@ -78,3 +78,12 @@ def test_toast_is_the_vendored_neutral_one(js_source: str) -> None:
     assert ".toast" not in styles
     assert "_vendored/toast/toast.js" in js_source
     assert ", 'good')" not in js_source
+
+
+def test_no_success_green_token() -> None:
+    # Fleet COLOR-04: on-state is the accent, never a success green. The
+    # vendored switch reads --accent-fill; a local --on is how a green
+    # on-colour (and the copy flash that used it) comes back.
+    styles = (STATIC_DIR / "styles.css").read_text(encoding="utf-8")
+    assert "--on:" not in styles
+    assert "var(--on)" not in styles

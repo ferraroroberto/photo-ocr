@@ -21,7 +21,6 @@
   --accent-fg: #ffffff;     /* text/icon on an accent fill */
   --accent-fill: #0969da;   /* solid primary fill (button-primary) */
   --accent-text: #0550ae;   /* accent text on an accent-soft tint (fleet-config#963) */
-  --on: #1a7f37;            /* success */
   --danger: #cf222e;
   --danger-text: #a40e26;   /* danger text on its own tint (fleet-config#963) */
   /* The vendored toast tints an error with a 75% mix of this over the glass
@@ -106,7 +105,6 @@
   --accent-fg: #ffffff;
   --accent-fill: #1f6feb;   /* one step below accent so white text holds AA */
   --accent-text: #58a6ff;
-  --on: #3fb950;            /* success */
   --danger: #f85149;
   --danger-text: #ff7b72;
   --deficit: #da3633;       /* the vendored error toast: white text holds 4.5:1 */
@@ -125,14 +123,12 @@
   :root {
     --accent: oklch(0.52 0.18 256);
     --accent-fill: oklch(0.52 0.18 256);
-    --on: oklch(0.55 0.14 150);
     --danger: oklch(0.55 0.20 25);
     --attention: oklch(0.55 0.11 80);
   }
   [data-theme="dark"] {
     --accent: oklch(0.64 0.18 256);
     --accent-fill: oklch(0.57 0.21 260);
-    --on: oklch(0.72 0.18 150);
     --danger: oklch(0.68 0.20 25);
     --attention: oklch(0.77 0.13 85);
   }
@@ -481,9 +477,9 @@ html, body {
 .shaded-btn .icon { width: var(--icon-inline); height: var(--icon-inline); }
 .copy-btn[disabled] { color: var(--muted); cursor: not-allowed; }
 .copy-btn.copied {
-  background: var(--on);
+  background: var(--accent-fill);
   color: var(--accent-fg);
-  border-color: var(--on);
+  border-color: var(--accent-fill);
 }
 
 /* Full-width shaded action — home-automation's .range-tab recipe (Network
