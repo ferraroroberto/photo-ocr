@@ -65,7 +65,7 @@
   --font-heading-lg: 1.5rem;
   --font-body: 1rem;
   --font-body-sm: 0.875rem;
-  --font-label: 0.92rem;
+  --font-label: 0.875rem;
   --font-caption: 0.75rem;
   /* icon-size steps (icons.size — inline / title / feature) */
   --icon-inline: 16px;
@@ -456,7 +456,7 @@ html, body {
 }
 .prompt-preview {
   min-height: 80px;
-  font: var(--font-caption) / 1.4 var(--font-mono);
+  font: var(--font-body-sm) / 1.4 var(--font-mono);
   color: var(--muted);
 }
 
@@ -572,7 +572,7 @@ html, body {
   gap: 6px;
   margin: 10px 0;
 }
-.stacked > span { font-size: var(--font-caption); }
+.stacked > span { font-size: var(--font-body-sm); }
 
 hr {
   border: 0;
@@ -581,7 +581,7 @@ hr {
 }
 
 .muted { color: var(--muted); }
-.small { font-size: var(--font-caption); }
+.small { font-size: var(--font-body-sm); }
 
 /* ---------- history ---------- */
 .history-search {
@@ -605,7 +605,7 @@ hr {
   padding: 0;
 }
 .history-empty {
-  font-size: var(--font-caption);
+  font-size: var(--font-body-sm);
   color: var(--muted);
   padding: var(--space-sm) 2px;
 }
@@ -756,5 +756,5 @@ hr {
 }
 .login-error {
   color: var(--danger);
-  font-size: var(--font-caption);
+  font-size: var(--font-body-sm);
 }
