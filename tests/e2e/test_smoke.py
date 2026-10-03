@@ -1,9 +1,11 @@
 """Smoke tests for the photo-ocr webapp.
 
-Tight by design: ~5 checks that catch the bugs we actually hit on the
-SPA (JS exceptions on boot, empty select dropdowns, broken settings
-panel, missing login overlay). Expand iteratively if regressions slip
-through — do NOT turn this file into a regression net for every feature.
+Tight by design: two tests that catch the bugs we actually hit on the
+SPA — one boot test (JS exceptions on boot, empty select dropdowns,
+Capture zone, missing login overlay) and one Settings test (broken tab
+switch, prompt preview, dirty-aware Save). Expand iteratively if
+regressions slip through — do NOT turn this file into a regression net
+for every feature.
 """
 
 from __future__ import annotations
@@ -35,7 +37,11 @@ def _navigate_collecting_errors(
     return errors
 
 
-def test_page_loads_without_console_errors(authed_page: Page, base_url: str) -> None:
+def test_boot_renders_spa(authed_page: Page, base_url: str) -> None:
+    """One page load, four boot checks (they shared an identical setup and
+    each paid a load per projection): no JS errors, both OCR selects
+    populated, the Capture zone rendered, and the login overlay markup
+    wired. The overlay check mutates the DOM, so it runs last."""
     errors = _navigate_collecting_errors(authed_page, base_url, boot_settled=True)
     # boot() awaits fetchConfig, then the History request, then renders.
     # Two animation frames after that response let the continuation that
@@ -46,9 +52,6 @@ def test_page_loads_without_console_errors(authed_page: Page, base_url: str) -> 
     )
     assert errors == [], "JS errors during boot:\n  - " + "\n  - ".join(errors)
 
-
-def test_ocr_options_populated(authed_page: Page, base_url: str) -> None:
-    _navigate_collecting_errors(authed_page, base_url)
     # renderOcrOptions runs after /api/config resolves. Both selects must
     # end up with at least one <option> or the dropdowns are empty.
     # state="attached" not "visible" — <option> inside a collapsed <select>
@@ -60,20 +63,31 @@ def test_ocr_options_populated(authed_page: Page, base_url: str) -> None:
     assert model_count >= 1, f"#ocrModel rendered no options (got {model_count})"
     assert style_count >= 1, f"#ocrStyle rendered no options (got {style_count})"
 
-
-def test_capture_zone_renders(authed_page: Page, base_url: str) -> None:
-    """The Extract button is the headline UI; if it's gone, the app is
-    useless. It MUST be disabled with no photos added — asserting that
-    state catches the regression where the disable-until-photo logic
-    accidentally gets removed.
-    """
-    _navigate_collecting_errors(authed_page, base_url)
+    # The Extract button is the headline UI; if it's gone, the app is
+    # useless. It MUST be disabled with no photos added — asserting that
+    # state catches the regression where the disable-until-photo logic
+    # accidentally gets removed.
     extract_btn = authed_page.locator("#extractBtn")
     expect(extract_btn).to_be_visible()
     expect(extract_btn).to_be_disabled()
     expect(extract_btn).to_contain_text("Extract")
-    status = authed_page.locator("#captureStatus")
-    expect(status).to_be_visible()
+    expect(authed_page.locator("#captureStatus")).to_be_visible()
+
+    # The login overlay markup is wired so showLogin() can reveal it. We
+    # exercise the DOM directly rather than triggering a real 401: the
+    # bearer middleware bypasses loopback, so a bad token from 127.0.0.1
+    # won't surface the overlay. This still catches overlay element +
+    # password input missing or renamed.
+    overlay = authed_page.locator("#loginOverlay")
+    expect(overlay).to_be_hidden()
+    authed_page.evaluate(
+        "document.getElementById('loginOverlay').hidden = false"
+    )
+    expect(overlay).to_be_visible()
+    pw = authed_page.locator("#loginPassword")
+    expect(pw).to_be_editable()
+    pw.fill("dummy")
+    expect(pw).to_have_value("dummy")
 
 
 def test_settings_pane_shows_prompt_preview(
@@ -102,24 +116,3 @@ def test_settings_pane_shows_prompt_preview(
     current = int(max_photos.input_value() or "50")
     max_photos.fill(str(current + 1))
     expect(save_btn).to_be_enabled()
-
-
-def test_login_overlay_dom_present(authed_page: Page, base_url: str) -> None:
-    """The login overlay markup is wired so showLogin() can reveal it.
-
-    We exercise the DOM directly rather than triggering a real 401: the
-    bearer middleware bypasses loopback, so a bad token from 127.0.0.1
-    won't surface the overlay. This still catches the regression we care
-    about — overlay element + password input missing or renamed.
-    """
-    _navigate_collecting_errors(authed_page, base_url)
-    overlay = authed_page.locator("#loginOverlay")
-    expect(overlay).to_be_hidden()
-    authed_page.evaluate(
-        "document.getElementById('loginOverlay').hidden = false"
-    )
-    expect(overlay).to_be_visible()
-    pw = authed_page.locator("#loginPassword")
-    expect(pw).to_be_editable()
-    pw.fill("dummy")
-    expect(pw).to_have_value("dummy")
