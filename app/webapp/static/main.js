@@ -31,6 +31,7 @@ import {
   cleanAllHistory,
   onSearchInput,
   clearSearch,
+  initTakeMenu,
 } from './sessions.js';
 import {
   fetchConfig,
@@ -187,6 +188,7 @@ els.refreshHistory.addEventListener('click', function () {
   loadHistory(0);
 });
 els.cleanAll.addEventListener('click', cleanAllHistory);
+initTakeMenu();
 els.loadMoreHistory.addEventListener('click', function () {
   loadHistory(state.historyOffset + HISTORY_PAGE_SIZE);
 });

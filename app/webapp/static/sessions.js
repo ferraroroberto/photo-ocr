@@ -1,5 +1,5 @@
-/* Photo OCR — the History panel: list render, paging, copy/redo/delete
- * of saved takes, and the clean-all action. */
+/* Photo OCR — the History panel: list render, paging, tap-to-copy rows with
+ * a Redo / Delete overflow menu, and the clean-all action. */
 
 'use strict';
 
@@ -45,16 +45,32 @@ function highlightSnippet(snip) {
 }
 
 // Shared row component for both the chronological history list and the
-// search-result list — one DOM shape, two data sources. The
-// Copy/Redo/Delete actions only need a { session_id } reference.
-function makeSessionRow(sessionId, leftText, rightText, previewText, isSnippet, source) {
+// search-result list — one DOM shape, two data sources. One take is one
+// action-row (design.md): tap the row to copy it, one trailing overflow
+// control for everything else (Redo, Delete). The snippet leads as the
+// title; date, photo count and model are the one muted meta line.
+function makeSessionRow(sessionId, metaText, previewText, isSnippet, source) {
   const li = document.createElement('li');
-  li.className = 'history-item';
+  li.className = 'action-row history-item';
+  const ref = { session_id: sessionId };
 
-  const meta = document.createElement('div');
-  meta.className = 'meta';
-  const left = document.createElement('span');
-  left.textContent = leftText;
+  const main = document.createElement('button');
+  main.type = 'button';
+  main.className = 'action-row-main';
+  main.title = 'Copy this take';
+  main.addEventListener('click', function () { copyHistoryEntry(ref); });
+
+  const title = document.createElement('span');
+  title.className = 'action-row-title preview';
+  if (isSnippet) {
+    title.innerHTML = highlightSnippet(previewText);
+  } else {
+    title.textContent = previewText;
+  }
+
+  const meta = document.createElement('span');
+  meta.className = 'action-row-meta';
+  meta.textContent = metaText;
   // Flag externally-sourced takes (app-launcher, api, …) so History is
   // an attributable cross-fleet audit trail. Manual PWA takes ("webapp")
   // are the unmarked default — no badge keeps the common case clean.
@@ -62,50 +78,20 @@ function makeSessionRow(sessionId, leftText, rightText, previewText, isSnippet, 
     const badge = document.createElement('span');
     badge.className = 'source-badge';
     badge.textContent = source;
-    left.appendChild(document.createTextNode(' '));
-    left.appendChild(badge);
+    meta.appendChild(document.createTextNode(' '));
+    meta.appendChild(badge);
   }
-  const right = document.createElement('span');
-  right.textContent = rightText;
-  meta.appendChild(left);
-  meta.appendChild(right);
-  li.appendChild(meta);
+  main.append(title, meta);
 
-  const preview = document.createElement('div');
-  preview.className = 'preview';
-  if (isSnippet) {
-    preview.innerHTML = highlightSnippet(previewText);
-  } else {
-    preview.textContent = previewText;
-  }
-  li.appendChild(preview);
+  const more = document.createElement('button');
+  more.type = 'button';
+  more.className = 'action-row-kebab';
+  more.setAttribute('aria-label', 'More actions');
+  more.setAttribute('aria-haspopup', 'dialog');
+  more.innerHTML = icon('ellipsis-vertical');
+  more.addEventListener('click', function () { openTakeMenu(ref, metaText); });
 
-  const ref = { session_id: sessionId };
-  const actions = document.createElement('div');
-  actions.className = 'actions';
-
-  const copyBtn = document.createElement('button');
-  copyBtn.className = 'copy-btn';
-  copyBtn.type = 'button';
-  copyBtn.innerHTML = icon('copy') + ' Copy';
-  copyBtn.addEventListener('click', function () { copyHistoryEntry(ref); });
-  actions.appendChild(copyBtn);
-
-  const redoBtn = document.createElement('button');
-  redoBtn.className = 'ghost-btn';
-  redoBtn.type = 'button';
-  redoBtn.innerHTML = icon('redo-2') + ' Redo';
-  redoBtn.addEventListener('click', function () { redoHistoryEntry(ref); });
-  actions.appendChild(redoBtn);
-
-  const delBtn = document.createElement('button');
-  delBtn.className = 'ghost-btn';
-  delBtn.type = 'button';
-  delBtn.innerHTML = icon('trash-2') + ' Delete';
-  delBtn.addEventListener('click', function () { deleteHistoryEntry(ref); });
-  actions.appendChild(delBtn);
-
-  li.appendChild(actions);
+  li.append(main, more);
   return li;
 }
 
@@ -128,11 +114,14 @@ function renderHistory() {
     els.historyList.appendChild(
       makeSessionRow(
         s.session_id,
-        formatDate(s.created_at) + ' · ' + s.photo_count + ' photo(s)',
-        (s.model ? modelLabel(s.model) : '—') +
-          (s.extract_duration_s
-            ? ' · ' + s.extract_duration_s.toFixed(1) + 's'
-            : ''),
+        [
+          formatDate(s.created_at),
+          s.photo_count + (s.photo_count === 1 ? ' photo' : ' photos'),
+          (s.model ? modelLabel(s.model) : '—') +
+            (s.extract_duration_s
+              ? ' · ' + s.extract_duration_s.toFixed(1) + 's'
+              : ''),
+        ].join(' · '),
         s.extracted_preview || (s.error ? 'Error — ' + s.error : '(no text)'),
         false,
         s.source
@@ -158,8 +147,7 @@ function renderSearchResults() {
       els.historyList.appendChild(
         makeSessionRow(
           r.session_id,
-          formatDate(r.created_at),
-          r.model ? modelLabel(r.model) : '—',
+          formatDate(r.created_at) + ' · ' + (r.model ? modelLabel(r.model) : '—'),
           r.snippet || '(match)',
           true,
           r.source
@@ -296,8 +284,34 @@ async function redoHistoryEntry(s) {
   }
 }
 
+// The overflow menu is one shared <dialog>; it remembers which take opened it.
+let menuTake = null;
+
+function openTakeMenu(ref, metaText) {
+  menuTake = ref;
+  els.takeMenuWhen.textContent = metaText;
+  els.takeMenu.showModal();
+}
+
+export function initTakeMenu() {
+  const dlg = els.takeMenu;
+  dlg.querySelector('.detail-close').addEventListener('click', function () { dlg.close(); });
+  // A tap on the backdrop (the dialog element itself, outside its card) dismisses.
+  dlg.addEventListener('click', function (e) { if (e.target === dlg) dlg.close(); });
+  els.takeRedo.addEventListener('click', function () {
+    const ref = menuTake;
+    dlg.close();
+    if (ref) redoHistoryEntry(ref);
+  });
+  els.takeDelete.addEventListener('click', async function () {
+    const ref = menuTake;
+    if (!ref || !confirm('Delete this take?')) return;
+    dlg.close();
+    await deleteHistoryEntry(ref);
+  });
+}
+
 async function deleteHistoryEntry(s) {
-  if (!confirm('Delete session ' + s.session_id + '?')) return;
   try {
     await jsonApi(
       '/api/sessions/' + encodeURIComponent(s.session_id),
