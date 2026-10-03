@@ -53,11 +53,8 @@
   --control-h: 36px;
   /* hit-target.min (design.md) — the 44px effective pointer-target floor. A
      native input/select is a replaced element that can't carry a ::before
-     expansion, so a settings control gets the real 44px box and paints its
-     36px control inside a transparent --control-inset band (the
-     home-automation #779 / voice-transcriber #213 recipe). */
+     expansion, so a settings control is a real 44px box with a drawn border. */
   --hit-min: 44px;
-  --control-inset: calc((var(--hit-min) - var(--control-h)) / 2);
   /* typography roles — system stack, weight (not case) for hierarchy. */
   --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -456,7 +453,7 @@ html, body {
 }
 .prompt-preview {
   min-height: 80px;
-  font: var(--font-body-sm) / 1.4 var(--font-mono);
+  font: var(--font-body-sm) / 1.4 var(--font);
   color: var(--muted);
 }
 
@@ -475,6 +472,9 @@ html, body {
   transition: background 0.15s;
 }
 .copy-btn:active { background: var(--line-muted); }
+/* Button glyphs take the 16px inline step, not the button text's 1em. */
+.copy-btn .icon,
+.shaded-btn .icon { width: var(--icon-inline); height: var(--icon-inline); }
 .copy-btn[disabled] { color: var(--muted); cursor: not-allowed; }
 .copy-btn.copied {
   background: var(--on);
@@ -543,28 +543,21 @@ html, body {
   min-height: 44px;
 }
 .row > span:first-child { flex: 0 0 auto; font-size: var(--font-label); }
-/* Settings selects/inputs reach the 44px floor with real geometry: the
-   element box is --hit-min tall, the visible 36px control is its padding box
-   inside a transparent vertical --control-inset border, and the 1px boundary
-   is an inset shadow on that padding box. The radius pair keeps the visible
-   corners at rounded.md and the focus ring hugs the visible box. */
+/* Settings selects/inputs reach the 44px floor with real geometry: a --hit-min
+   tall box with a drawn 1px control-border (the action-row filter's recipe),
+   so the boundary is a real border, not a shadow. */
 .row .select-native,
 .row .input-native {
   flex: 1 1 auto;
   height: var(--hit-min);
   padding: 0 10px;
-  background: var(--input-bg) padding-box;
+  background: var(--input-bg);
   color: var(--ink);
-  border-style: solid;
-  border-color: transparent;
-  border-width: var(--control-inset) 0;
-  border-radius: var(--radius-md) / calc(var(--radius-md) + var(--control-inset));
-  box-shadow: inset 0 0 0 1px var(--control-border);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-md);
   font-size: var(--font-label);
   max-width: 60%;
 }
-.row .select-native:focus-visible,
-.row .input-native:focus-visible { outline-offset: calc(2px - var(--control-inset)); }
 
 .stacked {
   display: flex;
