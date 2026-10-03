@@ -125,6 +125,23 @@ def test_settings_pane_shows_prompt_preview(
     )
     assert sizes == ["14px", "14px", "14px"], sizes
 
+    # What the rendered design review measures: every form control (the
+    # monospace-free prompt preview included) inherits the page font, field
+    # boundaries are a drawn border, button glyphs sit on the 16px step, and
+    # the text-size control is findable by its accessible name.
+    facts = authed_page.evaluate(
+        """() => {
+          const body = getComputedStyle(document.body).fontFamily;
+          const off = [...document.querySelectorAll('button, input, select, textarea')]
+            .filter(e => getComputedStyle(e).fontFamily !== body).length;
+          const sel = getComputedStyle(document.getElementById('ocrModel'));
+          const save = document.querySelector('#saveSettings .icon').getBoundingClientRect();
+          return { off, border: sel.borderTopWidth, saveIcon: Math.round(save.width) };
+        }"""
+    )
+    assert facts == {"off": 0, "border": "1px", "saveIcon": 16}, facts
+    expect(authed_page.get_by_label("Text size")).to_be_visible()
+
     # Text size (A11Y-02): the zoom lock's escape. Large scales the root
     # font-size, survives a reload through the pre-paint boot, and form
     # controls inherit the page font (TYPE-02, the vendored base layer).
