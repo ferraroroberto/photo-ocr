@@ -653,6 +653,9 @@ hr {
   padding: var(--space-xs) 10px;
   font-size: var(--font-caption);
 }
+/* The row glyphs would inherit the 12px caption size (.icon is 1em), off the
+   icons.size steps; they take the 16px inline step. */
+.history-item .actions .icon { width: var(--icon-inline); height: var(--icon-inline); }
 .load-more-btn {
   width: 100%;
   margin-top: 10px;
