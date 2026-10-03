@@ -122,3 +122,13 @@ export function toast(msg, kind) {
     els.toast.hidden = true;
   }, kind === 'error' ? 4500 : 2200);
 }
+
+// ----------------------------------------------------------- model labels
+// Model aliases are config ids (`gemini_flash`); people read "Gemini Flash".
+// Display only — the id stays the value sent to the server.
+export function modelLabel(id) {
+  return String(id)
+    .split('_')
+    .map(function (w) { return w ? w.charAt(0).toUpperCase() + w.slice(1) : w; })
+    .join(' ');
+}
