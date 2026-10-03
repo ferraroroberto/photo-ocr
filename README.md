@@ -25,15 +25,16 @@ same archive shape, same auth model, but for pixels instead of audio.
 - **Clean output discipline.** The system prompt forbids preamble, commentary,
   `"Photo 1:"` labels, and translation. The result is drop-in-clipboard-ready.
 - **Fleet design canon.** The UI follows the fleet design system (tokens from
-  `design.md`/`design.dark.md`): three views — **Capture / History / Settings**
-  — behind the vendored floating bottom-tab nav, Lucide icons throughout (no
-  emoji glyphs), no app header (the Capture card's toolbar carries the
-  take-scoped controls: add photo / gallery / reset, then a labelled **Save to history** switch
-  that keeps a take out of History when off; its header
-  carries the sun-moon **theme toggle**, which follows the system preference
-  until overridden — same feature as home-automation and app-launcher), and
-  a build-identity footer
-  visible from every tab. Settings carries the persisted **Text size**
+  `design.md`/`design.dark.md`): two tabs — **Capture / History** — behind the
+  vendored floating bottom-tab nav, Lucide icons throughout (no emoji glyphs).
+  **Settings is never a tab:** every pane opens with the vendored `home-head`
+  row, which carries the sun-moon **theme toggle** (it follows the system
+  preference until overridden — same feature as home-automation and
+  app-launcher) and the **Settings gear** that opens the Settings pane. The
+  Capture card's toolbar carries the take-scoped controls: add photo /
+  gallery / reset, then a labelled **Save to history** switch that keeps a
+  take out of History when off. A build-identity footer is visible from every
+  tab. Settings carries the persisted **Text size**
   (Small / Default / Large) control that makes the viewport zoom lock
   acceptable. Shared components are vendored verbatim under
   `app/webapp/static/_vendored/` from `project-scaffolding`.
@@ -225,8 +226,8 @@ photo-ocr/
 │   │   ├── routers/             APIRouter per concern (misc, config, auth, sessions, search)
 │   │   ├── manager.py
 │   │   └── static/              PWA: index.html, ES-module JS, styles.css, icons
-│   │       └── _vendored/       fleet components (nav · icons · card · button ·
-│   │                            empty-state · base · range-tab · text-size ·
+│   │       └── _vendored/       fleet components (nav · home-head · icons · card ·
+│   │                            button · empty-state · base · range-tab · text-size ·
 │   │                            action-row · modal · switch), copied verbatim from project-scaffolding
 │   └── tray/                    system-tray launcher
 ├── config/

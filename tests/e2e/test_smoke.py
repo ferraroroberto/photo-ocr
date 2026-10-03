@@ -2,8 +2,8 @@
 
 Tight by design: two tests that catch the bugs we actually hit on the
 SPA — one boot test (JS exceptions on boot, empty select dropdowns,
-Capture zone, missing login overlay) and one Settings test (broken tab
-switch, prompt preview, dirty-aware Save). Expand iteratively if
+Capture zone, missing login overlay) and one Settings test (the header
+gear, prompt preview, dirty-aware Save). Expand iteratively if
 regressions slip through — do NOT turn this file into a regression net
 for every feature.
 """
@@ -93,17 +93,26 @@ def test_boot_renders_spa(authed_page: Page, base_url: str) -> None:
 def test_settings_pane_shows_prompt_preview(
     authed_page: Page, base_url: str
 ) -> None:
-    """Settings lives behind the vendored bottom-tab nav; the prompt
-    preview inside it is always visible (unfolded by request — no
-    disclosure). Catches a broken tab switch, a missing pane, a missing
-    prompt preview, and a Save button that no longer tracks dirty state
-    (#76) in one shot."""
+    """Settings is never a tab (fleet NAV-03): it opens from the header gear
+    that every pane carries beside the theme toggle, and any tab tap leaves
+    it. The prompt preview inside it is always visible (unfolded by request
+    — no disclosure). Catches a Settings tab creeping back into the nav, a
+    pane missing its gear, a broken gear, a missing prompt preview, and a
+    Save button that no longer tracks dirty state (#76) in one shot."""
     _navigate_collecting_errors(authed_page, base_url)
     # renderSettings (and so the dirty-state pass) runs after /api/config.
     authed_page.wait_for_selector("#ocrModel option", state="attached", timeout=5_000)
     # The Capture pane is the default tab; Settings starts hidden.
     expect(authed_page.locator("#paneSettings")).to_be_hidden()
-    authed_page.locator("#tabSettings").click()
+    # The nav lists only the real destinations, and every pane (Settings
+    # included) opens with the home-head row: theme toggle, then the gear.
+    expect(authed_page.locator('.tabs .tab[data-tab="settings"]')).to_have_count(0)
+    expect(authed_page.locator(".tabs .tab")).to_have_count(2)
+    for pane in ("#paneCapture", "#paneHistory", "#paneSettings"):
+        head = authed_page.locator(f"{pane} > .card.home-head")
+        expect(head.locator(".theme-toggle")).to_have_count(1)
+        expect(head.locator(".home-settings")).to_have_count(1)
+    authed_page.locator("#paneCapture .home-settings").click()
     expect(authed_page.locator("#paneSettings")).to_be_visible()
     expect(authed_page.locator("#paneCapture")).to_be_hidden()
     expect(authed_page.locator("#ocrPromptPreview")).to_be_visible()
@@ -116,6 +125,14 @@ def test_settings_pane_shows_prompt_preview(
     current = int(max_photos.input_value() or "50")
     max_photos.fill(str(current + 1))
     expect(save_btn).to_be_enabled()
+
+    # Any tab tap leaves Settings; the gear on another pane reopens it.
+    authed_page.locator("#tabHistory").click()
+    expect(authed_page.locator("#paneSettings")).to_be_hidden()
+    expect(authed_page.locator("#paneHistory")).to_be_visible()
+    authed_page.locator("#paneHistory .home-settings").click()
+    expect(authed_page.locator("#paneSettings")).to_be_visible()
+    expect(authed_page.locator("#paneHistory")).to_be_hidden()
 
     # Type scale (TYPE-01): read lines sit on body-sm (14px) or above, never
     # the 12px caption, and the label role is the spec's 0.875rem.
@@ -154,7 +171,7 @@ def test_settings_pane_shows_prompt_preview(
     authed_page.reload(wait_until="domcontentloaded")
     expect(authed_page.locator("html")).to_have_attribute("data-textsize", "large")
     fonts = authed_page.evaluate(
-        "[document.body, document.getElementById('tabSettings')]"
+        "[document.body, document.getElementById('tabHistory')]"
         ".map(e => getComputedStyle(e).fontFamily)"
     )
     assert fonts[0] == fonts[1], f"controls must inherit the page font: {fonts}"

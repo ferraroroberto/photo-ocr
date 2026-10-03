@@ -53,7 +53,9 @@ export const state = {
 
 // ----------------------------------------------------------------- DOM
 export const els = {
-  themeToggle: document.getElementById('themeToggle'),
+  themeToggles: document.querySelectorAll('.theme-toggle'),
+  settingsGears: document.querySelectorAll('.home-settings'),
+  settingsPane: document.getElementById('paneSettings'),
   thumbStrip: document.getElementById('thumbStrip'),
   cameraInput: document.getElementById('cameraInput'),
   galleryInput: document.getElementById('galleryInput'),
