@@ -17,6 +17,10 @@ from playwright.sync_api import Page, Route, expect
 
 pytestmark = pytest.mark.smoke
 
+# Gap between two extract/status polls — must match sleep(1000) in
+# app/webapp/static/poll.js.
+_POLL_INTERVAL_MS = 1_000
+
 
 def _jpeg_bytes() -> bytes:
     pil = pytest.importorskip("PIL.Image", reason="Pillow needed for the upload test")
@@ -97,6 +101,7 @@ def test_extract_progress_advances_and_renders_result(
     try:
         authed_page.route("**/api/sessions/*/extract", handle_extract)
         authed_page.route("**/api/sessions/*/extract/status", handle_status)
+        authed_page.clock.install()
         authed_page.goto(f"{base_url}/", wait_until="domcontentloaded")
         authed_page.wait_for_selector("#extractBtn", state="attached", timeout=5_000)
 
@@ -117,7 +122,11 @@ def test_extract_progress_advances_and_renders_result(
 
         status = authed_page.locator("#captureStatus")
         expect(status).to_contain_text("Chunk 1 of 2", timeout=5_000)
+        # The SPA waits POLL_INTERVAL_MS between status polls; fast-forward
+        # its clock instead of sleeping the real second twice.
+        authed_page.clock.run_for(_POLL_INTERVAL_MS)
         expect(status).to_contain_text("Chunk 2 of 2", timeout=5_000)
+        authed_page.clock.run_for(_POLL_INTERVAL_MS)
         expect(authed_page.locator("#extracted")).to_have_value(
             "done text", timeout=5_000
         )
