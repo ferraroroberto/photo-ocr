@@ -35,6 +35,7 @@
   <link rel="stylesheet" href="/static/styles.css">
   <link rel="stylesheet" href="/static/_vendored/button/button.css">
   <link rel="stylesheet" href="/static/_vendored/card/card.css">
+  <link rel="stylesheet" href="/static/_vendored/toast/toast.css">
   <link rel="stylesheet" href="/static/_vendored/home-head/home-head.css">
   <link rel="stylesheet" href="/static/_vendored/empty-state/empty-state.css">
   <link rel="stylesheet" href="/static/_vendored/nav/nav-tabs.css">
@@ -319,7 +320,7 @@
       <p id="buildReadout" class="muted small" title="Which build of the webapp this device loaded — see issue #5"></p>
     </footer>
 
-    <div id="toast" class="toast" hidden></div>
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
   </main>
 
   <dialog id="previewDialog" class="preview-dialog">

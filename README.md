@@ -33,7 +33,8 @@ same archive shape, same auth model, but for pixels instead of audio.
   app-launcher) and the **Settings gear** that opens the Settings pane. The
   Capture card's toolbar carries the take-scoped controls: add photo /
   gallery / reset, then a labelled **Save to history** switch that keeps a
-  take out of History when off. A build-identity footer is visible from every
+  take out of History when off. Messages use the fleet's neutral frosted
+  **toast** (the nav bar's glass; only a real error tints). A build-identity footer is visible from every
   tab. Settings carries the persisted **Text size**
   (Small / Default / Large) control that makes the viewport zoom lock
   acceptable. Shared components are vendored verbatim under
@@ -227,7 +228,7 @@ photo-ocr/
 │   │   ├── manager.py
 │   │   └── static/              PWA: index.html, ES-module JS, styles.css, icons
 │   │       └── _vendored/       fleet components (nav · home-head · icons · card ·
-│   │                            button · empty-state · base · range-tab · text-size ·
+│   │                            button · toast · empty-state · base · range-tab · text-size ·
 │   │                            action-row · modal · switch), copied verbatim from project-scaffolding
 │   └── tray/                    system-tray launcher
 ├── config/

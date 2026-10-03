@@ -239,7 +239,7 @@ async function copyHistoryEntry(s) {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       await navigator.clipboard.writeText(txt);
     }
-    toast('Copied ' + txt.length + ' chars.', 'good');
+    toast('Copied ' + txt.length + ' chars.');
   } catch (exc) {
     toast('Copy failed: ' + (exc.message || exc), 'error');
   }
@@ -272,7 +272,7 @@ async function redoHistoryEntry(s) {
     refreshHistoryView();
     setStatus('Redo done — tap Copy');
     finalStatusText = els.captureStatus.textContent;
-    toast('Redo done.', 'good');
+    toast('Redo done.');
   } catch (exc) {
     setStatus('Failed: ' + (exc.message || exc));
     finalStatusText = els.captureStatus.textContent;
@@ -328,7 +328,7 @@ export async function cleanAllHistory() {
   try {
     await jsonApi('/api/sessions', { method: 'DELETE' });
     refreshHistoryView();
-    toast('History cleared.', 'good');
+    toast('History cleared.');
   } catch (exc) {
     toast('Clean failed: ' + (exc.message || exc), 'error');
   }

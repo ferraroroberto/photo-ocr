@@ -83,7 +83,6 @@ export const els = {
   takeMenuWhen: document.getElementById('takeMenuWhen'),
   takeRedo: document.getElementById('takeRedo'),
   takeDelete: document.getElementById('takeDelete'),
-  toast: document.getElementById('toast'),
   previewDialog: document.getElementById('previewDialog'),
   previewImg: document.getElementById('previewImg'),
   previewClose: document.getElementById('previewClose'),
@@ -118,18 +117,9 @@ export function clearToken() {
 }
 
 // ----------------------------------------------------------- toasts
-// Lives here as a shared primitive — every module surfaces feedback
-// through it and it depends only on the toast element.
-let toastTimer = null;
-export function toast(msg, kind) {
-  els.toast.textContent = msg;
-  els.toast.className = 'toast ' + (kind || '');
-  els.toast.hidden = false;
-  if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(function () {
-    els.toast.hidden = true;
-  }, kind === 'error' ? 4500 : 2200);
-}
+// The one fleet toast (neutral frosted; only an error tints). Re-exported so
+// every module keeps importing `toast` from here.
+export { showToast as toast } from './_vendored/toast/toast.js';
 
 // ----------------------------------------------------------- model labels
 // Model aliases are config ids (`gemini_flash`); people read "Gemini Flash".
