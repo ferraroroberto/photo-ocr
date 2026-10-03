@@ -10,6 +10,8 @@ for every feature.
 
 from __future__ import annotations
 
+import re
+
 import pytest
 from playwright.sync_api import Page, expect
 
@@ -224,3 +226,54 @@ def test_save_to_history_switch_sets_incognito(
             break
         authed_page.wait_for_timeout(100)
     assert created and created[0].get("incognito") is True, created
+
+
+_SHOW_TOAST_JS = r"""async ([message, kind]) => {
+  const url = performance.getEntriesByType('resource')
+    .map((r) => r.name)
+    .find((n) => /\/static\/state\.js(\?|$)/.test(n));
+  const { toast } = await import(url);
+  toast(message, kind);
+  const el = document.getElementById('toast');
+  const style = getComputedStyle(el);
+  return {
+    cls: el.className,
+    live: el.getAttribute('aria-live'),
+    background: style.backgroundColor,
+    border: style.borderTopColor,
+    visible: !el.hidden,
+  };
+}"""
+
+
+def _channels(css_color: str) -> tuple[float, ...]:
+    """RGB on 0-255 whatever the serialisation: ``rgb(...)`` is 0-255, but a
+    ``color-mix()`` result comes back as ``color(srgb 0.1 0.5 0.2 / 0.9)``."""
+    nums = tuple(float(n) for n in re.findall(r"[\d.]+", css_color)[:3])
+    return tuple(n * 255 for n in nums) if css_color.startswith("color(") else nums
+
+
+def test_toast_is_neutral_and_only_an_error_tints(
+    authed_page: Page, base_url: str
+) -> None:
+    """Fleet COLOR-05: a success or info message never takes a colour; only a
+    real error tints and is announced assertively. Drives the app's own
+    ``toast`` (the stamped ``state.js`` the page already loaded, so the same
+    module instance) and reads the painted result."""
+    _navigate_collecting_errors(authed_page, base_url)
+    authed_page.wait_for_load_state("networkidle")
+
+    ok = authed_page.evaluate(_SHOW_TOAST_JS, ["Defaults saved.", "good"])
+    assert ok["visible"]
+    # The nav bar's glass: white or near-black, never a hue, border included.
+    for part in ("background", "border"):
+        r, g, b = _channels(ok[part])
+        assert max(r, g, b) - min(r, g, b) < 24, f"toast {part} is tinted: {ok[part]}"
+    assert "error" not in ok["cls"].split()
+    assert ok["live"] == "polite"
+
+    bad = authed_page.evaluate(_SHOW_TOAST_JS, ["Save failed", "error"])
+    assert bad["live"] == "assertive"
+    assert "error" in bad["cls"].split()
+    r, g, b = _channels(bad["background"])
+    assert r > g + 40 and r > b + 40, f"error toast is not danger-tinted: {bad['background']}"

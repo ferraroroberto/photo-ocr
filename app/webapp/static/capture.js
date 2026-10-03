@@ -274,12 +274,12 @@ function movePhoto(fromIdx, toIdx) {
     readyPhotos().length < 2 ||
     state.photos.some(function (p) { return p.status === 'pending' || p.status === 'uploading'; })
   ) {
-    toast('Order will sync before Extract.', 'good');
+    toast('Order will sync before Extract.');
     return;
   }
   syncPhotoOrder()
     .then(function () {
-      toast('Order saved for Extract.', 'good');
+      toast('Order saved for Extract.');
     })
     .catch(function (exc) {
       toast('Order sync failed: ' + (exc.message || exc), 'error');

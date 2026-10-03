@@ -210,7 +210,7 @@ els.saveSettings.addEventListener('click', async function () {
     });
     state.config = Object.assign({}, state.config, body.config || {});
     updateSaveDirty();
-    toast('Defaults saved.', 'good');
+    toast('Defaults saved.');
   } catch (exc) {
     toast('Save failed: ' + (exc.message || exc), 'error');
   }

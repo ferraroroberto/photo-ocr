@@ -69,3 +69,12 @@ def test_history_renders_source_badge(js_source: str) -> None:
     # the unmarked default is the manual PWA take ("webapp").
     assert "source-badge" in js_source
     assert "'webapp'" in js_source
+
+
+def test_toast_is_the_vendored_neutral_one(js_source: str) -> None:
+    # Fleet COLOR-05: only an error tints. A local `.toast` rule or a
+    # `'good'` kind is how the green success toast comes back.
+    styles = (STATIC_DIR / "styles.css").read_text(encoding="utf-8")
+    assert ".toast" not in styles
+    assert "_vendored/toast/toast.js" in js_source
+    assert ", 'good')" not in js_source

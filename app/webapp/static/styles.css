@@ -24,6 +24,10 @@
   --on: #1a7f37;            /* success */
   --danger: #cf222e;
   --danger-text: #a40e26;   /* danger text on its own tint (fleet-config#963) */
+  /* The vendored toast tints an error with a 75% mix of this over the glass
+     and sets white text on it. --danger itself gives 3.7:1 there in light, so
+     light uses the deeper text red. */
+  --deficit: var(--danger-text);
   --attention: #9a6700;
   /* derived surface roles (mapped onto the neutral tokens above) */
   --input-bg: var(--card-off);
@@ -105,6 +109,7 @@
   --on: #3fb950;            /* success */
   --danger: #f85149;
   --danger-text: #ff7b72;
+  --deficit: #da3633;       /* the vendored error toast: white text holds 4.5:1 */
   --attention: #d29922;
   --input-bg: var(--bg);
   --close-bg: var(--line);
@@ -646,31 +651,8 @@ hr {
 }
 
 /* ---------- toast ---------- */
-.toast {
-  position: fixed;
-  bottom: var(--space-lg);
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--card);
-  color: var(--ink);
-  padding: 10px var(--space-md);
-  border-radius: var(--radius-pill);
-  font-size: var(--font-label);
-  border: 1px solid var(--line);
-  z-index: 2000;
-  max-width: calc(100% - 32px);
-  box-shadow: var(--shadow);
-  pointer-events: none;
-}
-.toast.error { border-color: var(--danger); color: var(--accent-fg); background: var(--danger); }
-.toast.good  { border-color: var(--on); }
-/* Clear the floating bottom-tab pill on phones. */
-@media (pointer: coarse) and (max-width: 520px) {
-  .toast {
-    bottom: calc(env(safe-area-inset-bottom, 0px) + var(--bottom-tabs-margin)
-      + var(--bottom-tabs-height) + var(--gap));
-  }
-}
+/* The toast is the vendored component (_vendored/toast/toast.css): the nav's
+   glass, neutral for every message, tinted only for a real error. */
 
 /* ---------- preview dialog (photo lightbox — theme-invariant blacks) ---------- */
 .preview-dialog {
