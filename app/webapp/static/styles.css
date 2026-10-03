@@ -46,6 +46,13 @@
   --gap: 12px;
   /* shared height for inline controls (select / input) so they line up */
   --control-h: 36px;
+  /* hit-target.min (design.md) — the 44px effective pointer-target floor. A
+     native input/select is a replaced element that can't carry a ::before
+     expansion, so a settings control gets the real 44px box and paints its
+     36px control inside a transparent --control-inset band (the
+     home-automation #779 / voice-transcriber #213 recipe). */
+  --hit-min: 44px;
+  --control-inset: calc((var(--hit-min) - var(--control-h)) / 2);
   /* typography roles — system stack, weight (not case) for hierarchy. */
   --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -448,7 +455,7 @@ html, body {
   display: inline-flex;
   align-items: center;
   gap: 0.35em;
-  min-height: var(--control-h);
+  min-height: var(--hit-min);
   padding: 6px var(--gap);
   font-size: var(--font-label);
   background: var(--card-off);
@@ -505,7 +512,7 @@ html, body {
   display: inline-flex;
   align-items: center;
   gap: 0.35em;
-  min-height: var(--control-h);
+  min-height: var(--hit-min);
   padding: var(--space-sm) var(--gap);
   font-size: var(--font-label);
   background: transparent;
@@ -527,18 +534,28 @@ html, body {
   min-height: 44px;
 }
 .row > span:first-child { flex: 0 0 auto; font-size: var(--font-label); }
+/* Settings selects/inputs reach the 44px floor with real geometry: the
+   element box is --hit-min tall, the visible 36px control is its padding box
+   inside a transparent vertical --control-inset border, and the 1px boundary
+   is an inset shadow on that padding box. The radius pair keeps the visible
+   corners at rounded.md and the focus ring hugs the visible box. */
 .row .select-native,
 .row .input-native {
   flex: 1 1 auto;
-  min-height: var(--control-h);
-  padding: var(--space-sm) 10px;
-  background: var(--input-bg);
+  height: var(--hit-min);
+  padding: 0 10px;
+  background: var(--input-bg) padding-box;
   color: var(--ink);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
+  border-style: solid;
+  border-color: transparent;
+  border-width: var(--control-inset) 0;
+  border-radius: var(--radius-md) / calc(var(--radius-md) + var(--control-inset));
+  box-shadow: inset 0 0 0 1px var(--line);
   font-size: var(--font-label);
   max-width: 60%;
 }
+.row .select-native:focus-visible,
+.row .input-native:focus-visible { outline-offset: calc(2px - var(--control-inset)); }
 
 .stacked {
   display: flex;
@@ -563,7 +580,9 @@ hr {
   width: 100%;
   box-sizing: border-box;
   margin: 0 0 10px;
-  min-height: var(--control-h);
+  /* action-row filterHeight (design.md): the filter above a long list is a
+     44px field, which is also the hit-target floor. */
+  min-height: var(--hit-min);
   padding: var(--space-sm) 10px;
   background: var(--input-bg);
   color: var(--ink);
@@ -630,7 +649,7 @@ hr {
 }
 .history-item .actions button {
   flex: 0 0 auto;
-  min-height: 32px;
+  min-height: var(--hit-min);
   padding: var(--space-xs) 10px;
   font-size: var(--font-caption);
 }
