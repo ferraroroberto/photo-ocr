@@ -3,7 +3,7 @@
 
 'use strict';
 
-import { state, els, toast } from './state.js';
+import { state, els, toast, modelLabel } from './state.js';
 import { jsonApi } from './api.js';
 import { renderThumbnails, setStatus, syncPhotoOrder } from './capture.js';
 import { loadHistory } from './sessions.js';
@@ -54,7 +54,7 @@ export async function extract() {
   els.extractBtn.classList.add('busy');
   els.extractBtn.disabled = true;
   setStatus(
-    'LLM hub → ' + state.model + ' · extracting from ' + readyPhotos.length + ' photo(s)…'
+    'LLM hub → ' + modelLabel(state.model) + ' · extracting from ' + readyPhotos.length + ' photo(s)…'
   );
 
   const t0 = Date.now();

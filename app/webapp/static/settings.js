@@ -4,7 +4,7 @@
 
 'use strict';
 
-import { state, els, MODEL_KEY, PROMPT_KEY } from './state.js';
+import { state, els, MODEL_KEY, PROMPT_KEY, modelLabel } from './state.js';
 import { jsonApi } from './api.js';
 
 export function refreshPromptPreview() {
@@ -20,7 +20,7 @@ export function renderSettings() {
   (state.config.ocr_models_available || []).forEach(function (m) {
     const opt = document.createElement('option');
     opt.value = m;
-    opt.textContent = m;
+    opt.textContent = modelLabel(m);
     if (m === state.model) opt.selected = true;
     els.ocrModel.appendChild(opt);
   });

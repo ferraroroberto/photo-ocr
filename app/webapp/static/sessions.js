@@ -3,7 +3,7 @@
 
 'use strict';
 
-import { state, els, toast, HISTORY_PAGE_SIZE } from './state.js';
+import { state, els, toast, HISTORY_PAGE_SIZE, modelLabel } from './state.js';
 import { jsonApi } from './api.js';
 import { renderExtracted } from './extract.js';
 import { renderThumbnails, setStatus } from './capture.js';
@@ -129,7 +129,7 @@ function renderHistory() {
       makeSessionRow(
         s.session_id,
         formatDate(s.created_at) + ' · ' + s.photo_count + ' photo(s)',
-        (s.model || '—') +
+        (s.model ? modelLabel(s.model) : '—') +
           (s.extract_duration_s
             ? ' · ' + s.extract_duration_s.toFixed(1) + 's'
             : ''),
@@ -159,7 +159,7 @@ function renderSearchResults() {
         makeSessionRow(
           r.session_id,
           formatDate(r.created_at),
-          r.model || '—',
+          r.model ? modelLabel(r.model) : '—',
           r.snippet || '(match)',
           true,
           r.source
