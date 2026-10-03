@@ -166,12 +166,22 @@
 
   <main class="app">
     <section id="paneCapture" class="pane" role="tabpanel" aria-labelledby="tabCapture" aria-label="Capture">
-      <section class="capture-zone">
+      <!-- Titled like every other pane's first card (History, Settings);
+           the theme toggle is the header's trailing action, per the
+           page-header contract. -->
+      <section class="card capture-zone">
+        <div class="card-head">
+          <h2 class="card-title"><svg class="icon" aria-hidden="true"><use href="#i-camera"></use></svg> Capture</h2>
+          <div class="card-head-actions">
+            <button id="themeToggle" type="button" class="ghost-btn tool-btn"
+                    title="Toggle theme" aria-label="Toggle dark mode"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
+          </div>
+        </div>
         <ul id="thumbStrip" class="thumb-strip" aria-label="Photos in this take"></ul>
 
         <!-- One toolbar owns the whole take: Add photo (primary affordance,
-             accent-shaded), gallery pick, then the take-scoped toggles that
-             used to live in the app header (reset / incognito / theme). -->
+             accent-shaded), gallery pick, then the take-scoped toggles
+             (reset / incognito). -->
         <div class="capture-actions">
           <label class="button-tint add-photo-btn" for="cameraInput">
             <svg class="icon" aria-hidden="true"><use href="#i-camera"></use></svg> Add photo
@@ -183,8 +193,6 @@
                   title="Reset — clear photos and result" aria-label="Reset"><svg class="icon" aria-hidden="true"><use href="#i-eraser"></use></svg></button>
           <button id="incognitoToggle" type="button" class="ghost-btn tool-btn" aria-pressed="false"
                   title="Incognito — don't save this take to history" aria-label="Incognito"><svg class="icon" aria-hidden="true"><use href="#i-venetian-mask"></use></svg></button>
-          <button id="themeToggle" type="button" class="ghost-btn tool-btn"
-                  title="Toggle theme" aria-label="Toggle dark mode"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
         </div>
         <input id="cameraInput" type="file" accept="image/*" capture="environment" multiple hidden>
         <input id="galleryInput" type="file" accept="image/*" multiple hidden>
