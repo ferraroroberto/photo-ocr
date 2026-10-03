@@ -1,9 +1,21 @@
-"""Browser regression for non-blocking extract progress.
+"""Browser regression for the core capture flow: photo upload, then
+non-blocking extract progress.
 
 The test uses the real SPA and real photo upload path, but intercepts
 only the OCR job endpoints. That keeps it deterministic and independent
 of the local LLM hub while still proving the UI advances through chunk
 progress and renders the final result.
+
+Upload half (runs under both projections, notably the WebKit/iPhone one,
+since the phone camera path is photo-ocr's primary surface): picking an
+image feeds it through ``handleFilePick`` → ``uploadPhoto`` →
+``POST /api/sessions/{id}/photos``; a thumbnail reaches ``ready`` only
+after that upload succeeds server-side, so a ``ready`` thumbnail is proof
+the photo reached a real session. The test then confirms the session
+exists via the API, and cleans it up.
+
+Out of scope: the real OCR round-trip — it depends on the local-llm-hub
+being reachable and is covered by the ``network``-marked TestClient tests.
 """
 
 from __future__ import annotations
@@ -29,19 +41,18 @@ def _jpeg_bytes() -> bytes:
     return buf.getvalue()
 
 
-def _session_ids(base_url: str) -> set[str]:
+def _sessions_by_id(base_url: str) -> dict[str, dict]:
     res = requests.get(
         f"{base_url}/api/sessions?limit=50&offset=0", verify=False, timeout=5
     )
     res.raise_for_status()
-    return {s["session_id"] for s in res.json().get("sessions", [])}
+    return {s["session_id"]: s for s in res.json().get("sessions", [])}
 
 
-def test_extract_progress_advances_and_renders_result(
+def test_photo_upload_then_extract_progress(
     authed_page: Page, base_url: str
 ) -> None:
-    before = _session_ids(base_url)
-    new_ids: set[str] = set()
+    before = set(_sessions_by_id(base_url))
     status_calls = 0
 
     def handle_extract(route: Route) -> None:
@@ -115,9 +126,25 @@ def test_extract_progress_advances_and_renders_result(
                 }
             ],
         )
+        # A thumbnail flips to `ready` only after POST /photos succeeds.
         expect(authed_page.locator("#thumbStrip li.thumb.ready")).to_have_count(
             1, timeout=10_000
         )
+
+        # With a ready photo, Extract must be enabled.
+        expect(authed_page.locator("#extractBtn")).to_be_enabled()
+
+        # Server-side confirmation: a new session now exists with the photo.
+        sessions = _sessions_by_id(base_url)
+        new_ids = set(sessions) - before
+        assert len(new_ids) == 1, (
+            f"expected exactly one new session, got {len(new_ids)}: {new_ids}"
+        )
+        sid = next(iter(new_ids))
+        assert sessions[sid]["photo_count"] >= 1, (
+            f"new session {sid} has no photos: {sessions[sid]}"
+        )
+
         authed_page.locator("#extractBtn").click()
 
         status = authed_page.locator("#captureStatus")
@@ -132,8 +159,8 @@ def test_extract_progress_advances_and_renders_result(
         )
         expect(status).to_contain_text("Done in 3.2 s", timeout=5_000)
     finally:
-        after = _session_ids(base_url)
-        new_ids = after - before
+        # Don't leave test sessions in the archive.
+        new_ids = set(_sessions_by_id(base_url)) - before
         for sid in new_ids:
             try:
                 requests.delete(
