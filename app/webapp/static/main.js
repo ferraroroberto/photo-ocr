@@ -24,6 +24,7 @@ import {
   renderThumbnails,
   closePreview,
   setupDragDrop,
+  setupThumbToolbar,
 } from './capture.js';
 import { extract, copyExtracted, resetTake, renderExtracted } from './extract.js';
 import {
@@ -236,4 +237,5 @@ els.previewDialog.addEventListener('click', function (ev) {
 });
 
 setupDragDrop();
+setupThumbToolbar();
 boot();

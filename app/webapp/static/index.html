@@ -190,6 +190,18 @@
       </div>
       <section class="card capture-zone">
         <ul id="thumbStrip" class="thumb-strip" aria-label="Photos in this take"></ul>
+        <!-- Tap a thumbnail to select it; the selected photo's actions live
+             here as real 44px targets (a 96px tile clips any overlay control
+             to a size under the hit-target floor). Hidden with no photos,
+             disabled until one is selected. -->
+        <div id="thumbToolbar" class="thumb-toolbar" role="toolbar" aria-label="Selected photo" hidden>
+          <button id="thumbMoveLeft" type="button" class="ghost-btn tool-btn" title="Move left" aria-label="Move photo left" disabled><svg class="icon" aria-hidden="true"><use href="#i-chevron-left"></use></svg></button>
+          <button id="thumbMoveRight" type="button" class="ghost-btn tool-btn" title="Move right" aria-label="Move photo right" disabled><svg class="icon" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button>
+          <button id="thumbView" type="button" class="ghost-btn" title="View full size" disabled><svg class="icon" aria-hidden="true"><use href="#i-image"></use></svg> View</button>
+          <button id="thumbRetake" type="button" class="ghost-btn" hidden disabled><svg class="icon" aria-hidden="true"><use href="#i-camera"></use></svg> Retake</button>
+          <button id="thumbKeep" type="button" class="ghost-btn" hidden disabled><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg> Keep</button>
+          <button id="thumbRemove" type="button" class="ghost-btn tool-btn thumb-remove" title="Remove" aria-label="Remove photo" disabled><svg class="icon" aria-hidden="true"><use href="#i-trash-2"></use></svg></button>
+        </div>
 
         <!-- One toolbar owns the whole take: Add photo (primary affordance,
              accent-shaded), gallery pick, then reset. -->
