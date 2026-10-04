@@ -159,6 +159,12 @@ def _terminate(proc: Optional[subprocess.Popen]) -> None:
         logger.warning("⚠️  autoboot: process teardown failed: %s", exc)
 
 
+# Gap between /healthz probes while the disposable server boots. Short on
+# purpose: the server answers within a fraction of a second, so a long gap
+# is dead time on every gate run (issue #159). The deadlines are the callers'.
+_HEALTHZ_POLL_INTERVAL_S = 0.1
+
+
 def _wait_healthz(base: str, timeout: float) -> bool:
     deadline = time.time() + timeout
     while time.time() < deadline:
@@ -168,7 +174,7 @@ def _wait_healthz(base: str, timeout: float) -> bool:
                 return True
         except requests.RequestException:
             pass
-        time.sleep(0.4)
+        time.sleep(_HEALTHZ_POLL_INTERVAL_S)
     return False
 
 
