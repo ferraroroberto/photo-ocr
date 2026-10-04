@@ -96,8 +96,6 @@ body:has(dialog[open]) .app { overflow: hidden; }
   height: 34px;
   cursor: pointer;
   color: var(--muted);
-  font: inherit;
-  line-height: normal;
   display: inline-flex;
   align-items: center;
   justify-content: center;
