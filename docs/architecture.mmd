@@ -124,5 +124,6 @@ flowchart TB
   VERIFYGATE --> UNITTESTS
   VERIFYGATE --> E2E
 
-  CLASSIFY["scripts/classify_e2e.py — changed files → e2e tier\n(skip/static/full); rules declared in .fleet.toml [e2e]\nconsumed by the /e2e flow; gate still runs the full suite"]
-  CLASSIFY --> E2E
+  CLASSIFY["scripts/classify_e2e.py — changed files → e2e tier\n(skip/static/full); rules declared in .fleet.toml [e2e]\nconsumed by the pre-ship gate and the /e2e flow"]
+  VERIFYGATE -->|"branch diff vs origin/main"| CLASSIFY
+  CLASSIFY -->|"skip: no e2e · static: smoke slice · full or any doubt: whole suite"| E2E

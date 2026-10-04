@@ -445,6 +445,8 @@ Without a tray, a bare run already boots its own disposable webapp on a free por
 
 `scripts/verify-before-ship.ps1` is the single pre-ship gate. It byte-compiles `app`/`src`/`tests`, runs the non-e2e pytest suite, then runs the Playwright e2e suite (Chromium + WebKit/iPhone) against a **disposable webapp it boots itself on a free port** — so a forgotten tray can't let a regression slip through as a skipped suite.
 
+The e2e leg is proportionate to the diff: `scripts/classify_e2e.py` classifies the branch's changed files against `origin/main` (rules in `.fleet.toml` `[e2e]`). A docs-only branch **skips** the leg and the gate prints the tier and reason; a static-image change runs only the smoke slice; anything under `app/webapp/`, `src/`, or any path no rule names runs the **full** suite. A classifier that errors, prints no tier, or returns an unknown one also runs the full suite, and says so — the gate never skips on doubt.
+
 ```powershell
 powershell.exe -File scripts/verify-before-ship.ps1
 ```
