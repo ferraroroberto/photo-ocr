@@ -7,6 +7,8 @@
  *                            concurrent multi-select uploads share one session
  *   state.photos          — [{ clientId, seq, file, previewUrl, status,
  *                              error, warnings, warningDismissed }]
+ *   state.selectedPhotoId — clientId of the thumbnail the toolbar acts on
+ *                           (null = none; cleared when that photo goes away)
  *   state.extracted       — current extracted text
  *   state.model           — selected model alias
  *   state.promptId        — selected prompt id
@@ -37,6 +39,7 @@ export const state = {
   sessionId: null,
   sessionIdPromise: null,
   photos: [],
+  selectedPhotoId: null,
   extracted: '',
   model: null,
   promptId: null,
@@ -57,6 +60,13 @@ export const els = {
   settingsGears: document.querySelectorAll('.home-settings'),
   settingsPane: document.getElementById('paneSettings'),
   thumbStrip: document.getElementById('thumbStrip'),
+  thumbToolbar: document.getElementById('thumbToolbar'),
+  thumbMoveLeft: document.getElementById('thumbMoveLeft'),
+  thumbMoveRight: document.getElementById('thumbMoveRight'),
+  thumbView: document.getElementById('thumbView'),
+  thumbRetake: document.getElementById('thumbRetake'),
+  thumbKeep: document.getElementById('thumbKeep'),
+  thumbRemove: document.getElementById('thumbRemove'),
   cameraInput: document.getElementById('cameraInput'),
   galleryInput: document.getElementById('galleryInput'),
   extractBtn: document.getElementById('extractBtn'),

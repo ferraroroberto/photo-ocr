@@ -1,5 +1,6 @@
-/* Photo OCR — photo capture, upload, the thumbnail strip, per-photo
- * delete/reorder, the preview dialog, and drag & drop. */
+/* Photo OCR — photo capture, upload, the thumbnail strip (tap a tile to
+ * select it, act from the toolbar), per-photo delete/reorder, the preview
+ * dialog, and drag & drop. */
 
 'use strict';
 
@@ -30,104 +31,110 @@ export function setStatus(text) {
 }
 
 // ----------------------------------------------------------- rendering
+function selectedIndex() {
+  return state.photos.findIndex(function (p) {
+    return p.clientId === state.selectedPhotoId;
+  });
+}
+
+function selectPhoto(photo) {
+  // Tapping the selected thumbnail again deselects it.
+  state.selectedPhotoId = state.selectedPhotoId === photo.clientId ? null : photo.clientId;
+  renderThumbnails();
+}
+
+function clearSelection() {
+  if (state.selectedPhotoId == null) return;
+  state.selectedPhotoId = null;
+  renderThumbnails();
+}
+
+// Arm the toolbar for the selected photo: every action is disabled until a
+// thumbnail is selected, and Retake / Keep are offered only for a photo that
+// carries a quality warning.
+function syncToolbar() {
+  const idx = selectedIndex();
+  const photo = idx >= 0 ? state.photos[idx] : null;
+  const warned = !!(photo && photo.warnings && photo.warnings.length && !photo.warningDismissed);
+  els.thumbToolbar.hidden = state.photos.length === 0;
+  els.thumbMoveLeft.disabled = !photo || idx === 0;
+  els.thumbMoveRight.disabled = !photo || idx === state.photos.length - 1;
+  els.thumbView.disabled = !photo || !photo.previewUrl;
+  els.thumbRemove.disabled = !photo;
+  els.thumbRetake.hidden = !warned;
+  els.thumbRetake.disabled = !warned;
+  els.thumbKeep.hidden = !warned;
+  els.thumbKeep.disabled = !warned;
+}
+
+// A toolbar action can disable or hide the button that was just pressed
+// (moving to the end, Keep, Remove) — hand focus to the selected thumbnail
+// instead of dropping it to the page.
+function ensureFocus(fallbackIdx) {
+  const active = document.activeElement;
+  if (active && active !== document.body && !active.disabled && !active.hidden) return;
+  const tiles = els.thumbStrip.querySelectorAll('.thumb-select');
+  const idx = selectedIndex() >= 0 ? selectedIndex() : fallbackIdx;
+  const target = tiles[Math.min(idx, tiles.length - 1)];
+  if (target) target.focus();
+}
+
 export function renderThumbnails() {
+  const active = document.activeElement;
+  const refocusId =
+    active && active.classList && active.classList.contains('thumb-select')
+      ? active.dataset.clientId
+      : null;
+  const scrollLeft = els.thumbStrip.scrollLeft;
+  if (selectedIndex() < 0) state.selectedPhotoId = null;
   els.thumbStrip.innerHTML = '';
   state.photos.forEach(function (photo, idx) {
     const li = document.createElement('li');
     li.className = 'thumb ' + (photo.status || 'pending');
     if (photo.status === 'uploading') li.classList.add('uploading');
     if (photo.status === 'failed') li.classList.add('failed');
+    const selected = photo.clientId === state.selectedPhotoId;
+    if (selected) li.classList.add('selected');
+    const warned = !!(photo.warnings && photo.warnings.length && !photo.warningDismissed);
+    if (warned) li.classList.add('warned');
 
+    // The tile itself is the select toggle (a real button: focusable, Enter /
+    // Space); its photo and the chips below are decoration for it.
+    const pick = document.createElement('button');
+    pick.className = 'thumb-select';
+    pick.type = 'button';
+    pick.dataset.clientId = photo.clientId;
+    pick.setAttribute('aria-pressed', selected ? 'true' : 'false');
+    pick.setAttribute(
+      'aria-label',
+      'Photo ' + (idx + 1) + (warned ? ', ' + warningLabel(photo.warnings) : '')
+    );
     if (photo.previewUrl) {
       const img = document.createElement('img');
       img.src = photo.previewUrl;
-      img.alt = 'Photo ' + (idx + 1);
-      li.appendChild(img);
+      img.alt = '';
+      pick.appendChild(img);
     }
+    pick.addEventListener('click', function () { selectPhoto(photo); });
+    li.appendChild(pick);
 
     const seq = document.createElement('span');
     seq.className = 'seq';
     seq.textContent = String(idx + 1).padStart(2, '0');
     li.appendChild(seq);
 
-    const removeBtn = document.createElement('button');
-    removeBtn.className = 'remove';
-    removeBtn.type = 'button';
-    removeBtn.title = 'Remove';
-    removeBtn.setAttribute('aria-label', 'Remove photo');
-    removeBtn.innerHTML = icon('x');
-    removeBtn.addEventListener('click', function (ev) {
-      ev.stopPropagation();
-      removePhoto(photo);
-    });
-    li.appendChild(removeBtn);
-
-    if (idx > 0) {
-      const left = document.createElement('button');
-      left.className = 'move left';
-      left.type = 'button';
-      left.title = 'Move left';
-      left.setAttribute('aria-label', 'Move photo left');
-      left.innerHTML = icon('chevron-left');
-      left.addEventListener('click', function (ev) {
-        ev.stopPropagation();
-        movePhoto(idx, idx - 1);
-      });
-      li.appendChild(left);
-    }
-    if (idx < state.photos.length - 1) {
-      const right = document.createElement('button');
-      right.className = 'move right';
-      right.type = 'button';
-      right.title = 'Move right';
-      right.setAttribute('aria-label', 'Move photo right');
-      right.innerHTML = icon('chevron-right');
-      right.addEventListener('click', function (ev) {
-        ev.stopPropagation();
-        movePhoto(idx, idx + 1);
-      });
-      li.appendChild(right);
+    if (warned) {
+      const chip = document.createElement('span');
+      chip.className = 'warn-chip';
+      chip.textContent = warningLabel(photo.warnings);
+      li.appendChild(chip);
     }
 
-    if (photo.warnings && photo.warnings.length && !photo.warningDismissed) {
-      li.classList.add('warned');
-      const warn = document.createElement('div');
-      warn.className = 'photo-warning';
-
-      const warnText = document.createElement('div');
-      warnText.className = 'warn-text';
-      warnText.textContent = warningLabel(photo.warnings);
-      warn.appendChild(warnText);
-
-      const retakeBtn = document.createElement('button');
-      retakeBtn.className = 'retake-btn';
-      retakeBtn.type = 'button';
-      retakeBtn.textContent = 'Retake';
-      retakeBtn.addEventListener('click', function (ev) {
-        ev.stopPropagation();
-        retakePhoto(photo);
-      });
-      warn.appendChild(retakeBtn);
-
-      const dismissBtn = document.createElement('button');
-      dismissBtn.className = 'dismiss-btn';
-      dismissBtn.type = 'button';
-      dismissBtn.textContent = 'Keep';
-      dismissBtn.addEventListener('click', function (ev) {
-        ev.stopPropagation();
-        photo.warningDismissed = true;
-        renderThumbnails();
-      });
-      warn.appendChild(dismissBtn);
-
-      li.appendChild(warn);
-    }
-
-    li.addEventListener('click', function () {
-      if (photo.previewUrl) openPreview(photo.previewUrl);
-    });
     els.thumbStrip.appendChild(li);
+    if (photo.clientId === refocusId) pick.focus();
   });
+  els.thumbStrip.scrollLeft = scrollLeft;
+  syncToolbar();
 
   const haveAny = state.photos.length > 0;
   const haveReady = state.photos.some(function (p) { return p.status === 'ready'; });
@@ -284,6 +291,63 @@ function movePhoto(fromIdx, toIdx) {
     .catch(function (exc) {
       toast('Order sync failed: ' + (exc.message || exc), 'error');
     });
+}
+
+// ----------------------------------------------------------- toolbar
+function selectedPhoto() {
+  const idx = selectedIndex();
+  return idx >= 0 ? state.photos[idx] : null;
+}
+
+export function setupThumbToolbar() {
+  els.thumbMoveLeft.addEventListener('click', function () {
+    const idx = selectedIndex();
+    if (idx > 0) movePhoto(idx, idx - 1);
+    ensureFocus(idx);
+  });
+  els.thumbMoveRight.addEventListener('click', function () {
+    const idx = selectedIndex();
+    if (idx >= 0) movePhoto(idx, idx + 1);
+    ensureFocus(idx);
+  });
+  els.thumbView.addEventListener('click', function () {
+    const photo = selectedPhoto();
+    if (photo && photo.previewUrl) openPreview(photo.previewUrl);
+  });
+  els.thumbRetake.addEventListener('click', function () {
+    const photo = selectedPhoto();
+    if (photo) retakePhoto(photo);
+  });
+  els.thumbKeep.addEventListener('click', function () {
+    const idx = selectedIndex();
+    if (idx < 0) return;
+    state.photos[idx].warningDismissed = true;
+    renderThumbnails();
+    ensureFocus(idx);
+  });
+  els.thumbRemove.addEventListener('click', function () {
+    const idx = selectedIndex();
+    if (idx < 0) return;
+    removePhoto(state.photos[idx]);
+    ensureFocus(idx);
+  });
+
+  // Tapping anywhere that is not a thumbnail or the toolbar (or the preview it
+  // opens) clears the selection; so does Escape, unless it is closing the
+  // preview dialog. pointerup, not click: iOS Safari does not dispatch a
+  // click to a document listener for a tap on a non-interactive element, and
+  // pointerup (unlike pointerdown) is not fired by the start of a page scroll.
+  document.addEventListener('pointerup', function (ev) {
+    if (state.selectedPhotoId == null) return;
+    const target = ev.target;
+    if (target && target.closest && target.closest('.thumb, #thumbToolbar, #previewDialog')) return;
+    clearSelection();
+  });
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key !== 'Escape' || state.selectedPhotoId == null) return;
+    if (els.previewDialog && els.previewDialog.open) return;
+    clearSelection();
+  });
 }
 
 // --------------------------------------------------- quality gate

@@ -51,8 +51,14 @@ same archive shape, same auth model, but for pixels instead of audio.
   Delete last and behind a confirm.
 - **Pre-flight quality gate.** Each photo is scored on-device for blur,
   glare, and exposure the moment it's added — a bad shot gets an advisory
-  badge with a one-tap retake, before any hub round-trip is spent on it.
-  Advisory only; never blocks Extract. Toggle with `quality_gate_enabled`.
+  label on its thumbnail and a one-tap Retake, before any hub round-trip is
+  spent on it. Advisory only; never blocks Extract. Toggle with
+  `quality_gate_enabled`.
+- **One toolbar for the take's photos.** Tap a thumbnail to select it (a ring,
+  `aria-pressed`; tap it again, tap elsewhere, or press Escape to clear), then
+  act from the toolbar below the strip — move left/right, View, Remove, and
+  Retake / Keep on a quality-warned photo — all real 44px touch targets.
+  Disabled until a photo is selected.
 - **No telemetry.** Images and text never leave your home PC except via the
   authenticated hub call, which itself goes to your own Google AI Pro / Claude
   subscription.
@@ -413,7 +419,7 @@ The `smoke` marker is the slow live-tray bucket — see the Playwright section b
 
 ### Playwright browser smoke tests
 
-A `pytest-playwright` suite under `tests/e2e/` catches SPA boot regressions (JS errors, empty `<select>`s, broken settings toggle, missing login overlay) plus regression nets for past iPhone-only bugs (cache-busting, cert lifetime, photo upload). Instance selection is guarded by the vendor-verbatim `tests/e2e/_e2e_live_guard.py` (project-scaffolding issue #191/#194, adopted fleet-wide byte-identical — issue #108): a bare `pytest tests/e2e` with the tray up **refuses to run** with a guard message rather than silently adopting it; with the tray down it boots its own disposable instance instead. Set `PHOTO_OCR_E2E_LIVE=1` (`scripts/run-e2e.ps1` does) to explicitly *adopt* the live tray on `https://127.0.0.1:8444` for read-only smoke checks — this repo never kills it to satisfy the opt-in (`tray.bat --restart` owns that).
+A `pytest-playwright` suite under `tests/e2e/` catches SPA boot regressions (JS errors, empty `<select>`s, broken settings toggle, missing login overlay) plus regression nets for past iPhone-only bugs (cache-busting, cert lifetime, photo upload) and the Capture thumbnail toolbar (selection, 44px targets, move/remove/retake). Instance selection is guarded by the vendor-verbatim `tests/e2e/_e2e_live_guard.py` (project-scaffolding issue #191/#194, adopted fleet-wide byte-identical — issue #108): a bare `pytest tests/e2e` with the tray up **refuses to run** with a guard message rather than silently adopting it; with the tray down it boots its own disposable instance instead. Set `PHOTO_OCR_E2E_LIVE=1` (`scripts/run-e2e.ps1` does) to explicitly *adopt* the live tray on `https://127.0.0.1:8444` for read-only smoke checks — this repo never kills it to satisfy the opt-in (`tray.bat --restart` owns that).
 
 By default the suite runs in **two projections**: Chromium desktop and WebKit projected onto an iPhone 14 (viewport, user-agent, touch). WebKit is iOS Mobile Safari's engine family, so the second projection catches most "Safari is unhappy" regressions on Windows. Pin one engine with `--browser chromium` for a faster dev loop; a test tagged `@pytest.mark.desktop_only` skips the WebKit projection.
 
