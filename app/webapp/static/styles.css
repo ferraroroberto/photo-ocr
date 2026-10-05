@@ -35,7 +35,7 @@
   --accent-border-strong: color-mix(in srgb, var(--accent) 28%, transparent);
   --deficit-soft: color-mix(in srgb, var(--danger) 12%, transparent);
   --deficit-border-soft: color-mix(in srgb, var(--danger) 30%, transparent);
-  --close-bg: var(--card-off);  /* modal close button fill */
+  --close-bg: transparent;  /* glyph-only controls draw nothing at rest (fleet-config#1259) */
   /* theme-invariant surfaces: the login scrim dims content and the photo
      lightbox/thumb overlays frame photos — neither is a themed surface. */
   --scrim: rgba(0, 0, 0, 0.5);
@@ -110,7 +110,7 @@
   --deficit: #da3633;       /* the vendored error toast: white text holds 4.5:1 */
   --attention: #d29922;
   --input-bg: var(--bg);
-  --close-bg: var(--line);
+  --close-bg: transparent;
   /* Depth on a near-black canvas comes from surface lightness, not shadow. */
   --shadow: 0 8px 24px rgba(1, 4, 9, 0.6);
   --tabbar-bg: rgba(22, 27, 34, 0.86);
