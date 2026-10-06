@@ -17,6 +17,7 @@ from app.webapp.routers._helpers import maybe_json
 from src.archive import PhotoMeta, Session, SessionArchive
 from src.extract_job import (
     execute_extract_job,
+    execute_retry_missing_job,
     extract_status_payload,
     progress_meta,
     set_extract_progress,
@@ -65,6 +66,22 @@ def _session_summary(s: Session) -> Dict[str, Any]:
         "extracted_preview": _preview(s.read_extracted(), 200),
         "error": s.meta.error,
         "extract_progress": extract_status_payload(s, include_extracted=False),
+    }
+
+
+def _text_body(s: Session) -> Dict[str, Any]:
+    """The answer shape shared by single-shot ``/api/extract`` and a waited
+    ``retry-missing``: the text plus what a consumer needs to judge it."""
+    return {
+        "session_id": s.session_id,
+        "text": s.read_extracted() or "",
+        "model": s.meta.model,
+        "prompt_id": s.meta.prompt_id,
+        "chars": s.meta.extracted_chars,
+        "duration_s": s.meta.extract_duration_s,
+        "missing_photos": extract_status_payload(s, include_extracted=False)[
+            "missing_photos"
+        ],
     }
 
 
@@ -353,6 +370,57 @@ async def redo_session(session_id: str, request: Request) -> Dict[str, Any]:
     return await _start_extract(request, session_id, allow_when_done=True)
 
 
+@router.post("/api/sessions/{session_id}/retry-missing")
+async def retry_missing_photos(
+    session_id: str, request: Request, wait: bool = False
+) -> Dict[str, Any]:
+    """Re-read only the photos a partly read take left unread, splice their
+    text into place and re-collate (Redo keeps re-reading the whole take).
+
+    Async by default, like ``/extract``: answers with the status payload and
+    the caller polls ``/extract/status``. ``?wait=true`` runs it to
+    completion and answers in the single-shot shape (``text``,
+    ``missing_photos``, …) for fleet consumers; ``502`` when nothing new
+    could be read. ``400`` when the take has no missing photos.
+    """
+    archive: SessionArchive = request.app.state.archive
+    session = archive.get(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail=f"unknown session {session_id}")
+    status = extract_status_payload(session, include_extracted=False)
+    if status["phase"] in {"queued", "running", "merging"}:
+        raise HTTPException(
+            status_code=409, detail="an extraction is already running for this take"
+        )
+    if not status["missing_photos"]:
+        raise HTTPException(status_code=400, detail="nothing to retry: no photo is missing")
+
+    set_extract_progress(
+        session,
+        phase="queued",
+        chunks_total=len(status["missing_photos"]),
+        chunks_done=0,
+        error=None,
+        retry_error=None,
+    )
+    if wait:
+        await asyncio.to_thread(execute_retry_missing_job, request.app, session_id)
+        final = archive.get(session_id)
+        if final is None:
+            raise HTTPException(
+                status_code=500, detail="session disappeared mid-retry"
+            )
+        done = extract_status_payload(final)
+        if done["retry_error"]:
+            raise HTTPException(status_code=502, detail=done["retry_error"])
+        return _text_body(final)
+    task = asyncio.create_task(
+        asyncio.to_thread(execute_retry_missing_job, request.app, session_id)
+    )
+    _store_extract_task(request.app, session_id, task)
+    return extract_status_payload(session)
+
+
 @router.get("/api/sessions/{session_id}/extract/status")
 async def get_extract_status(session_id: str, request: Request) -> Dict[str, Any]:
     archive: SessionArchive = request.app.state.archive
@@ -440,19 +508,7 @@ async def extract_single_shot(
         raise HTTPException(
             status_code=502, detail=final.meta.error or "extraction failed"
         )
-    return {
-        "session_id": final.session_id,
-        "text": final.read_extracted() or "",
-        "model": final.meta.model,
-        "prompt_id": final.meta.prompt_id,
-        "chars": final.meta.extracted_chars,
-        "duration_s": final.meta.extract_duration_s,
-        "missing_photos": extract_status_payload(
-            final, include_extracted=False
-        )["missing_photos"],
-        "incognito": incognito,
-        "source": source,
-    }
+    return {**_text_body(final), "incognito": incognito, "source": source}
 
 
 @router.get("/api/sessions/{session_id}/photo/{sequence_index}")

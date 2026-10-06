@@ -403,3 +403,94 @@ def test_serialized_backend_runs_units_one_at_a_time(
     assert result.request_payload["concurrency"] == 1
     assert max(peak) == 1
     assert result.extracted_text == "page 1\npage 2\npage 3"
+
+
+# ------------------------------------------------------- retry_missing (#168)
+
+
+def _partial_take(tmp_path: Path, count: int = 3, failing: tuple = (2,)):
+    """Run an extract where the ``failing`` photos never read; return the
+    pieces a retry needs (photos, the client, the first result)."""
+    photos = _numbered_photos(tmp_path, count)
+
+    def hub(url, json, timeout, headers):  # noqa: A002
+        if _photo_numbers(json)[0] in failing:
+            raise requests.ReadTimeout("read timed out")
+        return _page_reply(json)
+
+    client = OcrClient()
+    with patch.object(client._session, "post", side_effect=hub):
+        first = client.extract(photos, model="gemini_flash", system="x", chunk_size=1)
+    assert first.missing_photos == [f"{n:02d}.jpg" for n in failing]
+    return photos, client, first
+
+
+def test_retry_missing_calls_hub_only_for_the_missing_unit(tmp_path: Path) -> None:
+    photos, client, first = _partial_take(tmp_path)
+    calls = []
+
+    def hub(url, json, timeout, headers):  # noqa: A002
+        calls.append(_photo_numbers(json))
+        return _page_reply(json)
+
+    with patch.object(client._session, "post", side_effect=hub):
+        result = client.retry_missing(
+            photos, first.request_payload, first.response_payload, system="x"
+        )
+
+    assert calls == [[2]]
+    assert result.extracted_text == "page 1\npage 2\npage 3"
+    assert result.missing_photos == []
+    assert result.response_payload["missing_photos"] == []
+    assert [c["index"] for c in result.response_payload["chunks"]] == [1, 2, 3]
+    assert all("response" in c for c in result.response_payload["chunks"])
+
+
+def test_retry_missing_still_failing_raises_after_only_the_missing_unit(
+    tmp_path: Path,
+) -> None:
+    photos, client, first = _partial_take(tmp_path)
+    calls = []
+
+    def hub(url, json, timeout, headers):  # noqa: A002
+        calls.append(_photo_numbers(json))
+        raise requests.ReadTimeout("read timed out")
+
+    with patch.object(client._session, "post", side_effect=hub):
+        with pytest.raises(OcrError, match="still working"):
+            client.retry_missing(
+                photos, first.request_payload, first.response_payload, system="x"
+            )
+
+    assert set(map(tuple, calls)) == {(2,)}
+
+
+def test_retry_missing_keeps_progress_when_one_of_two_recovers(tmp_path: Path) -> None:
+    photos, client, first = _partial_take(tmp_path, count=4, failing=(2, 3))
+
+    def photo_three_hangs(url, json, timeout, headers):  # noqa: A002
+        if _photo_numbers(json) == [3]:
+            raise requests.ReadTimeout("read timed out")
+        return _page_reply(json)
+
+    with patch.object(client._session, "post", side_effect=photo_three_hangs):
+        result = client.retry_missing(
+            photos, first.request_payload, first.response_payload, system="x"
+        )
+
+    assert result.missing_photos == ["03.jpg"]
+    assert result.extracted_text == (
+        "page 1\npage 2\n[missing: photo 3 (03.jpg) could not be read]\npage 4"
+    )
+
+
+def test_retry_missing_rejects_an_archive_without_unit_entries(tmp_path: Path) -> None:
+    photos = _numbered_photos(tmp_path, 2)
+    client = OcrClient()
+    with pytest.raises(OcrError, match="Redo"):
+        client.retry_missing(
+            photos,
+            {"model": "gemini_flash", "images": ["01.jpg"]},
+            {"content": [{"type": "text", "text": "x"}]},
+            system="x",
+        )

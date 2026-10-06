@@ -26,7 +26,7 @@ import {
   setupDragDrop,
   setupThumbToolbar,
 } from './capture.js';
-import { extract, copyExtracted, resetTake, renderExtracted } from './extract.js';
+import { extract, copyExtracted, resetTake, renderExtracted, retryMissing } from './extract.js';
 import {
   loadHistory,
   cleanAllHistory,
@@ -162,6 +162,7 @@ els.galleryInput.addEventListener('change', function () {
 });
 els.extractBtn.addEventListener('click', extract);
 els.copyExtracted.addEventListener('click', copyExtracted);
+els.retryMissing.addEventListener('click', function () { retryMissing(state.sessionId); });
 els.resetBtn.addEventListener('click', resetTake);
 // "Save to history" is the vendored switch (the fleet ships no native
 // checkboxes for on/off). On = saved, the default; its inverse is the

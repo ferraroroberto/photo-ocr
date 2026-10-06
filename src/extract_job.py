@@ -58,6 +58,8 @@ def extract_status_payload(
         "error": session.meta.error,
         "reused": bool(progress.get("reused", False)),
         "missing_photos": list(progress.get("missing_photos") or []),
+        # Why the last "retry missing" read nothing new; the text is unchanged.
+        "retry_error": progress.get("retry_error"),
     }
     if phase == "succeeded" and include_extracted:
         payload["extracted"] = session.read_extracted() or ""
@@ -113,6 +115,7 @@ def execute_extract_job(
             error=None,
             reused=False,
             missing_photos=[],
+            retry_error=None,
         )
         photo_paths = session.photo_paths()
         t0 = time.monotonic()
@@ -184,5 +187,89 @@ def execute_extract_job(
             error=None,
             reused=False,
             missing_photos=result.missing_photos,
+        )
+        _index_session_best_effort(cfg, archive, current)
+
+
+def execute_retry_missing_job(app: Any, session_id: str) -> None:
+    """Re-read only the photos a finished take left unread, then re-collate.
+
+    Runs under the same lock as a full extract. The take stays a success
+    whatever happens: when nothing new could be read the text on disk is left
+    untouched and ``retry_error`` says why.
+    """
+    archive: SessionArchive = app.state.archive
+    cfg: WebappConfig = app.state.webapp_config
+    ocr_client: OcrClient = app.state.ocr_client
+
+    with app.state.extract_lock:
+        session = archive.get(session_id)
+        if session is None:
+            logger.warning(f"⚠️  Retry job lost unknown session {session_id}")
+            return
+        before = list(progress_meta(session).get("missing_photos") or [])
+
+        def _settle(**fields: Any) -> None:
+            current = archive.get(session_id) or session
+            set_extract_progress(current, **fields)
+
+        payloads = session.read_ocr_payloads()
+        if payloads is None:
+            _settle(
+                phase="succeeded", retry_error="this take's OCR archive is "
+                "missing; use Redo",
+            )
+            return
+        request_payload, response_payload = payloads
+        total_units = sum(
+            1
+            for entry in response_payload.get("chunks") or []
+            if isinstance(entry, dict) and "error" in entry
+        )
+        _settle(
+            phase="running", chunks_total=total_units, chunks_done=0,
+            error=None, retry_error=None,
+        )
+
+        def _on_unit(done: int, total: int) -> None:
+            _settle(phase="running", chunks_total=total, chunks_done=done)
+
+        t0 = time.monotonic()
+        try:
+            result = ocr_client.retry_missing(
+                image_paths=session.photo_paths(),
+                request_payload=request_payload,
+                response_payload=response_payload,
+                system=str(request_payload.get("system") or ""),
+                progress_callback=_on_unit,
+                policy=cfg.extract_policy(),
+            )
+        except OcrError as exc:
+            logger.info(f"ℹ️  Retry of missing photos read nothing new: {exc}")
+            _settle(phase="succeeded", retry_error=str(exc))
+            return
+
+        current = archive.get(session_id) or session
+        _settle(phase="merging", chunks_done=total_units)
+        current.write_extracted(
+            result.extracted_text,
+            model=result.model,
+            request_payload=result.request_payload,
+            response_payload=result.response_payload,
+            prompt_id=current.meta.prompt_id,
+            duration_s=(current.meta.extract_duration_s or 0.0)
+            + (time.monotonic() - t0),
+        )
+        _settle(
+            phase="succeeded",
+            chunks_done=total_units,
+            model=result.model,
+            error=None,
+            retry_error=None,
+            missing_photos=result.missing_photos,
+        )
+        logger.info(
+            f"✅ Retry recovered {len(before) - len(result.missing_photos)} of "
+            f"{len(before)} missing photo(s) for {session_id}"
         )
         _index_session_best_effort(cfg, archive, current)

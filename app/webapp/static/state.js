@@ -10,6 +10,8 @@
  *   state.selectedPhotoId — clientId of the thumbnail the toolbar acts on
  *                           (null = none; cleared when that photo goes away)
  *   state.extracted       — current extracted text
+ *   state.missingPhotos   — filenames the current text could not read
+ *                           (drives the Retry missing action)
  *   state.model           — selected model alias
  *   state.promptId        — selected prompt id
  *   state.prompts         — [{ id, label, description, system }]
@@ -41,6 +43,7 @@ export const state = {
   photos: [],
   selectedPhotoId: null,
   extracted: '',
+  missingPhotos: [],
   model: null,
   promptId: null,
   prompts: [],
@@ -73,6 +76,7 @@ export const els = {
   captureStatus: document.getElementById('captureStatus'),
   extracted: document.getElementById('extracted'),
   copyExtracted: document.getElementById('copyExtracted'),
+  retryMissing: document.getElementById('retryMissing'),
   resetBtn: document.getElementById('resetBtn'),
   saveToHistoryHost: document.getElementById('saveToHistoryHost'),
   saveToHistoryLabel: document.getElementById('saveToHistoryLabel'),
@@ -91,6 +95,7 @@ export const els = {
   loadMoreHistory: document.getElementById('loadMoreHistory'),
   takeMenu: document.getElementById('takeMenu'),
   takeMenuWhen: document.getElementById('takeMenuWhen'),
+  takeRetry: document.getElementById('takeRetry'),
   takeRedo: document.getElementById('takeRedo'),
   takeDelete: document.getElementById('takeDelete'),
   previewDialog: document.getElementById('previewDialog'),

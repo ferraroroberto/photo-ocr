@@ -15,8 +15,8 @@ function sleep(ms) {
 }
 
 // Progress line for a non-terminal extract phase. `prefix` is '' for a
-// fresh extract and 'Redo ' for the History redo path, so both surfaces
-// word progress identically instead of maintaining parallel strings.
+// fresh extract, 'Redo ' for a redo and 'Retry · ' for retry-missing, so every
+// surface words progress identically instead of maintaining parallel strings.
 export function extractStatusLine(body, prefix) {
   prefix = prefix || '';
   const total = body.chunks_total || 0;
@@ -29,7 +29,9 @@ export function extractStatusLine(body, prefix) {
     return prefix + 'Chunk ' + current + ' of ' + total + '…';
   }
   if (body.phase === 'merging') {
-    return prefix ? 'Merging redo output…' : 'Merging chunk output…';
+    return prefix
+      ? 'Merging ' + prefix.replace(/[\s·]+$/, '').toLowerCase() + ' output…'
+      : 'Merging chunk output…';
   }
   return '';
 }

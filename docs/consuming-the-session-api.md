@@ -125,11 +125,17 @@ Optional JSON body `{ "model": "...", "prompt_id": "..." }`. Starts a **backgrou
   "model": "claude_opus", "prompt_id": "verbatim-merge",
   "duration_s": null, "extract_succeeded": null,
   "extracted_chars": 0, "error": null, "reused": false,
-  "missing_photos": []
+  "missing_photos": [], "retry_error": null
 }
 ```
 
-`phase` walks `idle → queued → running → merging → succeeded` (or `failed`, with `error` set, when no photo could be read). `chunks_done` counts finished hub requests, which complete out of order when they run in parallel. On a partly read take `phase` is `succeeded` and `missing_photos` lists the unread photos. On `succeeded` the payload also carries `extracted` (the full text). Poll this until `phase` is `succeeded` or `failed`.
+`phase` walks `idle → queued → running → merging → succeeded` (or `failed`, with `error` set, when no photo could be read). `chunks_done` counts finished hub requests, which complete out of order when they run in parallel. On a partly read take `phase` is `succeeded` and `missing_photos` lists the unread photos (fill them with `/retry-missing`). On `succeeded` the payload also carries `extracted` (the full text). Poll this until `phase` is `succeeded` or `failed`.
+
+### `POST /api/sessions/{id}/retry-missing` — re-read only the unread photos
+
+For a partly read take (`missing_photos` non-empty). Re-runs just the units holding an unread photo — same model and prompt as the take — splices their text in and re-collates in sequence order; units that already read keep their archived text. Async like `/extract`: returns the status payload, poll `/extract/status`. When nothing new could be read the text is left untouched, `phase` is `succeeded` again and the status payload's `retry_error` says why (`null` otherwise).
+
+Add `?wait=true` to run it to completion and get the single-shot shape (`session_id`, `text`, `missing_photos`, …) — this is the call a single-shot consumer makes with the `session_id` from `POST /api/extract`. Errors: `404` unknown session, `400` no photo is missing, `409` an extraction is already running, `502` (with `?wait=true`) nothing new could be read (the detail is the hub error, or "use Redo" for a take archived before per-photo entries were kept).
 
 ### `GET /api/sessions/{id}/text` — read the text
 

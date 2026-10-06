@@ -13,6 +13,8 @@ import { icon } from './_vendored/icons/icons.js';
 export function renderExtracted() {
   els.extracted.value = state.extracted || '';
   els.copyExtracted.disabled = !state.extracted;
+  // The one action for a partly read take; absent when nothing is missing.
+  els.retryMissing.hidden = !(state.sessionId && state.missingPhotos.length);
 }
 
 // Render one poll body. The poll loop (poll.js) filters terminal phases,
@@ -21,6 +23,7 @@ export function renderExtracted() {
 function renderExtractStatus(body, startedAt) {
   if (body.phase === 'succeeded') {
     state.extracted = body.extracted || '';
+    state.missingPhotos = body.missing_photos || [];
     renderExtracted();
     const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
     const seconds = body.duration_s ? Number(body.duration_s).toFixed(1) : elapsed;
@@ -91,6 +94,54 @@ export async function extract() {
   }
 }
 
+// ----------------------------------------------------------- retry missing
+// Re-read only the photos a partly read take left unread. Shared by the
+// Capture result card and the History row menu; the outcome is one toast.
+export async function retryMissing(sessionId) {
+  if (state.busy) return;
+  state.busy = true;
+  els.retryMissing.disabled = true;
+  renderThumbnails();
+  setStatus('Queued retry…');
+  let finalStatusText = null;
+  try {
+    const started = await jsonApi(
+      '/api/sessions/' + encodeURIComponent(sessionId) + '/retry-missing',
+      { method: 'POST', timeoutMs: 15000 }
+    );
+    const before = (started.missing_photos || []).length;
+    const body = await pollUntilDone(sessionId, function (b) {
+      setStatus(extractStatusLine(b, 'Retry · '));
+    });
+    state.sessionId = sessionId;
+    state.extracted = body.extracted || '';
+    state.missingPhotos = body.missing_photos || [];
+    renderExtracted();
+    loadHistory(0);
+    const left = state.missingPhotos.length;
+    if (body.retry_error) {
+      setStatus('Retry failed: ' + body.retry_error);
+      toast('Retry failed: ' + body.retry_error, 'error');
+    } else if (!left) {
+      setStatus('All photos read — tap Copy');
+      toast('All photos read.');
+    } else {
+      setStatus(left + ' photo(s) still missing');
+      toast('Read ' + (before - left) + ' of ' + before + ' missing; ' + left + ' still missing.');
+    }
+    finalStatusText = els.captureStatus.textContent;
+  } catch (exc) {
+    setStatus('Retry failed: ' + (exc.message || exc));
+    finalStatusText = els.captureStatus.textContent;
+    toast('Retry failed: ' + (exc.message || exc), 'error');
+  } finally {
+    state.busy = false;
+    els.retryMissing.disabled = false;
+    renderThumbnails();
+    if (finalStatusText) setStatus(finalStatusText);
+  }
+}
+
 // ----------------------------------------------------------- copy
 export async function copyExtracted() {
   const txt = state.extracted || '';
@@ -137,6 +188,7 @@ export function resetTake() {
   state.sessionId = null;
   state.sessionIdPromise = null;
   state.extracted = '';
+  state.missingPhotos = [];
   renderThumbnails();
   renderExtracted();
   setStatus('Add a photo to begin');

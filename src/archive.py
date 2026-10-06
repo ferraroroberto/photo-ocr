@@ -29,7 +29,7 @@ import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 # Local imports
 from src.archive_index import INDEX_FILENAME, ArchiveIndex
@@ -232,6 +232,21 @@ class Session:
     def read_extracted(self) -> Optional[str]:
         path = self.folder / EXTRACTED_FILENAME
         return path.read_text(encoding="utf-8") if path.exists() else None
+
+    def read_ocr_payloads(self) -> Optional[Tuple[dict, dict]]:
+        """The archived ``(request, response)`` of the last extraction, or
+        None when either file is missing or unreadable."""
+        try:
+            return (
+                json.loads(
+                    (self.folder / OCR_REQUEST_FILENAME).read_text(encoding="utf-8")
+                ),
+                json.loads(
+                    (self.folder / OCR_RESPONSE_FILENAME).read_text(encoding="utf-8")
+                ),
+            )
+        except (OSError, ValueError):
+            return None
 
 
 class SessionArchive:

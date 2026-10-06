@@ -5,7 +5,7 @@
 
 import { state, els, toast, HISTORY_PAGE_SIZE, modelLabel } from './state.js';
 import { jsonApi } from './api.js';
-import { renderExtracted } from './extract.js';
+import { renderExtracted, retryMissing } from './extract.js';
 import { renderThumbnails, setStatus } from './capture.js';
 import { pollUntilDone, extractStatusLine } from './poll.js';
 import { icon } from './_vendored/icons/icons.js';
@@ -49,10 +49,12 @@ function highlightSnippet(snip) {
 // action-row (design.md): tap the row to copy it, one trailing overflow
 // control for everything else (Redo, Delete). The snippet leads as the
 // title; date, photo count and model are the one muted meta line.
-function makeSessionRow(sessionId, metaText, previewText, isSnippet, source) {
+function makeSessionRow(sessionId, metaText, previewText, isSnippet, source, missing) {
   const li = document.createElement('li');
   li.className = 'action-row history-item';
-  const ref = { session_id: sessionId };
+  // `missing` = count of unread photos; undefined when the list can't say
+  // (search hits), in which case the menu asks the server when it opens.
+  const ref = { session_id: sessionId, missing: missing };
 
   const main = document.createElement('button');
   main.type = 'button';
@@ -111,20 +113,24 @@ function renderHistory() {
     els.historyList.appendChild(li);
   }
   state.historyItems.forEach(function (s) {
+    const unread = ((s.extract_progress || {}).missing_photos || []).length;
+    const parts = [
+      formatDate(s.created_at),
+      s.photo_count + (s.photo_count === 1 ? ' photo' : ' photos'),
+      (s.model ? modelLabel(s.model) : '—') +
+        (s.extract_duration_s
+          ? ' · ' + s.extract_duration_s.toFixed(1) + 's'
+          : ''),
+    ];
+    if (unread) parts.push(unread + ' unread');
     els.historyList.appendChild(
       makeSessionRow(
         s.session_id,
-        [
-          formatDate(s.created_at),
-          s.photo_count + (s.photo_count === 1 ? ' photo' : ' photos'),
-          (s.model ? modelLabel(s.model) : '—') +
-            (s.extract_duration_s
-              ? ' · ' + s.extract_duration_s.toFixed(1) + 's'
-              : ''),
-        ].join(' · '),
+        parts.join(' · '),
         s.extracted_preview || (s.error ? 'Error — ' + s.error : '(no text)'),
         false,
-        s.source
+        s.source,
+        unread
       )
     );
   });
@@ -150,7 +156,8 @@ function renderSearchResults() {
           formatDate(r.created_at) + ' · ' + (r.model ? modelLabel(r.model) : '—'),
           r.snippet || '(match)',
           true,
-          r.source
+          r.source,
+          undefined
         )
       );
     });
@@ -268,6 +275,7 @@ async function redoHistoryEntry(s) {
         });
     state.sessionId = s.session_id;
     state.extracted = finalBody.extracted || '';
+    state.missingPhotos = finalBody.missing_photos || [];
     renderExtracted();
     refreshHistoryView();
     setStatus('Redo done — tap Copy');
@@ -290,7 +298,23 @@ let menuTake = null;
 function openTakeMenu(ref, metaText) {
   menuTake = ref;
   els.takeMenuWhen.textContent = metaText;
+  els.takeRetry.hidden = !ref.missing;
   els.takeMenu.showModal();
+  if (ref.missing === undefined) revealRetryIfMissing(ref);
+}
+
+// A search hit doesn't carry its unread photos; ask the server once the menu
+// is up and show the action only if that take still has some.
+async function revealRetryIfMissing(ref) {
+  try {
+    const body = await jsonApi(
+      '/api/sessions/' + encodeURIComponent(ref.session_id) + '/extract/status'
+    );
+    ref.missing = (body.missing_photos || []).length;
+    if (menuTake === ref) els.takeRetry.hidden = !ref.missing;
+  } catch (_) {
+    // The menu still works without it; Redo remains.
+  }
 }
 
 export function initTakeMenu() {
@@ -298,6 +322,11 @@ export function initTakeMenu() {
   dlg.querySelector('.detail-close').addEventListener('click', function () { dlg.close(); });
   // A tap on the backdrop (the dialog element itself, outside its card) dismisses.
   dlg.addEventListener('click', function (e) { if (e.target === dlg) dlg.close(); });
+  els.takeRetry.addEventListener('click', function () {
+    const ref = menuTake;
+    dlg.close();
+    if (ref) retryMissing(ref.session_id);
+  });
   els.takeRedo.addEventListener('click', function () {
     const ref = menuTake;
     dlg.close();
