@@ -438,6 +438,7 @@ html, body {
   min-height: var(--hit-min);
   padding: 6px var(--gap);
   font-size: var(--font-label);
+  white-space: nowrap;
   background: var(--card-off);
   color: var(--ink);
   border: 1px solid var(--line);
