@@ -57,6 +57,7 @@ def extract_status_payload(
         "extracted_chars": session.meta.extracted_chars,
         "error": session.meta.error,
         "reused": bool(progress.get("reused", False)),
+        "missing_photos": list(progress.get("missing_photos") or []),
     }
     if phase == "succeeded" and include_extracted:
         payload["extracted"] = session.read_extracted() or ""
@@ -111,6 +112,7 @@ def execute_extract_job(
             prompt_id=prompt_id,
             error=None,
             reused=False,
+            missing_photos=[],
         )
         photo_paths = session.photo_paths()
         t0 = time.monotonic()
@@ -135,6 +137,7 @@ def execute_extract_job(
                 system=apply_language_hint(prompt_system, app_cfg.default_language_hint),
                 chunk_size=chunk_size,
                 progress_callback=_on_chunk,
+                policy=cfg.extract_policy(),
             )
         except OcrError as exc:
             current = archive.get(session_id) or session
@@ -180,5 +183,6 @@ def execute_extract_job(
             prompt_id=prompt_id,
             error=None,
             reused=False,
+            missing_photos=result.missing_photos,
         )
         _index_session_best_effort(cfg, archive, current)

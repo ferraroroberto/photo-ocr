@@ -21,9 +21,11 @@ import base64
 import difflib
 import logging
 import re
-from dataclasses import dataclass
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, List, Optional
+from typing import Callable, Dict, List, Optional
 
 # Third-party imports
 import requests
@@ -34,8 +36,24 @@ _THINK_BLOCK_RE = re.compile(r"<think\b[^>]*>.*?</think\s*>", re.DOTALL | re.IGN
 _OPEN_THINK_RE = re.compile(r"<think\b[^>]*>", re.IGNORECASE)
 
 
-DEFAULT_TIMEOUT = 180.0
-DEFAULT_CHUNK_SIZE = 4
+# Per-request read timeout. A 4-photo gemini_flash call was observed at
+# 343 s on the hub (#166), so the old 180 s threw away answers that were
+# still coming. Units are smaller now, but the hub serializes Gemini calls,
+# so a queued unit's clock also covers its wait for the lock.
+DEFAULT_TIMEOUT = 420.0
+# Connect timeout: a hub that is down refuses instantly; one that does not
+# accept the TCP connection within this window is treated as down too.
+DEFAULT_CONNECT_TIMEOUT = 5.0
+# Overall wall-clock budget for one extract() run, across every unit and
+# retry. Units still unread when it runs out are reported missing.
+DEFAULT_RUN_BUDGET = 900.0
+# Hub requests in flight at once for one run.
+DEFAULT_CONCURRENCY = 4
+# Hub backends that run one call at a time (local-llm-hub README: "Gemini
+# calls are serialized"). Parallel units would only queue behind the hub's
+# lock with their read timeouts already running, so they go one by one.
+SERIALIZED_BACKENDS = frozenset({"gemini"})
+DEFAULT_CHUNK_SIZE = 1
 DEFAULT_CHUNK_OVERLAP = 1
 # Vision models need a generous budget for long documents — voice
 # polish needed 16k for reasoning-heavy paths; OCR can produce equally
@@ -47,12 +65,33 @@ class OcrError(Exception):
     """Raised when the LLM hub is unreachable or returns an error."""
 
 
+class HubDownError(OcrError):
+    """The hub refused or never accepted the connection."""
+
+
+class HubTimeoutError(OcrError):
+    """The hub accepted the request but had not answered within the timeout."""
+
+
+@dataclass
+class ExtractPolicy:
+    """Timeouts, parallelism and retry for one extract() run."""
+
+    request_timeout_s: float = DEFAULT_TIMEOUT
+    run_budget_s: float = DEFAULT_RUN_BUDGET
+    concurrency: int = DEFAULT_CONCURRENCY
+    # Model for the one retry of a failed unit. None retries on the same model.
+    fallback_model: Optional[str] = None
+
+
 @dataclass
 class OcrResult:
     extracted_text: str
     model: str
     request_payload: dict
     response_payload: dict
+    # Photo filenames no successful unit covered. Empty on a complete run.
+    missing_photos: List[str] = field(default_factory=list)
 
 
 class OcrClient:
@@ -67,9 +106,34 @@ class OcrClient:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self._session = requests.Session()
+        # Units run on worker threads; size the pool so concurrent hub
+        # calls never wait on (or discard) a pooled connection.
+        adapter = requests.adapters.HTTPAdapter(pool_maxsize=16)
+        self._session.mount("http://", adapter)
+        self._session.mount("https://", adapter)
+        self._backends: Dict[str, str] = {}
 
     def close(self) -> None:
         self._session.close()
+
+    def _backend(self, model: str) -> Optional[str]:
+        """The hub backend serving ``model`` (from `GET /v1/models`), cached.
+
+        Returns None when the hub can't say; the caller then keeps the
+        configured concurrency.
+        """
+        if model not in self._backends:
+            try:
+                r = self._session.get(self.base_url + "/v1/models", timeout=5.0)
+                r.raise_for_status()
+                self._backends = {
+                    str(m.get("id")): str(m.get("backend") or "")
+                    for m in r.json().get("data", [])
+                }
+            except (requests.RequestException, ValueError, AttributeError) as exc:
+                logger.info(f"ℹ️  could not read hub backends ({exc})")
+                return None
+        return self._backends.get(model) or None
 
     def is_reachable(self) -> bool:
         """Quick liveness check — the hub answers `GET /v1/models` on success."""
@@ -87,6 +151,7 @@ class OcrClient:
         max_tokens: int = DEFAULT_MAX_TOKENS,
         chunk_size: int = DEFAULT_CHUNK_SIZE,
         progress_callback: Optional[Callable[[int, int], None]] = None,
+        policy: Optional[ExtractPolicy] = None,
     ) -> OcrResult:
         """Send ``image_paths`` through the hub for OCR. Returns the extracted
         text plus the raw request/response payloads for archival.
@@ -96,48 +161,81 @@ class OcrClient:
         user-content channel from being interpreted as instructions by
         accident.
 
-        Multi-photo takes are chunked into overlapped hub calls. The model
-        still does the semantic merge inside each chunk; Python only joins
-        adjacent chunk outputs and removes duplicate lines at the known
-        overlap boundary. There is intentionally no second LLM stitch pass.
+        Multi-photo takes are split into units of ``chunk_size`` photos
+        (one-photo overlap when ``chunk_size`` > 1) that run up to
+        ``policy.concurrency`` at a time. A failed unit is retried once
+        (on ``policy.fallback_model`` when set). Python joins the unit
+        outputs in sequence order and removes duplicate lines at each
+        seam; there is intentionally no second LLM stitch pass.
+
+        If some units still fail, the run returns the rest with a marker
+        line where each missing photo belongs and lists them in
+        ``OcrResult.missing_photos``. Only a run where every unit fails
+        raises, with the first unit's error.
         """
         if not image_paths:
             raise OcrError("no images to extract from")
         if chunk_size < 1:
             raise OcrError("chunk_size must be >= 1")
+        if policy is None:
+            policy = ExtractPolicy(request_timeout_s=self.timeout)
 
-        chunks = _chunk_paths(image_paths, chunk_size=chunk_size)
-        if len(chunks) == 1:
-            result = self._extract_single_request(
-                image_paths=chunks[0],
-                model=model,
-                system=system,
-                max_tokens=max_tokens,
-            )
-            if progress_callback is not None:
-                progress_callback(1, 1)
-            return result
+        units = _chunk_paths(image_paths, chunk_size=chunk_size)
+        total = len(units)
+        deadline = time.monotonic() + policy.run_budget_s
+        outcomes: List[Optional[_UnitOutcome]] = [None] * total
+        workers = max(1, min(policy.concurrency, total))
+        if workers > 1 and self._backend(model) in SERIALIZED_BACKENDS:
+            workers = 1
+        logger.info(
+            f"🔍 OCR model={model} photos={len(image_paths)} units={total} "
+            f"concurrency={workers} request_timeout={policy.request_timeout_s:.0f}s "
+            f"budget={policy.run_budget_s:.0f}s"
+        )
+        with ThreadPoolExecutor(
+            max_workers=workers, thread_name_prefix="ocr-unit"
+        ) as pool:
+            futures = {
+                pool.submit(
+                    self._extract_unit,
+                    units[i], i + 1, total, model, system, max_tokens,
+                    policy, deadline,
+                ): i
+                for i in range(total)
+            }
+            done = 0
+            for future in as_completed(futures):
+                outcomes[futures[future]] = future.result()
+                done += 1
+                if progress_callback is not None:
+                    progress_callback(done, total)
 
-        chunk_results: List[OcrResult] = []
-        total = len(chunks)
-        for index, chunk in enumerate(chunks, start=1):
-            logger.info(
-                f"🔍 OCR chunk {index}/{total} model={model} photos={len(chunk)}"
-            )
-            chunk_results.append(
-                self._extract_single_request(
-                    image_paths=chunk,
-                    model=model,
-                    system=system,
-                    max_tokens=max_tokens,
-                )
-            )
-            if progress_callback is not None:
-                progress_callback(index, total)
+        finished = [o for o in outcomes if o is not None]
+        if all(o.result is None for o in finished):
+            raise finished[0].error
+        if total == 1:
+            return finished[0].result
 
-        extracted = _join_chunk_texts([r.extracted_text for r in chunk_results])
+        positions = {p: n for n, p in enumerate(image_paths, start=1)}
+        covered = {p for o in finished if o.result is not None for p in o.paths}
+        missing = [p for p in image_paths if p not in covered]
+        segments: List[str] = []
+        for o in finished:
+            if o.result is not None:
+                segments.append(o.result.extracted_text)
+                continue
+            gap = [p for p in o.paths if p not in covered]
+            if gap:
+                segments.append(_missing_marker(gap, positions))
+        if missing:
+            logger.warning(
+                f"⚠️  OCR returned partial text: {len(missing)} of "
+                f"{len(image_paths)} photo(s) missing "
+                f"({', '.join(p.name for p in missing)})"
+            )
+
         return OcrResult(
-            extracted_text=extracted,
+            extracted_text=_join_chunk_texts(segments),
             model=model,
             request_payload={
                 "model": model,
@@ -145,27 +243,76 @@ class OcrClient:
                 "system": system,
                 "chunk_size": chunk_size,
                 "chunk_overlap": DEFAULT_CHUNK_OVERLAP if chunk_size > 1 else 0,
+                "concurrency": workers,
+                "request_timeout_s": policy.request_timeout_s,
+                "run_budget_s": policy.run_budget_s,
+                "fallback_model": policy.fallback_model,
                 "chunks": [
                     {
                         "index": i,
-                        "images": [p.name for p in chunk],
+                        "images": [p.name for p in unit],
                     }
-                    for i, chunk in enumerate(chunks, start=1)
+                    for i, unit in enumerate(units, start=1)
                 ],
             },
             response_payload={
-                "chunks": [
-                    {
-                        "index": i,
-                        "response": r.response_payload,
-                    }
-                    for i, r in enumerate(chunk_results, start=1)
-                ],
+                "chunks": [o.archive_entry() for o in finished],
+                "missing_photos": [p.name for p in missing],
                 "merge": {
                     "strategy": "python-overlap-line-dedup",
                     "llm_stitch_call": False,
                 },
             },
+            missing_photos=[p.name for p in missing],
+        )
+
+    def _extract_unit(
+        self,
+        paths: List[Path],
+        index: int,
+        total: int,
+        model: str,
+        system: str,
+        max_tokens: int,
+        policy: ExtractPolicy,
+        deadline: float,
+    ) -> "_UnitOutcome":
+        """Run one unit: first attempt, then one retry, inside the run budget."""
+        attempt_models = [model, policy.fallback_model or model]
+        error: Optional[OcrError] = None
+        for attempt, attempt_model in enumerate(attempt_models, start=1):
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                error = OcrError(
+                    f"run budget of {policy.run_budget_s:.0f}s ran out before "
+                    f"photos {_names(paths)} were read"
+                )
+                break
+            logger.info(
+                f"🔍 OCR unit {index}/{total} attempt {attempt} "
+                f"model={attempt_model} photos={_names(paths)}"
+            )
+            try:
+                result = self._extract_single_request(
+                    image_paths=paths,
+                    model=attempt_model,
+                    system=system,
+                    max_tokens=max_tokens,
+                    timeout=min(policy.request_timeout_s, remaining),
+                )
+            except OcrError as exc:
+                error = exc
+                logger.warning(
+                    f"⚠️  OCR unit {index}/{total} attempt {attempt} failed: {exc}"
+                )
+                continue
+            return _UnitOutcome(
+                index=index, paths=paths, model=attempt_model,
+                attempts=attempt, result=result,
+            )
+        return _UnitOutcome(
+            index=index, paths=paths, model=model,
+            attempts=len(attempt_models), error=error,
         )
 
     def _extract_single_request(
@@ -174,10 +321,12 @@ class OcrClient:
         model: str,
         system: str,
         max_tokens: int,
+        timeout: Optional[float] = None,
     ) -> OcrResult:
         """Send one hub request containing ``image_paths``."""
         if not image_paths:
             raise OcrError("no images to extract from")
+        read_timeout = self.timeout if timeout is None else timeout
 
         content_blocks = []
         for p in image_paths:
@@ -216,9 +365,19 @@ class OcrClient:
             response = self._session.post(
                 url,
                 json=payload,
-                timeout=self.timeout,
+                timeout=(DEFAULT_CONNECT_TIMEOUT, read_timeout),
                 headers={"Content-Type": "application/json"},
             )
+        except requests.ReadTimeout as exc:
+            raise HubTimeoutError(
+                f"LLM hub still working on photos {_names(image_paths)} after "
+                f"the {read_timeout:.0f}s request timeout (model={model}); "
+                f"answer abandoned"
+            ) from exc
+        except requests.ConnectionError as exc:
+            raise HubDownError(
+                f"could not reach LLM hub at {url} — is it running? ({exc})"
+            ) from exc
         except requests.RequestException as exc:
             raise OcrError(
                 f"could not reach LLM hub at {url}: {exc}"
@@ -253,6 +412,41 @@ class OcrClient:
             request_payload=_payload_for_archive(payload, image_paths),
             response_payload=body,
         )
+
+
+@dataclass
+class _UnitOutcome:
+    """One unit's final state after its attempts."""
+
+    index: int
+    paths: List[Path]
+    model: str
+    attempts: int
+    result: Optional[OcrResult] = None
+    error: Optional[OcrError] = None
+
+    def archive_entry(self) -> dict:
+        entry: dict = {
+            "index": self.index,
+            "model": self.model,
+            "attempts": self.attempts,
+        }
+        if self.result is not None:
+            entry["response"] = self.result.response_payload
+        else:
+            entry["error"] = str(self.error)
+        return entry
+
+
+def _names(paths: List[Path]) -> str:
+    return ", ".join(p.name for p in paths)
+
+
+def _missing_marker(gap: List[Path], positions: dict) -> str:
+    """The line that stands in for photos no unit could read."""
+    numbers = ", ".join(str(positions[p]) for p in gap)
+    label = "photo" if len(gap) == 1 else "photos"
+    return f"[missing: {label} {numbers} ({_names(gap)}) could not be read]"
 
 
 def _chunk_paths(image_paths: List[Path], chunk_size: int) -> List[List[Path]]:

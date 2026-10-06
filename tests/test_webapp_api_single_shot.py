@@ -41,6 +41,29 @@ def test_single_shot_success_returns_text(client: TestClient, jpeg_bytes: bytes)
     assert any(s["session_id"] == body["session_id"] for s in listed)
 
 
+def test_single_shot_partial_read_returns_missing_photos(
+    client: TestClient, jpeg_bytes: bytes
+) -> None:
+    partial = _ok_result("page 1\n[missing: photo 2 (02.jpg) could not be read]")
+    partial.missing_photos = ["02.jpg"]
+    with patch.object(
+        client.app.state.ocr_client, "extract", return_value=partial
+    ):
+        r = client.post(
+            "/api/extract",
+            files=[
+                ("files", ("a.jpg", jpeg_bytes, "image/jpeg")),
+                ("files", ("b.jpg", jpeg_bytes, "image/jpeg")),
+            ],
+        )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["missing_photos"] == ["02.jpg"]
+    assert "[missing: photo 2" in body["text"]
+    status = client.get(f"/api/sessions/{body['session_id']}/extract/status")
+    assert status.json()["missing_photos"] == ["02.jpg"]
+
+
 def test_single_shot_missing_files_is_422(client: TestClient) -> None:
     r = client.post("/api/extract", params={"model": "gemini_flash"})
     assert r.status_code == 422
