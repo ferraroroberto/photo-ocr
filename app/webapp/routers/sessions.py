@@ -77,7 +77,7 @@ def _resolve_prompt(prompt_id: Optional[str], cfg: WebappConfig) -> OcrPrompt:
 
 def _resolve_model(model: Any, cfg: WebappConfig) -> str:
     """Reject unknown models with HTTP 400 so a typo can't waste a
-    180-second hub timeout."""
+    hub round-trip."""
     candidate = (
         model if isinstance(model, str) and model.strip() else cfg.ocr_model_default
     )
@@ -162,6 +162,7 @@ async def _start_extract(
         prompt_id=prompt.id,
         error=None,
         reused=False,
+        missing_photos=[],
     )
 
     task = asyncio.create_task(
@@ -383,7 +384,8 @@ async def extract_single_shot(
 
     Errors: ``400`` empty upload, ``413`` more than ``single_shot_max_photos``
     images (use the async flow for big takes), ``400`` unknown model,
-    ``502`` on a hub/extraction failure.
+    ``502`` when no photo could be read. A partly read take is a ``200``
+    whose ``missing_photos`` names the unread photos (marked in ``text``).
     """
     cfg: WebappConfig = request.app.state.webapp_config
     archive: SessionArchive = request.app.state.archive
@@ -445,6 +447,9 @@ async def extract_single_shot(
         "prompt_id": final.meta.prompt_id,
         "chars": final.meta.extracted_chars,
         "duration_s": final.meta.extract_duration_s,
+        "missing_photos": extract_status_payload(
+            final, include_extracted=False
+        )["missing_photos"],
         "incognito": incognito,
         "source": source,
     }

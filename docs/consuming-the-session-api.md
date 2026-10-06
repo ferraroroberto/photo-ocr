@@ -69,7 +69,7 @@ Photos are persisted to disk (`archive/YYYY/MM/DD/HH-MM-SS-<id>/NN.jpg`) the mom
 One call: create a session, ingest the images, run extraction to completion server-side, return the text. **Multipart** form upload — field name `files` (repeatable for multiple images):
 
 ```
-POST /api/extract?model=gemini_flash&prompt_id=verbatim-merge&incognito=false&source=app-launcher
+POST /api/extract?model=claude_opus&prompt_id=verbatim-merge&incognito=false&source=app-launcher
 Content-Type: multipart/form-data
   files=<screenshot.jpg>
   files=<screenshot2.jpg>   # optional, 1..N
@@ -77,7 +77,7 @@ Content-Type: multipart/form-data
 
 Query params, all optional:
 
-- `model` — a vision alias on the hub (`gemini_flash` default, `gemini_pro`, `gemini_lite`, `claude_haiku`, `claude_sonnet`, `claude_opus`). Unknown model → `400`.
+- `model` — a vision alias on the hub (`claude_opus` default, `claude_sonnet`, `claude_haiku`, `gemini_flash`, `gemini_pro`, `gemini_lite`). Unknown model → `400`. Leave it unset to follow photo-ocr's configured default; the hub runs `gemini_*` calls one at a time, so they are much slower on multi-photo takes.
 - `prompt_id` — one of the entries in `config/ocr_prompts.json` (`verbatim-merge` default, `structured-markdown`, `plain-stripped`, `code-fenced`).
 - `incognito` — `true` keeps the take out of History; pair with `DELETE /api/sessions/{id}` if you also want it off disk. Default `false` (the take stays in History, recoverable, like a PWA session).
 - `source` — a short label identifying who triggered this take, recorded in History so the entry is attributable. Defaults to `"api"`; a consumer should pass its own name (e.g. `app-launcher`). Surfaces in `GET /api/sessions`, the History UI badge, and full-text search (`GET /api/search?q=app-launcher`). See [History as a single source of truth](#history-as-a-single-source-of-truth).
@@ -88,16 +88,19 @@ Response:
 {
   "session_id": "14-32-07-a1b2c3d4",
   "text": "the clean extracted text",
-  "model": "gemini_flash",
+  "model": "claude_opus",
   "prompt_id": "verbatim-merge",
   "chars": 1234,
   "duration_s": 3.7,
+  "missing_photos": [],
   "incognito": false,
   "source": "app-launcher"
 }
 ```
 
-Empty `text` is a **valid 200** — the prompt asks the model to emit nothing when there's no readable text. Errors: `400` empty upload / unknown model, `413` more than `single_shot_max_photos` images (default 8 — use the async flow for big takes), `502` on a hub/extraction failure (the detail carries the hub error).
+Empty `text` is a **valid 200** — the prompt asks the model to emit nothing when there's no readable text. A **partly read** take is also a 200: `missing_photos` names the photos no hub request could read, and `text` carries a `[missing: photo N (NN.jpg) could not be read]` line where each belongs. Errors: `400` empty upload / unknown model, `413` more than `single_shot_max_photos` images (default 8 — use the async flow for big takes), `502` when no photo could be read (the detail carries the hub error: "could not reach LLM hub …" when the hub is down, "LLM hub still working on photos … after the Ns request timeout" when it was too slow).
+
+**Client timeout.** Photos are read one per hub request, up to `extract_concurrency` at a time, each retried once on failure; the whole call is capped by `extract_run_budget_s` (default 900 s). A typical 1–8 photo call on the default model takes 10–30 s, but set your read timeout above the run budget (e.g. 960 s) or a slow hub turns a partial 200 into a client-side timeout.
 
 > The single-shot cap (`single_shot_max_photos` in `config/webapp_config.json`) keeps a synchronous call bounded — a screenshot is 1–2 images. For a 50-photo document, use the async session flow so you can show progress instead of holding one long request.
 
@@ -119,13 +122,14 @@ Optional JSON body `{ "model": "...", "prompt_id": "..." }`. Starts a **backgrou
 {
   "session_id": "…", "phase": "running",
   "chunks_total": 3, "chunks_done": 1,
-  "model": "gemini_flash", "prompt_id": "verbatim-merge",
+  "model": "claude_opus", "prompt_id": "verbatim-merge",
   "duration_s": null, "extract_succeeded": null,
-  "extracted_chars": 0, "error": null, "reused": false
+  "extracted_chars": 0, "error": null, "reused": false,
+  "missing_photos": []
 }
 ```
 
-`phase` walks `idle → queued → running → merging → succeeded` (or `failed`, with `error` set). On `succeeded` the payload also carries `extracted` (the full text). Poll this until `phase` is `succeeded` or `failed`.
+`phase` walks `idle → queued → running → merging → succeeded` (or `failed`, with `error` set, when no photo could be read). `chunks_done` counts finished hub requests, which complete out of order when they run in parallel. On a partly read take `phase` is `succeeded` and `missing_photos` lists the unread photos. On `succeeded` the payload also carries `extracted` (the full text). Poll this until `phase` is `succeeded` or `failed`.
 
 ### `GET /api/sessions/{id}/text` — read the text
 
@@ -170,7 +174,7 @@ Anything `src/image_utils.py` validates: JPEG / PNG / WebP / HEIC (iOS) etc. Ima
 
 ```bash
 # loopback, no auth, -k because the cert is for the .ts.net name
-curl -sk -X POST "https://127.0.0.1:8444/api/extract?model=gemini_flash" \
+curl -sk -X POST "https://127.0.0.1:8444/api/extract?model=claude_opus" \
   -F files=@screenshot.png | jq -r .text
 ```
 
@@ -186,9 +190,9 @@ BASE = "https://127.0.0.1:8444"  # same-host: loopback bypasses auth
 with open("screenshot.png", "rb") as fh:
     resp = requests.post(
         f"{BASE}/api/extract",
-        params={"model": "gemini_flash"},
+        params={"source": "my-app"},
         files={"files": ("screenshot.png", fh.read(), "image/png")},
-        timeout=120.0,
+        timeout=960.0,          # above photo-ocr's extract_run_budget_s
         verify=False,           # cert is for the .ts.net name, not loopback
     )
 resp.raise_for_status()
@@ -208,7 +212,7 @@ sid = c.post("/api/sessions", json={}).json()["session_id"]
 c.post(f"/api/sessions/{sid}/photos",
        files=[("files", ("01.jpg", open("01.jpg", "rb").read(), "image/jpeg")),
               ("files", ("02.jpg", open("02.jpg", "rb").read(), "image/jpeg"))])
-c.post(f"/api/sessions/{sid}/extract", json={"model": "gemini_flash"})
+c.post(f"/api/sessions/{sid}/extract", json={})
 
 while True:
     s = c.get(f"/api/sessions/{sid}/extract/status").json()

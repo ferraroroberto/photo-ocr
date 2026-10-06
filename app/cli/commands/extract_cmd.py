@@ -85,6 +85,7 @@ class ExtractCommand(BaseCommand):
                     model=model,
                     system=system,
                     chunk_size=cfg.extract_chunk_size,
+                    policy=cfg.extract_policy(),
                 )
             except OcrError as exc:
                 logger.error(f"❌ OCR failed: {exc}")
@@ -94,6 +95,11 @@ class ExtractCommand(BaseCommand):
             logger.info(
                 f"⏱️  {elapsed:.2f}s · {len(result.extracted_text)} chars · model={model}"
             )
+            if result.missing_photos:
+                logger.warning(
+                    f"⚠️  partial text: could not read "
+                    f"{', '.join(result.missing_photos)}"
+                )
             sys.stdout.write(result.extracted_text)
             if not result.extracted_text.endswith("\n"):
                 sys.stdout.write("\n")

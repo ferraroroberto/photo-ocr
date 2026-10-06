@@ -2,14 +2,24 @@
 
 from __future__ import annotations
 
+import base64
+import threading
+import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
 
-from src.ocr_client import OcrClient, OcrError, _extract_text
+from src.ocr_client import ExtractPolicy, OcrClient, OcrError, _extract_text
 from src.ocr_client import _chunk_paths, _join_chunk_texts, chunk_count
+
+
+@pytest.fixture(autouse=True)
+def _no_hub_backend_lookup(monkeypatch) -> None:
+    """Keep unit tests off the live hub's `GET /v1/models`; the tests that
+    exercise the backend lookup stub the session's `get` themselves."""
+    monkeypatch.setattr(OcrClient, "_backend", lambda self, model: None)
 
 
 def _mock_response(json_body: dict, status_code: int = 200) -> MagicMock:
@@ -105,6 +115,8 @@ def test_extract_chunks_large_take_and_dedups_seam(
             system="dummy system",
             chunk_size=4,
             progress_callback=lambda done, total: progress.append((done, total)),
+            # One worker so the canned responses map to units in order.
+            policy=ExtractPolicy(concurrency=1),
         )
 
     assert result.extracted_text == "alpha\nshared line\nomega"
@@ -204,3 +216,190 @@ def test_is_reachable_returns_true_on_200() -> None:
     ok.status_code = 200
     with patch.object(client._session, "get", return_value=ok):
         assert client.is_reachable() is True
+
+
+# ---------------------------------------------------- long takes (#166)
+
+
+def _numbered_photos(tmp_path: Path, count: int) -> list:
+    """Photos whose bytes carry their number, so a stub can answer per photo."""
+    photos = []
+    for idx in range(1, count + 1):
+        photo = tmp_path / f"{idx:02d}.jpg"
+        photo.write_bytes(f"photo-{idx}".encode("ascii"))
+        photos.append(photo)
+    return photos
+
+
+def _photo_numbers(payload: dict) -> list:
+    return [
+        int(base64.b64decode(block["source"]["data"]).decode("ascii").split("-")[1])
+        for block in payload["messages"][0]["content"]
+    ]
+
+
+def _page_reply(payload: dict) -> MagicMock:
+    text = "\n".join(f"page {n}" for n in _photo_numbers(payload))
+    return _mock_response({"content": [{"type": "text", "text": text}]})
+
+
+def test_timed_out_unit_is_retried_once(tmp_path: Path) -> None:
+    photos = _numbered_photos(tmp_path, 3)
+    calls = []
+
+    def hub(url, json, timeout, headers):  # noqa: A002 — mirrors requests kwargs
+        calls.append(_photo_numbers(json))
+        if _photo_numbers(json) == [2] and calls.count([2]) == 1:
+            raise requests.ReadTimeout("read timed out")
+        return _page_reply(json)
+
+    client = OcrClient()
+    with patch.object(client._session, "post", side_effect=hub):
+        result = client.extract(photos, model="gemini_flash", system="x", chunk_size=1)
+
+    assert result.extracted_text == "page 1\npage 2\npage 3"
+    assert result.missing_photos == []
+    assert calls.count([2]) == 2
+
+
+def test_unit_still_failing_after_retry_returns_partial_text(tmp_path: Path) -> None:
+    photos = _numbered_photos(tmp_path, 3)
+
+    def hub(url, json, timeout, headers):  # noqa: A002
+        if _photo_numbers(json) == [2]:
+            raise requests.ReadTimeout("read timed out")
+        return _page_reply(json)
+
+    client = OcrClient()
+    with patch.object(client._session, "post", side_effect=hub):
+        result = client.extract(photos, model="gemini_flash", system="x", chunk_size=1)
+
+    assert result.missing_photos == ["02.jpg"]
+    assert result.extracted_text == (
+        "page 1\n[missing: photo 2 (02.jpg) could not be read]\npage 3"
+    )
+    failed = [c for c in result.response_payload["chunks"] if "error" in c]
+    assert [c["index"] for c in failed] == [2]
+    assert "still working" in failed[0]["error"]
+
+
+def test_retry_uses_fallback_model(tmp_path: Path) -> None:
+    photos = _numbered_photos(tmp_path, 2)
+    models = []
+
+    def hub(url, json, timeout, headers):  # noqa: A002
+        models.append((_photo_numbers(json), json["model"]))
+        if json["model"] == "gemini_flash" and _photo_numbers(json) == [1]:
+            raise requests.ReadTimeout("read timed out")
+        return _page_reply(json)
+
+    client = OcrClient()
+    with patch.object(client._session, "post", side_effect=hub):
+        result = client.extract(
+            photos, model="gemini_flash", system="x", chunk_size=1,
+            policy=ExtractPolicy(fallback_model="claude_sonnet"),
+        )
+
+    assert result.extracted_text == "page 1\npage 2"
+    assert ([1], "claude_sonnet") in models
+    assert ([2], "claude_sonnet") not in models
+
+
+def test_every_unit_failing_raises(tmp_path: Path) -> None:
+    photos = _numbered_photos(tmp_path, 3)
+    client = OcrClient()
+    with patch.object(
+        client._session, "post", side_effect=requests.ReadTimeout("slow")
+    ):
+        with pytest.raises(OcrError, match="still working"):
+            client.extract(photos, model="gemini_flash", system="x", chunk_size=1)
+
+
+def test_hub_down_and_hub_slow_have_distinct_messages(tmp_path: Path) -> None:
+    photos = _numbered_photos(tmp_path, 1)
+    client = OcrClient()
+    with patch.object(
+        client._session, "post", side_effect=requests.ConnectionError("refused")
+    ):
+        with pytest.raises(OcrError, match="could not reach LLM hub") as down:
+            client.extract(photos, model="gemini_flash", system="x")
+    with patch.object(
+        client._session, "post", side_effect=requests.ReadTimeout("slow")
+    ):
+        with pytest.raises(OcrError, match="still working on photos 01.jpg") as slow:
+            client.extract(
+                photos, model="gemini_flash", system="x",
+                policy=ExtractPolicy(request_timeout_s=42),
+            )
+    assert "after the 42s request timeout" in str(slow.value)
+    assert "still working" not in str(down.value)
+
+
+def test_exhausted_run_budget_names_unread_photos(tmp_path: Path) -> None:
+    photos = _numbered_photos(tmp_path, 2)
+    client = OcrClient()
+    with patch.object(client._session, "post") as mock_post:
+        with pytest.raises(OcrError, match="run budget of 0s ran out"):
+            client.extract(
+                photos, model="gemini_flash", system="x", chunk_size=1,
+                policy=ExtractPolicy(run_budget_s=0),
+            )
+    mock_post.assert_not_called()
+
+
+def test_units_run_in_parallel_and_join_in_sequence_order(tmp_path: Path) -> None:
+    photos = _numbered_photos(tmp_path, 4)
+    # Every unit waits until all four are in flight: a serial run would
+    # break the barrier instead of passing it.
+    barrier = threading.Barrier(4, timeout=5)
+
+    def hub(url, json, timeout, headers):  # noqa: A002
+        barrier.wait()
+        if _photo_numbers(json) == [1]:
+            time.sleep(0.05)  # the first photo finishes last
+        return _page_reply(json)
+
+    progress = []
+    client = OcrClient()
+    with patch.object(client._session, "post", side_effect=hub):
+        result = client.extract(
+            photos, model="gemini_flash", system="x", chunk_size=1,
+            progress_callback=lambda done, total: progress.append((done, total)),
+            policy=ExtractPolicy(concurrency=4),
+        )
+
+    assert result.extracted_text == "page 1\npage 2\npage 3\npage 4"
+    assert progress == [(1, 4), (2, 4), (3, 4), (4, 4)]
+
+
+def test_serialized_backend_runs_units_one_at_a_time(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.undo()  # use the real backend lookup, stubbed below
+    photos = _numbered_photos(tmp_path, 3)
+    models = MagicMock(status_code=200)
+    models.json.return_value = {
+        "data": [{"id": "gemini_flash", "backend": "gemini"}]
+    }
+    in_flight = []
+    peak = []
+
+    def hub(url, json, timeout, headers):  # noqa: A002
+        in_flight.append(1)
+        peak.append(len(in_flight))
+        time.sleep(0.02)
+        in_flight.pop()
+        return _page_reply(json)
+
+    client = OcrClient()
+    with patch.object(client._session, "get", return_value=models), patch.object(
+        client._session, "post", side_effect=hub
+    ):
+        result = client.extract(
+            photos, model="gemini_flash", system="x", chunk_size=1,
+            policy=ExtractPolicy(concurrency=4),
+        )
+
+    assert result.request_payload["concurrency"] == 1
+    assert max(peak) == 1
+    assert result.extracted_text == "page 1\npage 2\npage 3"

@@ -17,6 +17,9 @@ from pathlib import Path
 from typing import List, Optional
 from urllib.parse import urlencode, urlparse, urlunparse
 
+# Local imports
+from src.ocr_client import ExtractPolicy
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_CONFIG_PATH = (
@@ -33,7 +36,12 @@ DEFAULT_PORT = 8444
 DEFAULT_RETENTION_DAYS = 30
 DEFAULT_MAX_PHOTOS = 50
 DEFAULT_MAX_DIM_PX = 2048
-DEFAULT_EXTRACT_CHUNK_SIZE = 4
+DEFAULT_EXTRACT_CHUNK_SIZE = 1
+# Per-request hub timeout, whole-run budget, parallel hub calls and the
+# optional retry model for one extraction (see src/ocr_client.py).
+DEFAULT_EXTRACT_REQUEST_TIMEOUT_S = 420.0
+DEFAULT_EXTRACT_RUN_BUDGET_S = 900.0
+DEFAULT_EXTRACT_CONCURRENCY = 4
 # Cap on photos accepted by the synchronous single-shot POST /api/extract
 # endpoint. A screenshot is 1–2 images; keep this small so a one-call
 # consumer can't block on a 50-photo hub round-trip. Larger takes use the
@@ -79,6 +87,11 @@ class WebappConfig:
     max_photos_per_session: int = DEFAULT_MAX_PHOTOS
     max_photo_dimension_px: int = DEFAULT_MAX_DIM_PX
     extract_chunk_size: int = DEFAULT_EXTRACT_CHUNK_SIZE
+    extract_request_timeout_s: float = DEFAULT_EXTRACT_REQUEST_TIMEOUT_S
+    extract_run_budget_s: float = DEFAULT_EXTRACT_RUN_BUDGET_S
+    extract_concurrency: int = DEFAULT_EXTRACT_CONCURRENCY
+    # Model a failed unit retries on. Empty = retry on the same model.
+    extract_fallback_model: str = ""
     # Max photos a single synchronous /api/extract call accepts (see
     # DEFAULT_SINGLE_SHOT_MAX_PHOTOS). Bigger takes use the async flow.
     single_shot_max_photos: int = DEFAULT_SINGLE_SHOT_MAX_PHOTOS
@@ -95,6 +108,15 @@ class WebappConfig:
     # browser when the user types it correctly. Lets a fresh device
     # bootstrap without copy-pasting a tokenised URL.
     auth_password: str = ""
+
+    def extract_policy(self) -> ExtractPolicy:
+        """The OCR client's timeout/parallelism/retry policy from these settings."""
+        return ExtractPolicy(
+            request_timeout_s=self.extract_request_timeout_s,
+            run_budget_s=self.extract_run_budget_s,
+            concurrency=self.extract_concurrency,
+            fallback_model=self.extract_fallback_model or None,
+        )
 
 
 def load_webapp_config(path: Optional[Path] = None) -> WebappConfig:
@@ -145,6 +167,18 @@ def load_webapp_config(path: Optional[Path] = None) -> WebappConfig:
         extract_chunk_size=int(
             raw.get("extract_chunk_size", DEFAULT_EXTRACT_CHUNK_SIZE)
         ),
+        extract_request_timeout_s=float(
+            raw.get(
+                "extract_request_timeout_s", DEFAULT_EXTRACT_REQUEST_TIMEOUT_S
+            )
+        ),
+        extract_run_budget_s=float(
+            raw.get("extract_run_budget_s", DEFAULT_EXTRACT_RUN_BUDGET_S)
+        ),
+        extract_concurrency=int(
+            raw.get("extract_concurrency", DEFAULT_EXTRACT_CONCURRENCY)
+        ),
+        extract_fallback_model=str(raw.get("extract_fallback_model") or ""),
         single_shot_max_photos=int(
             raw.get("single_shot_max_photos", DEFAULT_SINGLE_SHOT_MAX_PHOTOS)
         ),
@@ -177,6 +211,10 @@ def save_webapp_config(cfg: WebappConfig, path: Optional[Path] = None) -> Path:
         "max_photos_per_session": cfg.max_photos_per_session,
         "max_photo_dimension_px": cfg.max_photo_dimension_px,
         "extract_chunk_size": cfg.extract_chunk_size,
+        "extract_request_timeout_s": cfg.extract_request_timeout_s,
+        "extract_run_budget_s": cfg.extract_run_budget_s,
+        "extract_concurrency": cfg.extract_concurrency,
+        "extract_fallback_model": cfg.extract_fallback_model,
         "single_shot_max_photos": cfg.single_shot_max_photos,
         "search_enabled": cfg.search_enabled,
         "quality_gate_enabled": cfg.quality_gate_enabled,
@@ -228,6 +266,23 @@ def _validate(cfg: WebappConfig) -> None:
     if cfg.extract_chunk_size < 1 or cfg.extract_chunk_size > cfg.max_photos_per_session:
         raise ValueError(
             "extract_chunk_size must be between 1 and max_photos_per_session"
+        )
+    if cfg.extract_request_timeout_s < 10:
+        raise ValueError("extract_request_timeout_s must be >= 10")
+    if cfg.extract_run_budget_s < cfg.extract_request_timeout_s:
+        raise ValueError(
+            "extract_run_budget_s must be >= extract_request_timeout_s"
+        )
+    if cfg.extract_concurrency < 1 or cfg.extract_concurrency > 16:
+        raise ValueError("extract_concurrency must be between 1 and 16")
+    if (
+        cfg.extract_fallback_model
+        and cfg.ocr_models_available
+        and cfg.extract_fallback_model not in cfg.ocr_models_available
+    ):
+        raise ValueError(
+            f"extract_fallback_model {cfg.extract_fallback_model!r} not in "
+            f"ocr_models_available {cfg.ocr_models_available!r}"
         )
     if (
         cfg.single_shot_max_photos < 1

@@ -14,11 +14,17 @@ same archive shape, same auth model, but for pixels instead of audio.
 - **Multi-photo capture / upload.** iOS Safari and Android Chrome both support
   `<input type="file" accept="image/*" capture="environment" multiple>`. Tap the
   shutter, capture overlapping shots of a long email, tap **Extract**.
-- **Chunked multi-photo extraction.** Photos go to the local LLM hub in
-  bounded, overlapping chunks so long takes stay below upstream timeout
-  ceilings. The model merges text inside each chunk; Python then joins
-  adjacent chunk outputs and de-duplicates the known overlap boundary. There
-  is no second LLM "stitch" call.
+- **Parallel multi-photo extraction.** Each photo goes to the local LLM hub
+  as its own request (`extract_chunk_size`), a few at a time
+  (`extract_concurrency`; backends the hub serializes, such as Gemini, go one
+  by one). Python joins the outputs in sequence order and de-duplicates the
+  lines repeated at each seam. There is no second LLM "stitch" call.
+- **No all-or-nothing.** Each request has its own timeout and the run has an
+  overall budget. A failed photo is retried once (optionally on
+  `extract_fallback_model`). If it still fails, you get the text from the
+  rest with a `[missing: photo N (NN.jpg) could not be read]` line where it
+  belongs, and the status payload lists `missing_photos`. "Hub down" and
+  "hub still working past the timeout" get distinct messages.
 - **Live extract progress.** The webapp starts extraction as a background job
   and polls session status, so long takes show `Chunk i of N`, `Merging`, and
   the final result instead of freezing behind one long HTTP request.
@@ -336,7 +342,7 @@ Created on first **💾 Save defaults** tap. Schema lives in
 
 | Key | Default | Notes |
 |---|---|---|
-| `ocr_model_default` | `gemini_flash` | Alias on the local-llm-hub. |
+| `ocr_model_default` | `claude_opus` | Alias on the local-llm-hub. Fastest complete read of the #166 8-photo replay (29 s, vs 37 s on `claude_sonnet`; `gemini_flash`, which the hub runs one call at a time, read only 5 of 8 within the 900 s budget at 9–382 s per photo). |
 | `ocr_models_available` | gemini × 3, claude × 3 | Drives the picker. |
 | `ocr_prompt_default` | `verbatim-merge` | One of the entries in `config/ocr_prompts.json`. |
 | `llm_hub_url` | `http://127.0.0.1:8000` | Local-llm-hub address. |
@@ -345,7 +351,11 @@ Created on first **💾 Save defaults** tap. Schema lives in
 | `history_retention_days` | `30` | Sessions older than this are pruned on startup. |
 | `max_photos_per_session` | `50` | Hard cap on photos per take. |
 | `max_photo_dimension_px` | `2048` | Long-edge resize before sending to the hub. |
-| `extract_chunk_size` | `4` | Photos per hub request. Chunks overlap by one photo when chunking is needed. |
+| `extract_chunk_size` | `1` | Photos per hub request. Requests of more than one photo overlap by one photo. |
+| `extract_request_timeout_s` | `420` | Seconds one hub request may take before it is abandoned and retried. |
+| `extract_run_budget_s` | `900` | Wall-clock budget for a whole extraction, retries included; photos still unread when it runs out are reported missing. |
+| `extract_concurrency` | `4` | Hub requests in flight at once (1–16). Serialized hub backends (Gemini) always run one at a time. |
+| `extract_fallback_model` | `""` | Model a failed photo retries on once. Empty = retry on the same model. |
 | `single_shot_max_photos` | `8` | Max images the synchronous `POST /api/extract` consumable endpoint accepts (see [Consumable API](#consumable-api-vendor-the-ocr-into-other-apps)). Bigger takes use the async session flow. |
 | `search_enabled` | `true` | Full-text search over the session archive (SQLite FTS5). `false` hides the search box and writes no index. |
 | `quality_gate_enabled` | `true` | On-device pre-flight image quality gate. `false` skips client-side blur/glare/exposure scoring entirely. |
@@ -462,7 +472,7 @@ photo-ocr is the canonical local **image→text** service in the fleet — the p
 The simplest path is one call:
 
 ```bash
-curl -sk -X POST "https://127.0.0.1:8444/api/extract?model=gemini_flash" \
+curl -sk -X POST "https://127.0.0.1:8444/api/extract?model=claude_opus" \
   -F files=@screenshot.png | jq -r .text
 ```
 
