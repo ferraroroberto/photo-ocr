@@ -35,6 +35,7 @@
   <link rel="stylesheet" href="/static/_vendored/select-native/select-native.css">
   <link rel="stylesheet" href="/static/styles.css">
   <link rel="stylesheet" href="/static/_vendored/button/button.css">
+  <link rel="stylesheet" href="/static/_vendored/icon-button/icon-button.css">
   <link rel="stylesheet" href="/static/_vendored/card/card.css">
   <link rel="stylesheet" href="/static/_vendored/toast/toast.css">
   <link rel="stylesheet" href="/static/_vendored/home-head/home-head.css">
@@ -195,12 +196,12 @@
              to a size under the hit-target floor). Hidden with no photos,
              disabled until one is selected. -->
         <div id="thumbToolbar" class="thumb-toolbar" role="toolbar" aria-label="Selected photo" hidden>
-          <button id="thumbMoveLeft" type="button" class="ghost-btn tool-btn" title="Move left" aria-label="Move photo left" disabled><svg class="icon" aria-hidden="true"><use href="#i-chevron-left"></use></svg></button>
-          <button id="thumbMoveRight" type="button" class="ghost-btn tool-btn" title="Move right" aria-label="Move photo right" disabled><svg class="icon" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button>
+          <button id="thumbMoveLeft" type="button" class="icon-button" title="Move left" aria-label="Move photo left" disabled><svg class="icon" aria-hidden="true"><use href="#i-chevron-left"></use></svg></button>
+          <button id="thumbMoveRight" type="button" class="icon-button" title="Move right" aria-label="Move photo right" disabled><svg class="icon" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button>
           <button id="thumbView" type="button" class="ghost-btn" title="View full size" disabled><svg class="icon" aria-hidden="true"><use href="#i-image"></use></svg> View</button>
           <button id="thumbRetake" type="button" class="ghost-btn" hidden disabled><svg class="icon" aria-hidden="true"><use href="#i-camera"></use></svg> Retake</button>
           <button id="thumbKeep" type="button" class="ghost-btn" hidden disabled><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg> Keep</button>
-          <button id="thumbRemove" type="button" class="ghost-btn tool-btn thumb-remove" title="Remove" aria-label="Remove photo" disabled><svg class="icon" aria-hidden="true"><use href="#i-trash-2"></use></svg></button>
+          <button id="thumbRemove" type="button" class="icon-button danger thumb-remove" title="Remove" aria-label="Remove photo" disabled><svg class="icon" aria-hidden="true"><use href="#i-trash-2"></use></svg></button>
         </div>
 
         <!-- One toolbar owns the whole take: Add photo (primary affordance,
@@ -209,10 +210,10 @@
           <label class="button-tint add-photo-btn" for="cameraInput">
             <svg class="icon" aria-hidden="true"><use href="#i-camera"></use></svg> Add photo
           </label>
-          <label class="ghost-btn tool-btn" for="galleryInput" title="Pick from gallery instead of camera" aria-label="Pick from gallery">
+          <label class="icon-button" for="galleryInput" title="Pick from gallery instead of camera" aria-label="Pick from gallery">
             <svg class="icon" aria-hidden="true"><use href="#i-image"></use></svg>
           </label>
-          <button id="resetBtn" type="button" class="ghost-btn tool-btn"
+          <button id="resetBtn" type="button" class="icon-button"
                   title="Reset — clear photos and result" aria-label="Reset"><svg class="icon" aria-hidden="true"><use href="#i-eraser"></use></svg></button>
         </div>
         <!-- On = this take is saved to History (the default); off keeps it
@@ -254,9 +255,9 @@
              count live in the pane's header row above. -->
         <div class="card-head history-tools">
           <div class="card-head-actions">
-            <button id="refreshHistory" type="button" class="ghost-btn tool-btn"
+            <button id="refreshHistory" type="button" class="icon-button"
                     title="Refresh" aria-label="Refresh history"><svg class="icon" aria-hidden="true"><use href="#i-refresh-cw"></use></svg></button>
-            <button id="cleanAll" type="button" class="ghost-btn tool-btn"
+            <button id="cleanAll" type="button" class="icon-button"
                     title="Clean — delete all saved takes" aria-label="Delete all saved takes"><svg class="icon" aria-hidden="true"><use href="#i-trash-2"></use></svg></button>
           </div>
         </div>
