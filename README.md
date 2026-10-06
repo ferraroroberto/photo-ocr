@@ -24,7 +24,10 @@ same archive shape, same auth model, but for pixels instead of audio.
   `extract_fallback_model`). If it still fails, you get the text from the
   rest with a `[missing: photo N (NN.jpg) could not be read]` line where it
   belongs, and the status payload lists `missing_photos`. "Hub down" and
-  "hub still working past the timeout" get distinct messages.
+  "hub still working past the timeout" get distinct messages. A partly read
+  take shows one **Retry missing** action (beside the result, and in its
+  History row's menu) that re-reads only the unread photos, splices their
+  text into place and re-collates — **Redo** still re-reads everything.
 - **Live extract progress.** The webapp starts extraction as a background job
   and polls session status, so long takes show `Chunk i of N`, `Merging`, and
   the final result instead of freezing behind one long HTTP request.
@@ -53,7 +56,8 @@ same archive shape, same auth model, but for pixels instead of audio.
 - **History + redo.** Every take lands in `archive/YYYY/MM/DD/HH-MM-SS-<id>/`.
   Re-run with a different model from the History tab without re-capturing.
   A History row is one tap-to-copy row (snippet first, date · photos · model
-  as its meta line); **Redo** and **Delete** live in the row's overflow menu,
+  as its meta line); **Retry missing** (partly read takes only), **Redo** and
+  **Delete** live in the row's overflow menu,
   Delete last and behind a confirm.
 - **Pre-flight quality gate.** Each photo is scored on-device for blur,
   glare, and exposure the moment it's added — a bad shot gets an advisory
@@ -296,6 +300,7 @@ photo-ocr/
 │   ├── /api/sessions/{id}/extract     start OCR job              │
 │   ├── /api/sessions/{id}/extract/status  poll chunk progress    │
 │   ├── /api/sessions/{id}/redo        start re-run with new model│
+│   ├── /api/sessions/{id}/retry-missing  re-read unread photos   │
 │   ├── /api/sessions                  list (newest first)        │
 │   ├── /api/search                    full-text search (FTS5)     │
 │   ├── /api/config, /api/login, /api/version, …                 │

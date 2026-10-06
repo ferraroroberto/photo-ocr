@@ -236,7 +236,8 @@
         <div class="card-head">
           <h2 class="card-title"><svg class="icon" aria-hidden="true"><use href="#i-file-text"></use></svg> Extracted text</h2>
           <div class="card-head-actions">
-            <button id="copyExtracted" class="copy-btn" type="button" disabled><svg class="icon" aria-hidden="true"><use href="#i-copy"></use></svg> Copy</button>
+            <button id="retryMissing" class="copy-btn" type="button" hidden title="Re-read only the photos that could not be read"><svg class="icon" aria-hidden="true"><use href="#i-refresh-cw"></use></svg> Retry missing</button>
+            <button id="copyExtracted"class="copy-btn" type="button" disabled><svg class="icon" aria-hidden="true"><use href="#i-copy"></use></svg> Copy</button>
           </div>
         </div>
         <textarea id="extracted" class="text-out editable" placeholder="Tap Extract — the text from your photos will appear here, deduplicated and copy-ready." rows="6"></textarea>
@@ -343,7 +344,7 @@
   </dialog>
 
   <!-- A History row's overflow menu: the actions that are not the row's tap
-       (Copy). Redo, then the destructive Delete last, after a divider. One
+       (Copy). Retry missing (only on a partly read take), Redo, then the destructive Delete last, after a divider. One
        shared native dialog on the vendored modal shell; it remembers which
        take opened it. -->
   <dialog id="takeMenu" class="detail-dialog take-menu" aria-labelledby="takeMenuTitle">
@@ -353,6 +354,7 @@
         <button type="button" class="detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
       </div>
       <p id="takeMenuWhen" class="muted take-menu-when"></p>
+      <button id="takeRetry" type="button" class="button-ghost take-menu-btn" hidden><svg class="icon" aria-hidden="true"><use href="#i-refresh-cw"></use></svg> Retry missing photos</button>
       <button id="takeRedo" type="button" class="button-ghost take-menu-btn"><svg class="icon" aria-hidden="true"><use href="#i-redo-2"></use></svg> Redo extraction</button>
       <hr>
       <button id="takeDelete" type="button" class="button-tint danger take-menu-btn"><svg class="icon" aria-hidden="true"><use href="#i-trash-2"></use></svg> Delete take</button>

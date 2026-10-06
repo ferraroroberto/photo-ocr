@@ -182,60 +182,19 @@ class OcrClient:
 
         units = _chunk_paths(image_paths, chunk_size=chunk_size)
         total = len(units)
-        deadline = time.monotonic() + policy.run_budget_s
-        outcomes: List[Optional[_UnitOutcome]] = [None] * total
-        workers = max(1, min(policy.concurrency, total))
-        if workers > 1 and self._backend(model) in SERIALIZED_BACKENDS:
-            workers = 1
-        logger.info(
-            f"🔍 OCR model={model} photos={len(image_paths)} units={total} "
-            f"concurrency={workers} request_timeout={policy.request_timeout_s:.0f}s "
-            f"budget={policy.run_budget_s:.0f}s"
+        finished, workers = self._run_units(
+            list(enumerate(units, start=1)), total, model, system, max_tokens,
+            policy, progress_callback,
         )
-        with ThreadPoolExecutor(
-            max_workers=workers, thread_name_prefix="ocr-unit"
-        ) as pool:
-            futures = {
-                pool.submit(
-                    self._extract_unit,
-                    units[i], i + 1, total, model, system, max_tokens,
-                    policy, deadline,
-                ): i
-                for i in range(total)
-            }
-            done = 0
-            for future in as_completed(futures):
-                outcomes[futures[future]] = future.result()
-                done += 1
-                if progress_callback is not None:
-                    progress_callback(done, total)
-
-        finished = [o for o in outcomes if o is not None]
         if all(o.result is None for o in finished):
             raise finished[0].error
         if total == 1:
             return finished[0].result
 
-        positions = {p: n for n, p in enumerate(image_paths, start=1)}
-        covered = {p for o in finished if o.result is not None for p in o.paths}
-        missing = [p for p in image_paths if p not in covered]
-        segments: List[str] = []
-        for o in finished:
-            if o.result is not None:
-                segments.append(o.result.extracted_text)
-                continue
-            gap = [p for p in o.paths if p not in covered]
-            if gap:
-                segments.append(_missing_marker(gap, positions))
-        if missing:
-            logger.warning(
-                f"⚠️  OCR returned partial text: {len(missing)} of "
-                f"{len(image_paths)} photo(s) missing "
-                f"({', '.join(p.name for p in missing)})"
-            )
+        text, missing = _collate(image_paths, finished)
 
         return OcrResult(
-            extracted_text=_join_chunk_texts(segments),
+            extracted_text=text,
             model=model,
             request_payload={
                 "model": model,
@@ -265,6 +224,143 @@ class OcrClient:
             },
             missing_photos=[p.name for p in missing],
         )
+
+    def retry_missing(
+        self,
+        image_paths: List[Path],
+        request_payload: dict,
+        response_payload: dict,
+        system: str,
+        progress_callback: Optional[Callable[[int, int], None]] = None,
+        policy: Optional[ExtractPolicy] = None,
+    ) -> OcrResult:
+        """Re-read only the units a finished ``extract()`` left unread.
+
+        ``request_payload`` / ``response_payload`` are the archived ones of
+        that run. Units that succeeded keep their archived answer; each
+        failed unit holding a missing photo is read again (same model, same
+        ``system``), then every unit text is re-joined in sequence order.
+        Raises ``OcrError`` when the archive has no per-unit entries (a take
+        from before they were kept — use a full redo) or when no retried
+        unit could be read, so the caller keeps the text it already has.
+        """
+        if policy is None:
+            policy = ExtractPolicy(request_timeout_s=self.timeout)
+        by_name = {p.name: p for p in image_paths}
+        unit_specs = request_payload.get("chunks")
+        entries = response_payload.get("chunks")
+        if (
+            not isinstance(unit_specs, list)
+            or not isinstance(entries, list)
+            or not unit_specs
+            or len(unit_specs) != len(entries)
+        ):
+            raise OcrError(
+                "this take has no per-photo archive to retry from; use Redo"
+            )
+        try:
+            units = [[by_name[n] for n in spec["images"]] for spec in unit_specs]
+        except (KeyError, TypeError) as exc:
+            raise OcrError(
+                f"photo {exc} is no longer in this take; use Redo"
+            ) from exc
+
+        model = str(request_payload.get("model") or "")
+        max_tokens = int(request_payload.get("max_tokens") or DEFAULT_MAX_TOKENS)
+        total = len(units)
+        missing_before = set(response_payload.get("missing_photos") or [])
+
+        outcomes: Dict[int, _UnitOutcome] = {}
+        to_retry = []
+        for index, (unit, entry) in enumerate(zip(units, entries), start=1):
+            if "response" in entry:
+                outcomes[index] = _UnitOutcome(
+                    index=index, paths=unit, model=str(entry.get("model") or model),
+                    attempts=int(entry.get("attempts") or 1),
+                    result=OcrResult(
+                        extracted_text=_extract_text(entry["response"]),
+                        model=str(entry.get("model") or model),
+                        request_payload={},
+                        response_payload=entry["response"],
+                    ),
+                )
+            elif any(p.name in missing_before for p in unit):
+                to_retry.append((index, unit))
+            else:
+                outcomes[index] = _failed_from_entry(index, unit, entry, model)
+        if not to_retry:
+            raise OcrError("nothing to retry in this take")
+
+        retried, _ = self._run_units(
+            to_retry, total, model, system, max_tokens, policy, progress_callback,
+        )
+        if all(o.result is None for o in retried):
+            raise retried[0].error
+        for o in retried:
+            outcomes[o.index] = o
+
+        finished = [outcomes[i] for i in range(1, total + 1)]
+        text, missing = _collate(image_paths, finished)
+        logger.info(
+            f"ℹ️  OCR retry read {sum(o.result is not None for o in retried)} of "
+            f"{len(retried)} unit(s); {len(missing)} photo(s) still missing"
+        )
+        return OcrResult(
+            extracted_text=text,
+            model=model,
+            request_payload=request_payload,
+            response_payload={
+                **response_payload,
+                "chunks": [o.archive_entry() for o in finished],
+                "missing_photos": [p.name for p in missing],
+            },
+            missing_photos=[p.name for p in missing],
+        )
+
+    def _run_units(
+        self,
+        indexed_units: List[tuple],
+        total: int,
+        model: str,
+        system: str,
+        max_tokens: int,
+        policy: ExtractPolicy,
+        progress_callback: Optional[Callable[[int, int], None]],
+    ) -> tuple:
+        """Run ``(index, paths)`` units under one wall-clock budget.
+
+        Returns ``(outcomes in index order, workers used)``. ``index`` is the
+        unit's 1-based place among ``total`` units of the whole take; the
+        progress callback counts only the units run here.
+        """
+        deadline = time.monotonic() + policy.run_budget_s
+        count = len(indexed_units)
+        workers = max(1, min(policy.concurrency, count))
+        if workers > 1 and self._backend(model) in SERIALIZED_BACKENDS:
+            workers = 1
+        logger.info(
+            f"🔍 OCR model={model} units={count}/{total} "
+            f"concurrency={workers} request_timeout={policy.request_timeout_s:.0f}s "
+            f"budget={policy.run_budget_s:.0f}s"
+        )
+        outcomes: List[_UnitOutcome] = []
+        with ThreadPoolExecutor(
+            max_workers=workers, thread_name_prefix="ocr-unit"
+        ) as pool:
+            futures = [
+                pool.submit(
+                    self._extract_unit,
+                    paths, index, total, model, system, max_tokens,
+                    policy, deadline,
+                )
+                for index, paths in indexed_units
+            ]
+            for done, future in enumerate(as_completed(futures), start=1):
+                outcomes.append(future.result())
+                if progress_callback is not None:
+                    progress_callback(done, count)
+        outcomes.sort(key=lambda o: o.index)
+        return outcomes, workers
 
     def _extract_unit(
         self,
@@ -440,6 +536,46 @@ class _UnitOutcome:
 
 def _names(paths: List[Path]) -> str:
     return ", ".join(p.name for p in paths)
+
+
+def _failed_from_entry(
+    index: int, paths: List[Path], entry: dict, model: str
+) -> "_UnitOutcome":
+    """Rebuild a failed unit's outcome from its archived entry."""
+    return _UnitOutcome(
+        index=index, paths=paths, model=str(entry.get("model") or model),
+        attempts=int(entry.get("attempts") or 1),
+        error=OcrError(str(entry.get("error") or "unit could not be read")),
+    )
+
+
+def _collate(
+    image_paths: List[Path], outcomes: List["_UnitOutcome"]
+) -> "tuple[str, List[Path]]":
+    """Join unit outcomes in sequence order into the take's text.
+
+    A failed unit leaves a marker line where its unread photos belong (photos
+    another unit's overlap covered are not unread). Returns the joined text
+    and the photos no successful unit covered.
+    """
+    positions = {p: n for n, p in enumerate(image_paths, start=1)}
+    covered = {p for o in outcomes if o.result is not None for p in o.paths}
+    missing = [p for p in image_paths if p not in covered]
+    segments: List[str] = []
+    for o in outcomes:
+        if o.result is not None:
+            segments.append(o.result.extracted_text)
+            continue
+        gap = [p for p in o.paths if p not in covered]
+        if gap:
+            segments.append(_missing_marker(gap, positions))
+    if missing:
+        logger.warning(
+            f"⚠️  OCR returned partial text: {len(missing)} of "
+            f"{len(image_paths)} photo(s) missing "
+            f"({', '.join(p.name for p in missing)})"
+        )
+    return _join_chunk_texts(segments), missing
 
 
 def _missing_marker(gap: List[Path], positions: dict) -> str:
