@@ -20,6 +20,7 @@
   --accent: #0969da;
   --accent-fg: #ffffff;     /* text/icon on an accent fill */
   --accent-fill: #0969da;   /* solid primary fill (button-primary) */
+  --toggle-knob: var(--accent-fg); /* switch.thumbColor: white on the accent or grey track */
   --accent-text: #0550ae;   /* accent text on an accent-soft tint (fleet-config#963) */
   --danger: #cf222e;
   --danger-text: #a40e26;   /* danger text on its own tint (fleet-config#963) */
@@ -104,6 +105,7 @@
   --accent: #2f81f7;
   --accent-fg: #ffffff;
   --accent-fill: #1f6feb;   /* one step below accent so white text holds AA */
+  --toggle-knob: var(--accent-fg);
   --accent-text: #58a6ff;
   --danger: #f85149;
   --danger-text: #ff7b72;
