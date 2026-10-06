@@ -198,18 +198,6 @@ html, body {
 }
 
 /* ---------- header ---------- */
-/* Icon-only ghost button — the capture-toolbar toggles (gallery / reset) and
-   the History refresh/clean. Square-ish so a row of them stays compact; the
-   flex row it sits in controls height.
-   Compound selector so it outranks the .ghost-btn base later in the file. */
-.ghost-btn.tool-btn {
-  flex: 0 0 auto;
-  width: 44px;
-  padding: var(--space-xs) 0;
-  justify-content: center;
-  font-size: var(--icon-title);
-  user-select: none;
-}
 /* "Save to history": a labelled row in the Capture card, the switch trailing.
    The row's own margins would double the card's column gap. */
 .save-row { margin: 0; }
@@ -331,10 +319,17 @@ html, body {
   pointer-events: none;
 }
 
-/* The selected photo's actions: real 44px targets (.ghost-btn.tool-btn /
-   .ghost-btn) side by side — an adjacent cluster, so geometry, not hit-area
-   expansion. Wraps rather than shrinking a target when Retake / Keep appear
-   on a narrow phone. */
+/* Icon-only rows: the icon-button box is the 44px floor, so neighbours at
+   the row gap never overlap targets. */
+.thumb-toolbar,
+.capture-actions,
+.history-tools {
+  --icon-btn-box: 44px;
+}
+/* The selected photo's actions: real 44px targets (.icon-button at a 44px
+   box / .ghost-btn) side by side — an adjacent cluster, so geometry, not
+   hit-area expansion. Wraps rather than shrinking a target when Retake / Keep
+   appear on a narrow phone. */
 .thumb-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -346,7 +341,7 @@ html, body {
   cursor: default;
 }
 .thumb-toolbar .ghost-btn .icon { width: var(--icon-title); height: var(--icon-title); }
-.thumb-toolbar .thumb-remove { margin-left: auto; color: var(--danger-text); order: 1; }
+.thumb-toolbar .thumb-remove { margin-left: auto; order: 1; }
 /* Retake / Keep share their own row under the cluster on a phone. */
 .thumb-toolbar #thumbRetake,
 .thumb-toolbar #thumbKeep { order: 2; flex: 1 1 45%; justify-content: center; }
