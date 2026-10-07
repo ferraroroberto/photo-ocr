@@ -30,10 +30,11 @@ import hashlib
 import logging
 import re
 import subprocess
-import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Iterable
+
+from src.no_window import NO_WINDOW
 
 logger = logging.getLogger(__name__)
 
@@ -180,7 +181,7 @@ def _git_short_sha(repo_root: Path) -> str:
             capture_output=True,
             text=True,
             timeout=5,
-            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+            creationflags=NO_WINDOW,
         )
     except (OSError, subprocess.SubprocessError) as exc:
         logger.warning(f"⚠️  git SHA unavailable ({exc})")

@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import Optional
 
 from src import AppConfig, cloudflared_runner
+from src.no_window import NO_WINDOW
 from src.webapp_config import append_auth_token, load_webapp_config
 
 from app.tray.single_instance import SingleInstance
@@ -122,7 +123,7 @@ def _clipboard_copy(text: str) -> bool:
                 text=True,
                 check=False,
                 encoding="utf-8",
-                creationflags=subprocess.CREATE_NO_WINDOW,
+                creationflags=NO_WINDOW,
             )
             return p.returncode == 0
         except OSError as exc:
@@ -140,7 +141,7 @@ def _tailscale_hostname() -> Optional[str]:
             text=True,
             timeout=4,
             check=False,
-            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+            creationflags=NO_WINDOW,
         )
     except (FileNotFoundError, OSError, subprocess.TimeoutExpired) as exc:
         logger.debug(f"tailscale lookup failed: {exc}")
