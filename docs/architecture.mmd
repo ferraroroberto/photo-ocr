@@ -15,8 +15,6 @@ flowchart TB
     TUNNELBAT["webapp_tunnel_named.bat"]
   end
   TRAYBAT --> LAUNCHER
-  WEBAPPBAT --> LAUNCHER
-  TUNNELBAT --> LAUNCHER
 
   subgraph cli["app/cli/ — argparse dispatcher"]
     CLIMAIN["main.py — _build_parser, main()"]
@@ -39,10 +37,11 @@ flowchart TB
     MANAGER["manager.py\nWebappManager — adopt-or-spawn uvicorn, status/start/stop"]
     MIDDLEWARE["middleware.py\nBearerTokenMiddleware — loopback bypass, token/password gate"]
     ROUTERS["routers/\nmisc · config · auth · sessions · search · _helpers"]
-    STATIC["static/ — PWA\nindex.html · main.js · capture.js · extract.js · poll.js\nsessions.js · quality.js · settings.js · state.js · api.js · styles.css\n_vendored/ — fleet components (nav · home-head · toast · icons · card · disclosure · empty-state)\ncopied verbatim from project-scaffolding"]
+    STATIC["static/ — PWA\nindex.html · main.js · capture.js · extract.js · poll.js\nsessions.js · quality.js · settings.js · state.js · api.js · styles.css\n_vendored/ — fleet components (nav · home-head · toast · icons · card ·\nempty-state · base · button · icon-button · modal · switch · text-size ·\nrange-tab · action-row · select-native)\ncopied verbatim from project-scaffolding"]
   end
   CLICMDS -->|webapp_cmd| SERVER
   TRAYPY --> MANAGER --> SERVER
+  WEBAPPBAT -->|"uvicorn directly"| SERVER
   SERVER --> MIDDLEWARE
   SERVER --> ROUTERS
   SERVER --> STATIC
@@ -98,6 +97,7 @@ flowchart TB
   GENCERT -->|webapp/certificates/| SERVER
   GENTOKEN --> WEBCFGJSON
   SETPASS --> WEBCFGJSON
+  TUNNELBAT -->|"runs directly"| RUNTUNNEL
 
   ARCHIVE --> ARCHIVEDISK["archive/YYYY/MM/DD/HH-MM-SS-<id>/\nNN.jpg + extracted.txt (gitignored)"]
   ARCHIVEIDX --> ARCHIVEDISK
@@ -114,7 +114,7 @@ flowchart TB
 
   subgraph testsdir["tests/"]
     UNITTESTS["pytest suite — TestClient + mocked hub responses"]
-    E2E["tests/e2e/ — pytest-playwright smoke tests\n(Chromium + WebKit/iPhone), skipped if tray isn't up"]
+    E2E["tests/e2e/ — pytest-playwright smoke tests\n(Chromium + WebKit/iPhone), auto-boots a disposable webapp instance"]
   end
   UNITTESTS --> ROUTERS
   UNITTESTS --> srclayer

@@ -240,7 +240,8 @@ print(c.get(f"/api/sessions/{sid}/text").json()["extracted"])
 | `401` | remote caller, token gate on, token missing/wrong | loopback never sees this |
 | `404` | unknown `session_id` | |
 | `413` | single-shot over `single_shot_max_photos`, or a session over `max_photos_per_session` | use / split via the async flow |
-| `502` | hub unreachable, or the model exhausted its token budget while reasoning | single-shot only; the async path reports the same failure via `phase: "failed"` + `error` |
+| `409` | `/retry-missing` called while an extraction is already running | retry after the current extraction finishes |
+| `502` | hub unreachable, or the model exhausted its token budget while reasoning | single-shot only; the async path reports the same failure via `phase: "failed"` + `error`; also returned by `/retry-missing?wait=true` when nothing new could be read |
 | `500` | session vanished mid-extract (should not happen) | |
 
 The **async** `/extract` path never returns a hub error as a non-200 — it accepts the job (200) and surfaces the failure through `extract/status` (`phase: "failed"`, `error`). Only the **single-shot** path maps a hub failure to `502`, because a one-call consumer needs a status code to branch on.
@@ -251,5 +252,6 @@ The **async** `/extract` path never returns a hub error as a non-200 — it acce
 
 Breaking changes to the contract are recorded here. Pin a build via `GET /api/version` (`git_sha`) if you need certainty.
 
+- **2026-10-06** — Partial-result semantics (issues #168, #169; additive, but changes prior behavior for existing consumers — a chunk that previously failed the whole call now returns a `200`). A photo that no hub request could read no longer fails the take: `text` (single-shot) / `extracted` (async) carries a `[missing: photo N (NN.jpg) could not be read]` marker line in place of that photo's text, and the single-shot response plus the async status payload both gained `missing_photos` (names of the unread photos). Added `POST /api/sessions/{id}/retry-missing` to re-read just the missing photos of a partly read take (`?wait=true` for the single-shot shape); its status payload also gained `retry_error`. Added `409` (an extraction already running) to the Error reference. See [`/retry-missing`](#post-apisessionsidretry-missing-re-read-only-the-unread-photos).
 - **2026-06-12** — Added **source attribution** (issue #39, additive — not breaking). `POST /api/extract` and `POST /api/sessions` accept an optional `source` label (single-shot default `"api"`, PWA default `"webapp"`); it is recorded per session and surfaces in `GET /api/sessions`, the `source` field of both create responses, the History UI, and full-text search. Documents History as the fleet's single-source-of-truth audit trail for all OCR. See [History as a single source of truth](#history-as-a-single-source-of-truth).
 - **2026-06-11** — Initial publication of the OCR API as a supported consumable surface, plus the new single-shot `POST /api/extract` endpoint (issue #37). The `/api/sessions*` routes already worked over loopback; this documents them as a contract and adds the one-call path for downstream consumers (first consumer: app-launcher#171).
