@@ -11,6 +11,7 @@ extraction without going through `Request`/`app.state` plumbing. See
 from __future__ import annotations
 
 # Standard library imports
+import hashlib
 import logging
 import time
 from typing import Any, Dict
@@ -25,6 +26,7 @@ from src.webapp_config import WebappConfig
 logger = logging.getLogger(__name__)
 
 _PROGRESS_KEY = "extract_progress"
+_NON_TERMINAL_PHASES = frozenset({"queued", "running", "merging"})
 
 
 def progress_meta(session: Session) -> Dict[str, Any]:
@@ -71,6 +73,49 @@ def set_extract_progress(session: Session, **fields: Any) -> None:
     progress.update(fields)
     session.meta.extra[_PROGRESS_KEY] = progress
     session.write_meta()
+
+
+def photos_signature(session: Session) -> str:
+    """Fingerprint of the take's photo list (files, sizes, order)."""
+    digest = hashlib.sha1()
+    for p in session.meta.photos:
+        digest.update(f"{p.path}:{p.bytes_on_disk}:{p.width}x{p.height};".encode())
+    return digest.hexdigest()
+
+
+def extract_is_current(session: Session) -> bool:
+    """Whether the stored text still reflects the take's photos.
+
+    A photo added, removed or reordered after the read makes it stale. A take
+    read before the fingerprint was recorded counts as current.
+    """
+    recorded = progress_meta(session).get("photos_sig")
+    return recorded is None or recorded == photos_signature(session)
+
+
+def settle_interrupted(session: Session, reason: str) -> None:
+    """Settle a take whose job died before reaching a terminal phase, so it
+    can't read as queued/running forever and block ``/extract``, ``/redo`` and
+    ``/retry-missing``. A take with text on disk keeps it (a redo or retry
+    died, the last good read is intact); one without is marked failed."""
+    if session.meta.extract_succeeded:
+        set_extract_progress(session, phase="succeeded", retry_error=reason)
+        return
+    model = progress_meta(session).get("model") or session.meta.model or ""
+    session.mark_extract_failed(model, reason, prompt_id=session.meta.prompt_id)
+    set_extract_progress(session, phase="failed", error=reason)
+
+
+def settle_interrupted_extracts(archive: SessionArchive) -> int:
+    """Boot-time sweep: no job survives a restart, so any take still in a
+    non-terminal phase was interrupted. Returns how many were settled."""
+    settled = 0
+    for session in archive.iter_sessions():
+        if progress_meta(session).get("phase") in _NON_TERMINAL_PHASES:
+            settle_interrupted(session, "interrupted by a webapp restart")
+            logger.info(f"ℹ️  Settled interrupted extract for {session.session_id}")
+            settled += 1
+    return settled
 
 
 def _index_session_best_effort(
@@ -187,6 +232,7 @@ def execute_extract_job(
             error=None,
             reused=False,
             missing_photos=result.missing_photos,
+            photos_sig=photos_signature(current),
         )
         _index_session_best_effort(cfg, archive, current)
 

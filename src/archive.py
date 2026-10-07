@@ -390,6 +390,11 @@ class SessionArchive:
             sessions = sessions[:limit]
         return sessions
 
+    def iter_sessions(self) -> Iterator[Session]:
+        """Every session on disk, incognito included, in no particular order."""
+        for folder in self._iter_session_folders():
+            yield self._hydrate(folder)
+
     def count_sessions(self) -> int:
         return sum(
             1

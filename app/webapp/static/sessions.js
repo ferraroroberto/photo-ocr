@@ -5,7 +5,7 @@
 
 import { state, els, toast, HISTORY_PAGE_SIZE, modelLabel } from './state.js';
 import { jsonApi } from './api.js';
-import { renderExtracted, retryMissing } from './extract.js';
+import { adoptTake, retryMissing } from './extract.js';
 import { renderThumbnails, setStatus } from './capture.js';
 import { pollUntilDone, extractStatusLine } from './poll.js';
 import { icon } from './_vendored/icons/icons.js';
@@ -273,10 +273,7 @@ async function redoHistoryEntry(s) {
       : await pollUntilDone(s.session_id, function (b) {
           setStatus(extractStatusLine(b, 'Redo '));
         });
-    state.sessionId = s.session_id;
-    state.extracted = finalBody.extracted || '';
-    state.missingPhotos = finalBody.missing_photos || [];
-    renderExtracted();
+    adoptTake(s.session_id, finalBody);
     refreshHistoryView();
     setStatus('Redo done — tap Copy');
     finalStatusText = els.captureStatus.textContent;

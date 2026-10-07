@@ -8,6 +8,7 @@ import { state, els, toast } from './state.js';
 import { jsonApi } from './api.js';
 import { assessImage } from './quality.js';
 import { icon } from './_vendored/icons/icons.js';
+import { resetTake } from './extract.js';
 
 function clientId() {
   return 'c' + Math.random().toString(36).slice(2, 10);
@@ -153,6 +154,9 @@ export function renderThumbnails() {
 // ----------------------------------------------------------- capture
 export function handleFilePick(files) {
   if (!files || !files.length) return;
+  // The Capture card is showing a History take's result: its photos aren't in
+  // the strip, so a new photo belongs to a new take, not appended to that one.
+  if (state.takeAdopted) resetTake();
   const maxAllowed = state.config && state.config.max_photos_per_session
     ? state.config.max_photos_per_session
     : 50;
@@ -210,6 +214,8 @@ async function uploadPhoto(photo) {
   renderThumbnails();
   try {
     const sid = await ensureSession();
+    // Removed (or retaken) while the session was still being created.
+    if (state.photos.indexOf(photo) < 0) return;
     const form = new FormData();
     form.append('files', photo.file, photo.file.name || 'photo.jpg');
     const body = await jsonApi('/api/sessions/' + encodeURIComponent(sid) + '/photos', {
@@ -221,6 +227,12 @@ async function uploadPhoto(photo) {
     // server response for correctness if the user added several at once.
     const added = (body.added || []).slice(-1)[0];
     if (added) photo.seq = added.sequence_index;
+    // Removed while the upload was in flight: removePhoto had no server copy
+    // to delete yet, so drop it now or the next order sync is one photo short.
+    if (state.photos.indexOf(photo) < 0) {
+      if (added) await deleteServerPhoto(sid, added.sequence_index);
+      return;
+    }
     photo.status = 'ready';
   } catch (exc) {
     photo.status = 'failed';
@@ -228,6 +240,18 @@ async function uploadPhoto(photo) {
     toast('Upload failed: ' + photo.error, 'error');
   } finally {
     renderThumbnails();
+  }
+}
+
+async function deleteServerPhoto(sid, seq) {
+  try {
+    const body = await jsonApi(
+      '/api/sessions/' + encodeURIComponent(sid) + '/photos/' + seq,
+      { method: 'DELETE' }
+    );
+    if (sid === state.sessionId) applyServerPhotoOrder(body.photos);
+  } catch (exc) {
+    toast('Server delete failed: ' + (exc.message || exc), 'error');
   }
 }
 
@@ -240,18 +264,7 @@ async function removePhoto(photo) {
   state.photos.splice(idx, 1);
   renderThumbnails();
   if (photo.status === 'ready' && state.sessionId && photo.seq != null) {
-    try {
-      const body = await jsonApi(
-        '/api/sessions/' +
-          encodeURIComponent(state.sessionId) +
-          '/photos/' +
-          photo.seq,
-        { method: 'DELETE' }
-      );
-      applyServerPhotoOrder(body.photos);
-    } catch (exc) {
-      toast('Server delete failed: ' + (exc.message || exc), 'error');
-    }
+    await deleteServerPhoto(state.sessionId, photo.seq);
   }
 }
 

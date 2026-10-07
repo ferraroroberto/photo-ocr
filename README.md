@@ -172,8 +172,8 @@ tunnel in the background so the public URL is up alongside the webapp.
   - **📷 Open photo OCR** — opens the webapp.
   - **📋 Copy local URL** — clipboard the loopback URL (with `?token=…` if
     `auth_token` is set).
-  - **📋 Copy Tailscale URL** — clipboard `https://<tailscale-host>:8444`
-    (with `?token=…` if set). Resolves the tailnet hostname via
+  - **📋 Copy Tailscale URL** — clipboard `https://<pc>.<tailnet>.ts.net:8444`
+    (with `?token=…` if set). Resolves the full tailnet DNS name via
     `tailscale status --json`; greyed-out feedback if Tailscale isn't
     installed or logged in.
   - **📋 Copy Cloudflare URL** — clipboard the public URL from

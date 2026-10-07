@@ -113,10 +113,7 @@ export async function retryMissing(sessionId) {
     const body = await pollUntilDone(sessionId, function (b) {
       setStatus(extractStatusLine(b, 'Retry · '));
     });
-    state.sessionId = sessionId;
-    state.extracted = body.extracted || '';
-    state.missingPhotos = body.missing_photos || [];
-    renderExtracted();
+    adoptTake(sessionId, body);
     loadHistory(0);
     const left = state.missingPhotos.length;
     if (body.retry_error) {
@@ -178,13 +175,32 @@ export async function copyExtracted() {
 }
 
 // ----------------------------------------------------------- reset
-export function resetTake() {
+function dropPhotos() {
   state.photos.forEach(function (p) {
     if (p.previewUrl) {
       try { URL.revokeObjectURL(p.previewUrl); } catch (_) {}
     }
   });
   state.photos = [];
+}
+
+// Show a History take's result in the Capture card (Redo / Retry missing).
+// When it is a different take from the one in the strip, the strip's photos
+// aren't its photos: drop them, and let the next added photo start a new take.
+export function adoptTake(sessionId, body) {
+  if (state.sessionId !== sessionId) {
+    dropPhotos();
+    state.takeAdopted = true;
+  }
+  state.sessionId = sessionId;
+  state.extracted = body.extracted || '';
+  state.missingPhotos = body.missing_photos || [];
+  renderExtracted();
+}
+
+export function resetTake() {
+  dropPhotos();
+  state.takeAdopted = false;
   state.sessionId = null;
   state.sessionIdPromise = null;
   state.extracted = '';

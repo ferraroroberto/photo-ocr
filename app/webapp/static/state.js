@@ -17,6 +17,10 @@
  *   state.prompts         — [{ id, label, description, system }]
  *   state.config          — full /api/config response
  *   state.busy            — boolean: an extract is in flight
+ *   state.takeAdopted     — boolean: sessionId is a History take whose result
+ *                           was pulled into the Capture card (Redo / Retry
+ *                           missing); the strip does not hold its photos, so
+ *                           the next added photo starts a fresh take
  *   state.incognito       — boolean: don't save this take to history (the
  *                           Save to history switch shows its inverse)
  *   state.searchQuery     — active archive-search phrase ('' = browse mode)
@@ -49,6 +53,7 @@ export const state = {
   prompts: [],
   config: null,
   busy: false,
+  takeAdopted: false,
   incognito: false,
   historyOffset: 0,
   historyItems: [],

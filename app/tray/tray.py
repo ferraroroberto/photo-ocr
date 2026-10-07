@@ -133,7 +133,9 @@ def _clipboard_copy(text: str) -> bool:
 
 
 def _tailscale_hostname() -> Optional[str]:
-    """Return the tailnet hostname for this machine, or None if Tailscale is unavailable."""
+    """Return this machine's full tailnet DNS name (``pc.<tailnet>.ts.net``), or
+    None if Tailscale is unavailable. The full name is what the ``tailscale cert``
+    certificate is issued for; the bare first label fails the TLS name check."""
     try:
         result = subprocess.run(
             ["tailscale", "status", "--self=true", "--peers=false", "--json"],
@@ -153,11 +155,7 @@ def _tailscale_hostname() -> Optional[str]:
     except ValueError:
         return None
     self_node = data.get("Self") or {}
-    dns = (self_node.get("DNSName") or "").rstrip(".")
-    if not dns:
-        return None
-    short = dns.split(".")[0]
-    return short or dns
+    return (self_node.get("DNSName") or "").rstrip(".") or None
 
 
 def _notify(title: str, message: str) -> None:

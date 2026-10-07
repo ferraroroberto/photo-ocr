@@ -112,6 +112,15 @@ def _srcs(page: Page) -> list[str]:
     )
 
 
+def _wait_until(page: Page, predicate, timeout_ms: int = 5_000) -> None:
+    """Poll a Python-side condition (a route handler filled a list)."""
+    for _ in range(timeout_ms // 50):
+        if predicate():
+            return
+        page.wait_for_timeout(50)
+    raise AssertionError("condition not met in time")
+
+
 def _assert_hit_targets(page: Page, selectors: list[str]) -> None:
     for sel in selectors:
         for i, box in enumerate(
@@ -211,3 +220,48 @@ def test_thumbnail_toolbar_selects_and_acts(authed_page: Page, base_url: str) ->
     expect(authed_page.locator("#thumbRemove")).to_be_disabled()
     assert len(deleted) == 1, deleted
     assert errors == [], errors
+
+
+def test_removing_a_photo_mid_upload_deletes_it_server_side(
+    authed_page: Page, base_url: str
+) -> None:
+    """Remove (or Retake) while the upload is still in flight: the photo is
+    dropped from the strip at once, and once the upload lands the page deletes
+    the stray server copy — else the next order sync is one photo short and
+    Extract fails."""
+    deleted: list[str] = []
+    held: list[Route] = []
+
+    def json_route(body: dict):
+        return lambda route: route.fulfill(
+            status=200, content_type="application/json", body=json.dumps(body)
+        )
+
+    def photo(route: Route) -> None:
+        if route.request.method != "DELETE":
+            route.fallback()
+            return
+        deleted.append(route.request.url)
+        json_route({"photos": []})(route)
+
+    authed_page.route("**/api/sessions", json_route({"session_id": "mocked"}))
+    authed_page.route("**/api/sessions/mocked/photos", lambda route: held.append(route))  # held open
+    authed_page.route("**/api/sessions/mocked/photos/*", photo)
+    authed_page.goto(f"{base_url}/", wait_until="domcontentloaded")
+    authed_page.wait_for_selector("#extractBtn", state="attached", timeout=5_000)
+
+    authed_page.set_input_files("#galleryInput", files=[_file("a.jpg", noisy=True)])
+    expect(authed_page.locator("#thumbStrip li.thumb.uploading")).to_have_count(1)
+    authed_page.locator("#thumbStrip .thumb-select").click()
+    authed_page.locator("#thumbRemove").click()
+    expect(authed_page.locator("#thumbStrip li.thumb")).to_have_count(0)
+
+    _wait_until(authed_page, lambda: held)
+    assert deleted == []
+    held[0].fulfill(
+        status=200,
+        content_type="application/json",
+        body=json.dumps({"added": [{"sequence_index": 1}], "photos": []}),
+    )
+    _wait_until(authed_page, lambda: deleted)
+    assert deleted[0].endswith("/api/sessions/mocked/photos/1"), deleted
