@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 import logging
 import os
-from dataclasses import dataclass, field, replace
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import List, Optional
 from urllib.parse import urlencode, urlparse, urlunparse
@@ -200,27 +200,7 @@ def save_webapp_config(cfg: WebappConfig, path: Optional[Path] = None) -> Path:
     target = Path(path) if path is not None else DEFAULT_CONFIG_PATH
     target.parent.mkdir(parents=True, exist_ok=True)
 
-    payload = {
-        "ocr_model_default": cfg.ocr_model_default,
-        "ocr_models_available": list(cfg.ocr_models_available),
-        "ocr_prompt_default": cfg.ocr_prompt_default,
-        "llm_hub_url": cfg.llm_hub_url,
-        "host": cfg.host,
-        "port": cfg.port,
-        "history_retention_days": cfg.history_retention_days,
-        "max_photos_per_session": cfg.max_photos_per_session,
-        "max_photo_dimension_px": cfg.max_photo_dimension_px,
-        "extract_chunk_size": cfg.extract_chunk_size,
-        "extract_request_timeout_s": cfg.extract_request_timeout_s,
-        "extract_run_budget_s": cfg.extract_run_budget_s,
-        "extract_concurrency": cfg.extract_concurrency,
-        "extract_fallback_model": cfg.extract_fallback_model,
-        "single_shot_max_photos": cfg.single_shot_max_photos,
-        "search_enabled": cfg.search_enabled,
-        "quality_gate_enabled": cfg.quality_gate_enabled,
-        "auth_token": cfg.auth_token,
-        "auth_password": cfg.auth_password,
-    }
+    payload = asdict(cfg)
 
     tmp = target.with_suffix(target.suffix + ".tmp")
     tmp.write_text(json.dumps(payload, indent=2), encoding="utf-8")

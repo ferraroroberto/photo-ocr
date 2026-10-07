@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import fields
 from pathlib import Path
 
 import pytest
@@ -139,3 +140,15 @@ def test_append_auth_token() -> None:
     # Pre-existing query string is preserved
     out = append_auth_token("https://x.example/?foo=bar", "abc")
     assert "foo=bar" in out and "token=abc" in out
+
+
+def test_save_writes_every_field_and_round_trips(tmp_path: Path) -> None:
+    """A new ``WebappConfig`` field must reach disk without a second list to
+    update: the saved file carries exactly the dataclass's fields."""
+    cfg = WebappConfig(auth_token="tok", quality_gate_enabled=False)
+    path = tmp_path / "webapp_config.json"
+    save_webapp_config(cfg, path=path)
+    assert set(json.loads(path.read_text(encoding="utf-8"))) == {
+        f.name for f in fields(WebappConfig)
+    }
+    assert load_webapp_config(path) == cfg
