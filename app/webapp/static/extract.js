@@ -105,7 +105,7 @@ export async function extract() {
   await runTakeJob({
     failLabel: 'Extract failed',
     startStatus:
-      'LLM hub → ' + modelLabel(state.model) + ' · extracting from ' + readyPhotos.length + ' photo(s)…',
+      'Extracting from ' + readyPhotos.length + ' photo(s) with ' + modelLabel(state.model) + '…',
     begin: function () { els.extractBtn.classList.add('busy'); },
     end: function () { els.extractBtn.classList.remove('busy'); },
     run: async function () {
