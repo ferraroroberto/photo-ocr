@@ -3,7 +3,7 @@
 
 'use strict';
 
-import { state, els, toast, modelLabel } from './state.js';
+import { state, els, toast, modelLabel, copyText } from './state.js';
 import { jsonApi } from './api.js';
 import { renderThumbnails, setStatus, syncPhotoOrder } from './capture.js';
 import { loadHistory } from './sessions.js';
@@ -41,6 +41,54 @@ function renderExtractStatus(body, startedAt) {
   }
 }
 
+// ----------------------------------------------------------- job scaffold
+// The three OCR jobs — Extract, Redo (History) and Retry missing — share one
+// shape: start POST, poll to a terminal phase, show the outcome, and keep the
+// busy flag and the status line honest on success and failure alike.
+export function postJob(sessionId, action, payload) {
+  const opts = { method: 'POST', timeoutMs: 15000 };
+  if (payload) {
+    opts.headers = { 'Content-Type': 'application/json' };
+    opts.body = JSON.stringify(payload);
+  }
+  return jsonApi('/api/sessions/' + encodeURIComponent(sessionId) + '/' + action, opts);
+}
+
+// The terminal body of a job whose start answer was `started`. `prefix` words
+// the progress line per surface ('' | 'Redo ' | 'Retry · ').
+export function followJob(sessionId, started, prefix) {
+  if (started.phase === 'succeeded') return Promise.resolve(started);
+  return pollUntilDone(sessionId, function (b) {
+    setStatus(extractStatusLine(b, prefix));
+  });
+}
+
+// Run `run()` inside the busy cycle. `begin` / `end` toggle the caller's own
+// button; `failLabel` heads the failure toast ('Extract failed'), and
+// `failStatus` heads the status line when it differs ('Failed: ' by default).
+// The final status line survives the thumbnail re-render that ends the cycle.
+export async function runTakeJob(opts) {
+  if (state.busy) return;
+  state.busy = true;
+  if (opts.begin) opts.begin();
+  renderThumbnails();
+  setStatus(opts.startStatus);
+  let finalStatusText = null;
+  try {
+    await opts.run();
+    finalStatusText = els.captureStatus.textContent;
+  } catch (exc) {
+    setStatus((opts.failStatus || 'Failed: ') + (exc.message || exc));
+    finalStatusText = els.captureStatus.textContent;
+    toast(opts.failLabel + ': ' + (exc.message || exc), 'error');
+  } finally {
+    state.busy = false;
+    if (opts.end) opts.end();
+    renderThumbnails();
+    if (finalStatusText) setStatus(finalStatusText);
+  }
+}
+
 // ----------------------------------------------------------- extract
 export async function extract() {
   if (!state.sessionId) {
@@ -53,90 +101,60 @@ export async function extract() {
     toast('No photos ready yet.', 'error');
     return;
   }
-  state.busy = true;
-  els.extractBtn.classList.add('busy');
-  els.extractBtn.disabled = true;
-  setStatus(
-    'LLM hub → ' + modelLabel(state.model) + ' · extracting from ' + readyPhotos.length + ' photo(s)…'
-  );
-
   const t0 = Date.now();
-  let finalStatusText = null;
-  try {
-    await syncPhotoOrder();
-    const body = await jsonApi(
-      '/api/sessions/' + encodeURIComponent(state.sessionId) + '/extract',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: state.model, prompt_id: state.promptId }),
-        timeoutMs: 15000,
-      }
-    );
-    renderExtractStatus(body, t0);
-    if (body.phase !== 'succeeded') {
-      const finalBody = await pollUntilDone(state.sessionId, function (b) {
-        renderExtractStatus(b, t0);
+  await runTakeJob({
+    failLabel: 'Extract failed',
+    startStatus:
+      'LLM hub → ' + modelLabel(state.model) + ' · extracting from ' + readyPhotos.length + ' photo(s)…',
+    begin: function () { els.extractBtn.classList.add('busy'); },
+    end: function () { els.extractBtn.classList.remove('busy'); },
+    run: async function () {
+      await syncPhotoOrder();
+      const body = await postJob(state.sessionId, 'extract', {
+        model: state.model,
+        prompt_id: state.promptId,
       });
-      renderExtractStatus(finalBody, t0);
-    }
-    finalStatusText = els.captureStatus.textContent;
-    loadHistory(0);
-  } catch (exc) {
-    setStatus('Failed: ' + (exc.message || exc));
-    finalStatusText = els.captureStatus.textContent;
-    toast('Extract failed: ' + (exc.message || exc), 'error');
-  } finally {
-    state.busy = false;
-    els.extractBtn.classList.remove('busy');
-    renderThumbnails();
-    if (finalStatusText) setStatus(finalStatusText);
-  }
+      renderExtractStatus(body, t0);
+      if (body.phase !== 'succeeded') {
+        const finalBody = await pollUntilDone(state.sessionId, function (b) {
+          renderExtractStatus(b, t0);
+        });
+        renderExtractStatus(finalBody, t0);
+      }
+      loadHistory(0);
+    },
+  });
 }
 
 // ----------------------------------------------------------- retry missing
 // Re-read only the photos a partly read take left unread. Shared by the
 // Capture result card and the History row menu; the outcome is one toast.
 export async function retryMissing(sessionId) {
-  if (state.busy) return;
-  state.busy = true;
-  els.retryMissing.disabled = true;
-  renderThumbnails();
-  setStatus('Queued retry…');
-  let finalStatusText = null;
-  try {
-    const started = await jsonApi(
-      '/api/sessions/' + encodeURIComponent(sessionId) + '/retry-missing',
-      { method: 'POST', timeoutMs: 15000 }
-    );
-    const before = (started.missing_photos || []).length;
-    const body = await pollUntilDone(sessionId, function (b) {
-      setStatus(extractStatusLine(b, 'Retry · '));
-    });
-    adoptTake(sessionId, body);
-    loadHistory(0);
-    const left = state.missingPhotos.length;
-    if (body.retry_error) {
-      setStatus('Retry failed: ' + body.retry_error);
-      toast('Retry failed: ' + body.retry_error, 'error');
-    } else if (!left) {
-      setStatus('All photos read — tap Copy');
-      toast('All photos read.');
-    } else {
-      setStatus(left + ' photo(s) still missing');
-      toast('Read ' + (before - left) + ' of ' + before + ' missing; ' + left + ' still missing.');
-    }
-    finalStatusText = els.captureStatus.textContent;
-  } catch (exc) {
-    setStatus('Retry failed: ' + (exc.message || exc));
-    finalStatusText = els.captureStatus.textContent;
-    toast('Retry failed: ' + (exc.message || exc), 'error');
-  } finally {
-    state.busy = false;
-    els.retryMissing.disabled = false;
-    renderThumbnails();
-    if (finalStatusText) setStatus(finalStatusText);
-  }
+  await runTakeJob({
+    failLabel: 'Retry failed',
+    failStatus: 'Retry failed: ',
+    startStatus: 'Queued retry…',
+    begin: function () { els.retryMissing.disabled = true; },
+    end: function () { els.retryMissing.disabled = false; },
+    run: async function () {
+      const started = await postJob(sessionId, 'retry-missing');
+      const before = (started.missing_photos || []).length;
+      const body = await followJob(sessionId, started, 'Retry · ');
+      adoptTake(sessionId, body);
+      loadHistory(0);
+      const left = state.missingPhotos.length;
+      if (body.retry_error) {
+        setStatus('Retry failed: ' + body.retry_error);
+        toast('Retry failed: ' + body.retry_error, 'error');
+      } else if (!left) {
+        setStatus('All photos read — tap Copy');
+        toast('All photos read.');
+      } else {
+        setStatus(left + ' photo(s) still missing');
+        toast('Read ' + (before - left) + ' of ' + before + ' missing; ' + left + ' still missing.');
+      }
+    },
+  });
 }
 
 // ----------------------------------------------------------- copy
@@ -144,24 +162,7 @@ export async function copyExtracted() {
   const txt = state.extracted || '';
   if (!txt) return;
   try {
-    // Prefer the ClipboardItem path with text/plain only — voice-transcriber's
-    // troubleshooting table flags styled-DOM leakage with the writeText
-    // path on some Safari versions; force the MIME explicitly.
-    if (window.ClipboardItem && navigator.clipboard && navigator.clipboard.write) {
-      const blob = new Blob([txt], { type: 'text/plain' });
-      const item = new ClipboardItem({ 'text/plain': blob });
-      await navigator.clipboard.write([item]);
-    } else if (navigator.clipboard && navigator.clipboard.writeText) {
-      await navigator.clipboard.writeText(txt);
-    } else {
-      // Fallback for very old browsers.
-      const ta = document.createElement('textarea');
-      ta.value = txt;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
-    }
+    await copyText(txt);
     els.copyExtracted.classList.add('copied');
     const original = els.copyExtracted.innerHTML;
     els.copyExtracted.innerHTML = icon('check') + ' Copied';
