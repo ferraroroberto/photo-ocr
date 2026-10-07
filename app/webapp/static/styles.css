@@ -40,7 +40,8 @@
   /* theme-invariant surfaces: the login scrim dims content and the photo
      lightbox/thumb overlays frame photos — neither is a themed surface. */
   --scrim: rgba(0, 0, 0, 0.5);
-  /* radii (rounded scale) — {md, lg, pill, nav}; small strays fold into md. */
+  /* radii (rounded scale) — {sm, md, lg, pill, nav}; other strays fold into md. */
+  --radius-sm: 8px;         /* rounded.sm — read by the vendored icon-button */
   --radius-md: 12px;
   --radius: 16px;           /* rounded.lg — cards */
   --radius-pill: 9999px;
