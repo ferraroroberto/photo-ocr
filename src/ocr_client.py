@@ -55,6 +55,16 @@ DEFAULT_CONCURRENCY = 4
 SERIALIZED_BACKENDS = frozenset({"gemini"})
 DEFAULT_CHUNK_SIZE = 1
 DEFAULT_CHUNK_OVERLAP = 1
+# Seam dedup between adjacent units: at most this many trailing lines of one
+# unit are compared with the head of the next. A stated guess, not measured:
+# it must cover the lines one overlapping photo repeats, and a larger window
+# risks dropping genuinely repeated lines (table rows, repeated headers).
+SEAM_MAX_LINES = 12
+# Two seam lines count as the same line at or above this difflib ratio. Also a
+# guess, not measured: loose enough to absorb an OCR slip or two between the
+# two reads of one line, tight enough that distinct lines are kept (a wrong
+# match silently deletes text).
+SEAM_LINE_SIMILARITY = 0.92
 # Vision models need a generous budget for long documents — voice
 # polish needed 16k for reasoning-heavy paths; OCR can produce equally
 # long output for a 20-photo email screenshot sequence.
@@ -656,7 +666,7 @@ def _join_two_chunks(left: str, right: str) -> str:
 
 def _find_line_overlap(left_lines: List[str], right_lines: List[str]) -> int:
     """Return how many leading right lines duplicate trailing left lines."""
-    max_window = min(12, len(left_lines), len(right_lines))
+    max_window = min(SEAM_MAX_LINES, len(left_lines), len(right_lines))
     for size in range(max_window, 0, -1):
         left_tail = left_lines[-size:]
         right_head = right_lines[:size]
@@ -679,7 +689,8 @@ def _lines_match(left: str, right: str) -> bool:
         return left_norm == right_norm
     if left_norm == right_norm:
         return True
-    return difflib.SequenceMatcher(None, left_norm, right_norm).ratio() >= 0.92
+    ratio = difflib.SequenceMatcher(None, left_norm, right_norm).ratio()
+    return ratio >= SEAM_LINE_SIMILARITY
 
 
 def _normalise_line(line: str) -> str:
