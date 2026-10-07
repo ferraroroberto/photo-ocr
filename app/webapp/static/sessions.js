@@ -3,11 +3,10 @@
 
 'use strict';
 
-import { state, els, toast, HISTORY_PAGE_SIZE, modelLabel } from './state.js';
+import { state, els, toast, HISTORY_PAGE_SIZE, modelLabel, copyText } from './state.js';
 import { jsonApi } from './api.js';
-import { adoptTake, retryMissing } from './extract.js';
-import { renderThumbnails, setStatus } from './capture.js';
-import { pollUntilDone, extractStatusLine } from './poll.js';
+import { adoptTake, followJob, postJob, retryMissing, runTakeJob } from './extract.js';
+import { setStatus } from './capture.js';
 import { icon } from './_vendored/icons/icons.js';
 import { emptyStateEl } from './_vendored/empty-state/empty-state.js';
 
@@ -243,9 +242,7 @@ async function copyHistoryEntry(s) {
       toast('Nothing to copy.', 'error');
       return;
     }
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      await navigator.clipboard.writeText(txt);
-    }
+    await copyText(txt);
     toast('Copied ' + txt.length + ' chars.');
   } catch (exc) {
     toast('Copy failed: ' + (exc.message || exc), 'error');
@@ -253,40 +250,21 @@ async function copyHistoryEntry(s) {
 }
 
 async function redoHistoryEntry(s) {
-  if (state.busy) return;
-  state.busy = true;
-  renderThumbnails();
-  setStatus('Queued redo…');
-  let finalStatusText = null;
-  try {
-    const body = await jsonApi(
-      '/api/sessions/' + encodeURIComponent(s.session_id) + '/redo',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: state.model, prompt_id: state.promptId }),
-        timeoutMs: 15000,
-      }
-    );
-    const finalBody = body.phase === 'succeeded'
-      ? body
-      : await pollUntilDone(s.session_id, function (b) {
-          setStatus(extractStatusLine(b, 'Redo '));
-        });
-    adoptTake(s.session_id, finalBody);
-    refreshHistoryView();
-    setStatus('Redo done — tap Copy');
-    finalStatusText = els.captureStatus.textContent;
-    toast('Redo done.');
-  } catch (exc) {
-    setStatus('Failed: ' + (exc.message || exc));
-    finalStatusText = els.captureStatus.textContent;
-    toast('Redo failed: ' + (exc.message || exc), 'error');
-  } finally {
-    state.busy = false;
-    renderThumbnails();
-    if (finalStatusText) setStatus(finalStatusText);
-  }
+  await runTakeJob({
+    failLabel: 'Redo failed',
+    startStatus: 'Queued redo…',
+    run: async function () {
+      const started = await postJob(s.session_id, 'redo', {
+        model: state.model,
+        prompt_id: state.promptId,
+      });
+      const body = await followJob(s.session_id, started, 'Redo ');
+      adoptTake(s.session_id, body);
+      refreshHistoryView();
+      setStatus('Redo done — tap Copy');
+      toast('Redo done.');
+    },
+  });
 }
 
 // The overflow menu is one shared <dialog>; it remembers which take opened it.

@@ -150,3 +150,28 @@ export function modelLabel(id) {
     .map(function (w) { return w ? w.charAt(0).toUpperCase() + w.slice(1) : w; })
     .join(' ');
 }
+
+// ----------------------------------------------------------- clipboard
+// The one copy path (Capture result and History row). Rejects when nothing
+// could be copied, so a caller's success toast is always honest.
+export async function copyText(txt) {
+  // Prefer the ClipboardItem path with text/plain only — voice-transcriber's
+  // troubleshooting table flags styled-DOM leakage with the writeText
+  // path on some Safari versions; force the MIME explicitly.
+  if (window.ClipboardItem && navigator.clipboard && navigator.clipboard.write) {
+    const blob = new Blob([txt], { type: 'text/plain' });
+    const item = new ClipboardItem({ 'text/plain': blob });
+    await navigator.clipboard.write([item]);
+  } else if (navigator.clipboard && navigator.clipboard.writeText) {
+    await navigator.clipboard.writeText(txt);
+  } else {
+    // Fallback for very old browsers.
+    const ta = document.createElement('textarea');
+    ta.value = txt;
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    if (!ok) throw new Error('clipboard unavailable');
+  }
+}

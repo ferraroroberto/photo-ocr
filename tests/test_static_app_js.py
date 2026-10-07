@@ -87,3 +87,18 @@ def test_no_success_green_token() -> None:
     styles = (STATIC_DIR / "styles.css").read_text(encoding="utf-8")
     assert "--on:" not in styles
     assert "var(--on)" not in styles
+
+
+def test_one_clipboard_path(js_source: str) -> None:
+    # The History row copy once re-implemented the clipboard and lost the
+    # Safari text/plain workaround and the failure path; both callers must go
+    # through the shared copyText().
+    assert js_source.count("navigator.clipboard.writeText(") == 1
+    assert js_source.count("await copyText(") == 2
+
+
+def test_take_jobs_share_one_busy_cycle(js_source: str) -> None:
+    # Extract, Redo and Retry missing run inside runTakeJob(), which alone
+    # owns the busy flag.
+    assert js_source.count("state.busy = true") == 1
+    assert js_source.count("await runTakeJob(") == 3
