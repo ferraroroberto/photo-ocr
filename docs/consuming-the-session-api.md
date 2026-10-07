@@ -114,7 +114,7 @@ Multipart, field name `files` (1..N). Validates, EXIF-rotates, downscales (`max_
 
 ### `POST /api/sessions/{id}/extract` — start the OCR job
 
-Optional JSON body `{ "model": "...", "prompt_id": "..." }`. Starts a **background** job and returns immediately with the initial status payload. Idempotent: calling it again after success returns the existing text (`reused: true`) instead of re-billing the hub — use `/redo` to force a re-run with a different model.
+Optional JSON body `{ "model": "...", "prompt_id": "..." }`. Starts a **background** job and returns immediately with the initial status payload. Idempotent: calling it again after success returns the existing text (`reused: true`) instead of re-billing the hub — use `/redo` to force a re-run with a different model. If a photo was added, removed or reordered since that read, the text is stale and `/extract` re-reads the take instead.
 
 ### `GET /api/sessions/{id}/extract/status` — poll progress
 
@@ -251,6 +251,8 @@ The **async** `/extract` path never returns a hub error as a non-200 — it acce
 ## Changelog
 
 Breaking changes to the contract are recorded here. Pin a build via `GET /api/version` (`git_sha`) if you need certainty.
+
+- **2026-10-07** — Audit fixes (issue #172; behavior changes, no shape changes). `POST /api/sessions/{id}/extract` no longer answers `reused: true` for a take whose photos changed since it was read: it re-reads (photos added, removed or reordered after the read). A take whose extraction was interrupted — a webapp restart, or a job that crashed — no longer stays `queued`/`running` forever: on boot (or when the job dies) it settles to `failed` with `error` set, or, when it already had text (a redo or retry died), back to `succeeded` with the text intact and `retry_error` saying why.
 
 - **2026-10-06** — Partial-result semantics (issues #168, #169; additive, but changes prior behavior for existing consumers — a chunk that previously failed the whole call now returns a `200`). A photo that no hub request could read no longer fails the take: `text` (single-shot) / `extracted` (async) carries a `[missing: photo N (NN.jpg) could not be read]` marker line in place of that photo's text, and the single-shot response plus the async status payload both gained `missing_photos` (names of the unread photos). Added `POST /api/sessions/{id}/retry-missing` to re-read just the missing photos of a partly read take (`?wait=true` for the single-shot shape); its status payload also gained `retry_error`. Added `409` (an extraction already running) to the Error reference. See [`/retry-missing`](#post-apisessionsidretry-missing-re-read-only-the-unread-photos).
 - **2026-06-12** — Added **source attribution** (issue #39, additive — not breaking). `POST /api/extract` and `POST /api/sessions` accept an optional `source` label (single-shot default `"api"`, PWA default `"webapp"`); it is recorded per session and surfaces in `GET /api/sessions`, the `source` field of both create responses, the History UI, and full-text search. Documents History as the fleet's single-source-of-truth audit trail for all OCR. See [History as a single source of truth](#history-as-a-single-source-of-truth).

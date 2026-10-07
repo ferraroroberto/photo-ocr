@@ -53,6 +53,7 @@ from app.webapp.routers import auth, config, misc, search, sessions
 from app.webapp.routers._helpers import BUILD_INFO, STATIC_DIR
 from src.app_config import load_app_config
 from src.archive import SessionArchive
+from src.extract_job import settle_interrupted_extracts
 from src.ocr_client import OcrClient
 from src.webapp_config import WebappConfig, load_webapp_config
 
@@ -126,6 +127,15 @@ async def _lifespan(app: FastAPI):
             logger.info(f"🧹 Pruned {removed} old sessions on boot")
     except Exception as exc:  # noqa: BLE001 — never block startup
         logger.warning(f"⚠️  Archive prune failed: {exc}")
+
+    # No extract job survives a restart: settle takes left mid-run so they
+    # don't read as running forever.
+    try:
+        settled = settle_interrupted_extracts(archive)
+        if settled:
+            logger.info(f"🧹 Settled {settled} interrupted extract(s) on boot")
+    except Exception as exc:  # noqa: BLE001 — never block startup
+        logger.warning(f"⚠️  Interrupted-extract sweep failed: {exc}")
 
     # Rebuild any search-index rows missing from disk. Idempotent and
     # cheap; keeps extracted.txt canonical — the index can be deleted at

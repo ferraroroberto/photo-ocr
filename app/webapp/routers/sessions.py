@@ -18,9 +18,11 @@ from src.archive import PhotoMeta, Session, SessionArchive
 from src.extract_job import (
     execute_extract_job,
     execute_retry_missing_job,
+    extract_is_current,
     extract_status_payload,
     progress_meta,
     set_extract_progress,
+    settle_interrupted,
 )
 from src.image_utils import ImageValidationError, validate_and_persist
 from src.ocr_client import chunk_count
@@ -130,6 +132,10 @@ def _store_extract_task(app: Any, session_id: str, task: asyncio.Task) -> None:
             done_task.result()
         except Exception as exc:  # noqa: BLE001 — background crash visibility
             logger.exception(f"❌ Extract job crashed for {session_id}: {exc}")
+            # Without this the take stays queued/running forever.
+            current = app.state.archive.get(session_id)
+            if current is not None:
+                settle_interrupted(current, f"extract job crashed: {exc}")
 
     task.add_done_callback(_cleanup)
 
@@ -146,11 +152,16 @@ async def _start_extract(
         raise HTTPException(status_code=404, detail=f"unknown session {session_id}")
     if not session.meta.photos:
         raise HTTPException(status_code=400, detail="session has no photos to extract")
-    if session.meta.extract_succeeded and not allow_when_done:
+    if (
+        session.meta.extract_succeeded
+        and not allow_when_done
+        and extract_is_current(session)
+    ):
         # The /extract endpoint should be idempotent on the client
         # path — the UI uses /redo when the user wants to re-run with
         # a different model. Surface the existing text instead of
-        # silently re-billing the hub.
+        # silently re-billing the hub. A photo added or removed since
+        # the read makes that text stale, so it re-reads instead.
         set_extract_progress(
             session,
             phase="succeeded",

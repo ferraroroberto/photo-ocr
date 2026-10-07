@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
+from src.extract_job import set_extract_progress, settle_interrupted_extracts
 from src.ocr_client import OcrError, OcrResult
 
 
@@ -149,3 +150,99 @@ def test_redo_re_runs_even_if_already_extracted(client: TestClient, jpeg_bytes: 
         assert body["extracted"] == "second run"
         assert body["reused"] is False
         mock_redo.assert_called_once()
+
+
+def _fake_read(text: str) -> OcrResult:
+    return OcrResult(
+        extracted_text=text,
+        model="gemini_flash",
+        request_payload={"model": "gemini_flash", "images": ["01.jpg"]},
+        response_payload={"content": [{"type": "text", "text": text}]},
+    )
+
+
+def test_extract_re_reads_when_a_photo_was_added_after_the_read(
+    client: TestClient, jpeg_bytes: bytes, big_jpeg_bytes: bytes
+) -> None:
+    """A photo added to an already-extracted take must be read, not answered
+    with the cached text that predates it."""
+    sid = client.post("/api/sessions", json={}).json()["session_id"]
+    client.post(
+        f"/api/sessions/{sid}/photos",
+        files=[("files", ("a.jpg", jpeg_bytes, "image/jpeg"))],
+    )
+    with patch.object(
+        client.app.state.ocr_client, "extract", return_value=_fake_read("one photo")
+    ):
+        client.post(f"/api/sessions/{sid}/extract", json={})
+        _wait_for_phase(client, sid, "succeeded")
+
+    client.post(
+        f"/api/sessions/{sid}/photos",
+        files=[("files", ("b.jpg", big_jpeg_bytes, "image/jpeg"))],
+    )
+    with patch.object(
+        client.app.state.ocr_client, "extract", return_value=_fake_read("two photos")
+    ) as mock_extract:
+        client.post(f"/api/sessions/{sid}/extract", json={})
+        body = _wait_for_phase(client, sid, "succeeded")
+    mock_extract.assert_called_once()
+    assert len(mock_extract.call_args.kwargs["image_paths"]) == 2
+    assert body["extracted"] == "two photos"
+    assert body["reused"] is False
+
+
+def test_crashed_extract_job_settles_the_take_as_failed(
+    client: TestClient, jpeg_bytes: bytes
+) -> None:
+    """A job that raises something other than OcrError must not leave the
+    take queued/running forever (it would block /extract and /retry-missing)."""
+    sid = client.post("/api/sessions", json={}).json()["session_id"]
+    client.post(
+        f"/api/sessions/{sid}/photos",
+        files=[("files", ("a.jpg", jpeg_bytes, "image/jpeg"))],
+    )
+    with patch.object(
+        client.app.state.ocr_client, "extract", side_effect=RuntimeError("boom")
+    ):
+        client.post(f"/api/sessions/{sid}/extract", json={})
+        body = _wait_for_phase(client, sid, "failed")
+    assert "boom" in body["error"]
+
+    # And the take is startable again.
+    with patch.object(
+        client.app.state.ocr_client, "extract", return_value=_fake_read("recovered")
+    ):
+        client.post(f"/api/sessions/{sid}/extract", json={})
+        body = _wait_for_phase(client, sid, "succeeded")
+    assert body["extracted"] == "recovered"
+
+
+def test_boot_sweep_settles_takes_interrupted_mid_extract(
+    client: TestClient, jpeg_bytes: bytes
+) -> None:
+    """No job survives a restart: a persisted queued/running/merging phase is
+    settled on boot — failed when there is no text, succeeded (text intact)
+    when a redo or retry died over an earlier good read."""
+    archive = client.app.state.archive
+    never_read = client.post("/api/sessions", json={}).json()["session_id"]
+    redo_died = client.post("/api/sessions", json={}).json()["session_id"]
+    set_extract_progress(archive.get(never_read), phase="running", model="gemini_flash")
+    done = archive.get(redo_died)
+    done.write_extracted(
+        "good text", model="gemini_flash", request_payload={},
+        response_payload={}, prompt_id=None,
+    )
+    set_extract_progress(done, phase="merging")
+
+    assert settle_interrupted_extracts(archive) == 2
+
+    failed = client.get(f"/api/sessions/{never_read}/extract/status").json()
+    assert failed["phase"] == "failed"
+    assert failed["extract_succeeded"] is False
+    assert "restart" in failed["error"]
+    kept = client.get(f"/api/sessions/{redo_died}/extract/status").json()
+    assert kept["phase"] == "succeeded"
+    assert kept["extracted"] == "good text"
+    assert "restart" in kept["retry_error"]
+    assert settle_interrupted_extracts(archive) == 0
