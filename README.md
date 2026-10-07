@@ -96,8 +96,10 @@ same archive shape, same auth model, but for pixels instead of audio.
 setup.bat
 ```
 
-This creates `.venv\`, installs `requirements.txt`, and generates the PWA
-icons under `app/webapp/static/`.
+This creates `.venv\` and installs `requirements.txt`. The PWA icons under
+`app/webapp/static/` are pre-generated and committed — run
+`scripts\gen_icons.py` by hand only to regenerate them (needs a sibling
+`project-scaffolding` checkout; see that script's docstring).
 
 ---
 
@@ -216,7 +218,7 @@ Prints the extracted text to stdout. No archive, no session — quick one-off.
 ```
 photo-ocr/
 ├── launcher.py                  entry point — `python launcher.py <command>`
-├── setup.bat                    one-shot installer (creates .venv, deps, icons)
+├── setup.bat                    one-shot installer (creates .venv, deps)
 ├── tray.bat                     start the system-tray launcher
 ├── webapp.bat                   standalone FastAPI on :8444
 ├── webapp_tunnel_named.bat      webapp + named Cloudflare tunnel

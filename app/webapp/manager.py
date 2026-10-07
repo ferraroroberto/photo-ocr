@@ -32,6 +32,7 @@ import requests
 from app.tray.single_instance import cross_process_lock
 from app.webapp.event_loop import LOOP_FACTORY
 from src.cloudflared_runner import stop_process
+from src.no_window import NO_WINDOW
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +101,7 @@ def _renew_tailscale_cert() -> None:
             capture_output=True,
             text=True,
             timeout=60,
-            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+            creationflags=NO_WINDOW,
         )
     except (OSError, subprocess.SubprocessError) as exc:
         logger.warning(f"⚠️  Tailscale cert renew check failed: {exc}")
