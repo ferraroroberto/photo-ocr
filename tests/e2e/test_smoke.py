@@ -15,6 +15,8 @@ import re
 import pytest
 from playwright.sync_api import Page, expect
 
+from tests.e2e.conftest import is_unpainted
+
 pytestmark = pytest.mark.smoke
 
 
@@ -114,6 +116,8 @@ def test_settings_pane_shows_prompt_preview(
         head = authed_page.locator(f"{pane} > .card.home-head")
         expect(head.locator(".theme-toggle")).to_have_count(1)
         expect(head.locator(".home-settings")).to_have_count(1)
+        # .icon-button's (project-scaffolding#339): a glyph on nothing at rest
+        assert is_unpainted(head.locator(".home-toggle"))
     authed_page.locator("#paneCapture .home-settings").click()
     expect(authed_page.locator("#paneSettings")).to_be_visible()
     expect(authed_page.locator("#paneCapture")).to_be_hidden()

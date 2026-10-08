@@ -86,7 +86,7 @@ function makeSessionRow(sessionId, metaText, previewText, isSnippet, source, mis
 
   const more = document.createElement('button');
   more.type = 'button';
-  more.className = 'action-row-kebab';
+  more.className = 'icon-button action-row-kebab';
   more.setAttribute('aria-label', 'More actions');
   more.setAttribute('aria-haspopup', 'dialog');
   more.innerHTML = icon('ellipsis-vertical');
