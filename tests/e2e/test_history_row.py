@@ -14,6 +14,8 @@ import json
 import pytest
 from playwright.sync_api import Page, Route, expect
 
+from tests.e2e.conftest import is_unpainted
+
 pytestmark = pytest.mark.smoke
 
 _SESSIONS = [
@@ -82,6 +84,7 @@ def test_history_row_tap_copies_and_menu_deletes(
     expect(first.locator("button")).to_have_count(2)
     box = first.locator(".action-row-kebab").bounding_box()
     assert box and box["width"] >= 44 and box["height"] >= 44, box
+    assert is_unpainted(first.locator(".action-row-kebab"))  # an .icon-button (project-scaffolding#339)
 
     # Tapping the row copies the full text, not the preview.
     first.locator(".action-row-main").click()
@@ -93,6 +96,7 @@ def test_history_row_tap_copies_and_menu_deletes(
     menu = authed_page.locator("#takeMenu")
     expect(menu).to_be_visible()
     expect(authed_page.locator("#takeRedo")).to_be_visible()
+    assert is_unpainted(menu.locator(".detail-close"))
     authed_page.once("dialog", lambda d: d.accept())
     authed_page.locator("#takeDelete").click()
     expect(menu).to_be_hidden()

@@ -118,6 +118,14 @@ def pytest_configure(config: pytest.Config) -> None:
 # ----------------------------------------------------------- autoboot
 
 
+def is_unpainted(locator) -> bool:
+    """Every matched control is a glyph on nothing at rest: no fill, no border (the .icon-button recipe)."""
+    paints = locator.evaluate_all(
+        "els => els.map(el => { const s = getComputedStyle(el); return [s.backgroundColor, s.borderTopWidth]; })"
+    )
+    return bool(paints) and all(p == ["rgba(0, 0, 0, 0)", "0px"] for p in paints)
+
+
 def _free_tcp_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("127.0.0.1", 0))
