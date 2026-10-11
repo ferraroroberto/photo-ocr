@@ -55,8 +55,10 @@ def test_extract_uses_authorization_header(js_source: str) -> None:
 def test_extract_uses_timeout_and_status_polling(js_source: str) -> None:
     assert "AbortController" in js_source
     assert "/extract/status" in js_source
-    assert "Chunk " in js_source
-    assert "Merging" in js_source
+    # Progress counts job parts on the meter, never photos (#194).
+    assert "extractProgress" in js_source
+    assert "'part '" in js_source
+    assert "merging the parts" in js_source
 
 
 def test_extract_syncs_visible_photo_order(js_source: str) -> None:

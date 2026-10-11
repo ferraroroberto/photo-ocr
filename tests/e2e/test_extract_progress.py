@@ -1,5 +1,6 @@
-"""Browser regression for the core capture flow: photo upload, then
-non-blocking extract progress.
+"""Browser regression for the core capture flow: photo upload, this take's
+model and style chosen from the Capture chips, then non-blocking extract
+progress on the meter.
 
 The test uses the real SPA and real photo upload path, but intercepts
 only the OCR job endpoints. That keeps it deterministic and independent
@@ -54,8 +55,21 @@ def test_photo_upload_then_extract_progress(
 ) -> None:
     before = set(_sessions_by_id(base_url))
     status_calls = 0
+    extract_bodies: list[dict] = []
+
+    def handle_config(route: Route) -> None:
+        # Two known models and an invented style, so the chips have a choice
+        # to make whatever this checkout's config holds.
+        body = route.fetch().json()
+        body["ocr_models_available"] = ["gemini_flash", "claude_opus"]
+        body["ocr_model_default"] = "gemini_flash"
+        body["ocr_prompts"] = list(body.get("ocr_prompts") or []) + [
+            {"id": "invented-style", "label": "Invented style", "description": "", "system": "x"}
+        ]
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
 
     def handle_extract(route: Route) -> None:
+        extract_bodies.append(json.loads(route.request.post_data or "{}"))
         route.fulfill(
             status=200,
             content_type="application/json",
@@ -110,6 +124,7 @@ def test_photo_upload_then_extract_progress(
         )
 
     try:
+        authed_page.route("**/api/config", handle_config)
         authed_page.route("**/api/sessions/*/extract", handle_extract)
         authed_page.route("**/api/sessions/*/extract/status", handle_status)
         authed_page.clock.install()
@@ -131,8 +146,23 @@ def test_photo_upload_then_extract_progress(
             1, timeout=10_000
         )
 
-        # With a ready photo, Extract must be enabled.
+        # With a ready photo, Extract appears, enabled.
+        expect(authed_page.locator("#extractBtn")).to_be_visible()
         expect(authed_page.locator("#extractBtn")).to_be_enabled()
+
+        # This take's model and style come from the chips' picker sheets,
+        # which mark the current choice; Extract must post what was picked.
+        model_chip = authed_page.locator("#takeModel")
+        expect(model_chip).to_contain_text("Gemini Flash")
+        model_chip.click()
+        picker = authed_page.locator("dialog.sheet")
+        expect(picker.locator("[aria-current='true']")).to_have_text("Gemini Flash")
+        picker.get_by_role("button", name="Claude Opus").click()
+        expect(picker).to_have_count(0)
+        expect(model_chip).to_contain_text("Claude Opus")
+        authed_page.locator("#takeStyle").click()
+        authed_page.locator("dialog.sheet").get_by_role("button", name="Invented style").click()
+        expect(authed_page.locator("#takeStyle")).to_contain_text("Invented style")
 
         # Server-side confirmation: a new session now exists with the photo.
         sessions = _sessions_by_id(base_url)
@@ -147,17 +177,27 @@ def test_photo_upload_then_extract_progress(
 
         authed_page.locator("#extractBtn").click()
 
+        # In flight: the meter counts job parts (never photos) and the header
+        # names the exception; the outcome line stays empty until the end.
+        meter = authed_page.locator("#extractMeter")
+        headline = authed_page.locator("#captureHeadline")
         status = authed_page.locator("#captureStatus")
-        expect(status).to_contain_text("Chunk 1 of 2", timeout=5_000)
+        expect(meter).to_contain_text("part 1 of 2", timeout=5_000)
+        expect(headline).to_contain_text("Reading")
+        expect(status).to_be_hidden()
+        assert extract_bodies == [{"model": "claude_opus", "prompt_id": "invented-style"}], extract_bodies
         # The SPA waits POLL_INTERVAL_MS between status polls; fast-forward
         # its clock instead of sleeping the real second twice.
         authed_page.clock.run_for(_POLL_INTERVAL_MS)
-        expect(status).to_contain_text("Chunk 2 of 2", timeout=5_000)
+        expect(meter).to_contain_text("part 2 of 2", timeout=5_000)
+        expect(meter.locator(".meter")).to_have_attribute("aria-valuenow", "50")
         authed_page.clock.run_for(_POLL_INTERVAL_MS)
         expect(authed_page.locator("#extracted")).to_have_value(
             "done text", timeout=5_000
         )
         expect(status).to_contain_text("Done in 3.2 s", timeout=5_000)
+        expect(meter).to_be_hidden()
+        expect(headline).not_to_contain_text("Reading")
     finally:
         # Don't leave test sessions in the archive.
         new_ids = set(_sessions_by_id(base_url)) - before

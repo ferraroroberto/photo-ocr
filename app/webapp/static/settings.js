@@ -1,6 +1,7 @@
-/* Photo OCR — the Settings panel: config fetch, the model / style
- * selectors, the prompt preview, the dirty-aware Save defaults button,
- * and the build-identity footer line. */
+/* Photo OCR — the Settings panel: config fetch, the default model / style
+ * selectors (a take starts from them; the Capture chips change one take),
+ * the prompt preview, the dirty-aware Save defaults button, and the
+ * build-identity footer line. */
 
 'use strict';
 
@@ -8,8 +9,32 @@ import { state, els, MODEL_KEY, PROMPT_KEY, modelLabel } from './state.js';
 import { jsonApi } from './api.js';
 import { buildReadoutText } from './_vendored/page-foot/page-foot.js';
 
+// The default a new take starts from: this device's Settings choice, else the
+// server's default, else the first available.
+export function defaultModel() {
+  const cfg = state.config || {};
+  return (
+    localStorage.getItem(MODEL_KEY) ||
+    cfg.ocr_model_default ||
+    (cfg.ocr_models_available || [])[0] ||
+    'gemini_flash'
+  );
+}
+export function defaultPromptId() {
+  const cfg = state.config || {};
+  return (
+    localStorage.getItem(PROMPT_KEY) ||
+    cfg.ocr_prompt_default ||
+    (state.prompts[0] && state.prompts[0].id) ||
+    'verbatim-merge'
+  );
+}
+
+// The Settings selects hold the defaults (the take's own choice is the
+// Capture chips'), so the preview and Save defaults read the selects.
 export function refreshPromptPreview() {
-  const prompt = (state.prompts || []).find(function (p) { return p.id === state.promptId; });
+  const selected = els.ocrStyle.value || state.promptId;
+  const prompt = (state.prompts || []).find(function (p) { return p.id === selected; });
   els.ocrPromptPreview.value = prompt ? prompt.system : '';
 }
 
@@ -51,8 +76,8 @@ export function updateSaveDirty() {
   if (!state.config) return;
   const cfg = state.config;
   const dirty =
-    state.model !== (cfg.ocr_model_default || null) ||
-    state.promptId !== (cfg.ocr_prompt_default || null) ||
+    els.ocrModel.value !== (cfg.ocr_model_default || '') ||
+    els.ocrStyle.value !== (cfg.ocr_prompt_default || '') ||
     (parseInt(els.retentionDays.value, 10) || 0) !==
       (cfg.history_retention_days || 30) ||
     (parseInt(els.maxPhotos.value, 10) || 0) !==
@@ -65,16 +90,8 @@ export async function fetchConfig() {
   const body = await jsonApi('/api/config');
   state.config = body;
   state.prompts = body.ocr_prompts || [];
-  state.model =
-    localStorage.getItem(MODEL_KEY) ||
-    body.ocr_model_default ||
-    (body.ocr_models_available || [])[0] ||
-    'gemini_flash';
-  state.promptId =
-    localStorage.getItem(PROMPT_KEY) ||
-    body.ocr_prompt_default ||
-    (state.prompts[0] && state.prompts[0].id) ||
-    'verbatim-merge';
+  state.model = defaultModel();
+  state.promptId = defaultPromptId();
   renderSettings();
 
   // The search box only appears when the server has the feature on.

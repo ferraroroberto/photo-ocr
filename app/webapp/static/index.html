@@ -161,6 +161,10 @@
     <symbol id="i-moon" viewBox="0 0 24 24" fill="none">
       <path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401" />
     </symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24" fill="none">
+      <path d="M5 12h14" />
+      <path d="M12 5v14" />
+    </symbol>
     <symbol id="i-x" viewBox="0 0 24 24" fill="none">
       <path d="M18 6 6 18" />
       <path d="m6 6 12 12" />
@@ -189,50 +193,85 @@
     <section id="paneCapture" class="pane" role="tabpanel" aria-labelledby="tabCapture" aria-label="Capture">
       <div class="card home-head">
         <span class="home-title"><svg class="icon" aria-hidden="true"><use href="#i-camera"></use></svg> Capture</span>
+        <!-- Exceptions only (design.md page-header): a quality warning, a
+             reading take, uploads, Not saved to History. Empty when normal.
+             Filled by capture.js renderHeadline(). -->
+        <span id="captureHeadline" class="status" role="status"></span>
         <button type="button" class="icon-button home-toggle theme-toggle" title="Toggle theme" aria-label="Toggle dark mode"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
         <button type="button" class="icon-button home-toggle home-settings" title="Settings" aria-label="Settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg></button>
       </div>
       <section class="card capture-zone">
-        <ul id="thumbStrip" class="thumb-strip" aria-label="Photos in this take"></ul>
-        <!-- Tap a thumbnail to select it; the selected photo's actions live
-             here as real 44px targets (a 96px tile clips any overlay control
-             to a size under the hit-target floor). Hidden with no photos,
-             disabled until one is selected. -->
-        <div id="thumbToolbar" class="thumb-toolbar" role="toolbar" aria-label="Selected photo" hidden>
-          <button id="thumbMoveLeft" type="button" class="icon-button" title="Move left" aria-label="Move photo left" disabled><svg class="icon" aria-hidden="true"><use href="#i-chevron-left"></use></svg></button>
-          <button id="thumbMoveRight" type="button" class="icon-button" title="Move right" aria-label="Move photo right" disabled><svg class="icon" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button>
-          <button id="thumbView" type="button" class="ghost-btn" title="View full size" disabled><svg class="icon" aria-hidden="true"><use href="#i-image"></use></svg> View</button>
-          <button id="thumbRetake" type="button" class="ghost-btn" hidden disabled><svg class="icon" aria-hidden="true"><use href="#i-camera"></use></svg> Retake</button>
-          <button id="thumbKeep" type="button" class="ghost-btn" hidden disabled><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg> Keep</button>
-          <button id="thumbRemove" type="button" class="icon-button danger thumb-remove" title="Remove" aria-label="Remove photo" disabled><svg class="icon" aria-hidden="true"><use href="#i-trash-2"></use></svg></button>
+        <!-- Empty take: the vendored empty-state block with the two starts.
+             Takes mostly start from screenshots, so Choose photos is the
+             primary and Camera the second. Labels for the hidden file inputs
+             (the most reliable picker trigger on iOS), made keyboard-operable
+             by main.js. -->
+        <div id="takeEmpty" class="empty-state take-empty">
+          <svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-scan-text"></use></svg>
+          <p class="empty-state-message">Add photos of a page, a screen or a document</p>
+          <div class="take-starts">
+            <label class="button-primary take-start choose-photos-btn" for="galleryInput" role="button" tabindex="0">
+              <svg class="icon" aria-hidden="true"><use href="#i-image"></use></svg> Choose photos
+            </label>
+            <label class="button-tint take-start camera-btn" for="cameraInput" role="button" tabindex="0">
+              <svg class="icon" aria-hidden="true"><use href="#i-camera"></use></svg> Camera
+            </label>
+          </div>
         </div>
 
-        <!-- One toolbar owns the whole take: Add photo (primary affordance,
-             accent-shaded), gallery pick, then reset. -->
-        <div class="capture-actions">
-          <label class="button-tint add-photo-btn" for="cameraInput">
-            <svg class="icon" aria-hidden="true"><use href="#i-camera"></use></svg> Add photo
-          </label>
-          <label class="icon-button" for="galleryInput" title="Pick from gallery instead of camera" aria-label="Pick from gallery">
-            <svg class="icon" aria-hidden="true"><use href="#i-image"></use></svg>
-          </label>
-          <button id="resetBtn" type="button" class="icon-button"
-                  title="Reset — clear photos and result" aria-label="Reset"><svg class="icon" aria-hidden="true"><use href="#i-eraser"></use></svg></button>
-        </div>
-        <!-- On = this take is saved to History (the default); off keeps it
-             out (the API's `incognito: true`). The switch is built by main.js
-             from the vendored switch component. -->
-        <div class="row save-row">
-          <span id="saveToHistoryLabel">Save to history</span>
-          <span id="saveToHistoryHost" class="save-switch"></span>
+        <!-- Building a take: the strip (its last tile adds more photos), the
+             selected photo's toolbar, the take-options line, then Extract. -->
+        <div id="takeBuild" class="take-build" hidden>
+          <ul id="thumbStrip" class="thumb-strip" aria-label="Photos in this take"></ul>
+          <!-- Tap a thumbnail to select it; the selected photo's actions live
+               here as real 44px targets (a 96px tile clips any overlay control
+               to a size under the hit-target floor). Disabled until one is
+               selected. -->
+          <div id="thumbToolbar" class="thumb-toolbar" role="toolbar" aria-label="Selected photo">
+            <button id="thumbMoveLeft" type="button" class="icon-button" title="Move left" aria-label="Move photo left" disabled><svg class="icon" aria-hidden="true"><use href="#i-chevron-left"></use></svg></button>
+            <button id="thumbMoveRight" type="button" class="icon-button" title="Move right" aria-label="Move photo right" disabled><svg class="icon" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button>
+            <button id="thumbView" type="button" class="ghost-btn" title="View full size" disabled><svg class="icon" aria-hidden="true"><use href="#i-image"></use></svg> View</button>
+            <button id="thumbRetake" type="button" class="ghost-btn" hidden disabled><svg class="icon" aria-hidden="true"><use href="#i-camera"></use></svg> Retake</button>
+            <button id="thumbKeep" type="button" class="ghost-btn" hidden disabled><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg> Keep</button>
+            <button id="thumbRemove" type="button" class="icon-button danger thumb-remove" title="Remove" aria-label="Remove photo" disabled><svg class="icon" aria-hidden="true"><use href="#i-trash-2"></use></svg></button>
+          </div>
+
+          <!-- This take's options: model and style (neutral chips, each opens
+               a picker sheet; Settings keeps the default) and Save to history
+               (the vendored switch, built by main.js; on = saved, its inverse
+               is the session's `incognito`). -->
+          <div class="take-options">
+            <span class="take-chips">
+              <button id="takeModel" type="button" class="chip take-chip" data-tone="neutral" aria-haspopup="dialog"></button>
+              <button id="takeStyle" type="button" class="chip take-chip" data-tone="neutral" aria-haspopup="dialog"></button>
+            </span>
+            <span class="take-save">
+              <span id="saveToHistoryLabel">Save to history</span>
+              <span id="saveToHistoryHost" class="save-switch"></span>
+            </span>
+          </div>
+
+          <div class="extract-row">
+            <button id="extractBtn" type="button" class="button-primary extract-btn">
+              <svg class="icon" aria-hidden="true"><use href="#i-scan-text"></use></svg> Extract text
+            </button>
+            <button id="takeMenuBtn" type="button" class="icon-button take-more" title="More for this take" aria-label="More for this take" aria-haspopup="dialog"><svg class="icon" aria-hidden="true"><use href="#i-ellipsis-vertical"></use></svg></button>
+          </div>
         </div>
         <input id="cameraInput" type="file" accept="image/*" capture="environment" multiple hidden>
         <input id="galleryInput" type="file" accept="image/*" multiple hidden>
 
-        <button id="extractBtn" type="button" class="button-primary extract-btn" disabled>
-          <svg class="icon" aria-hidden="true"><use href="#i-scan-text"></use></svg> Extract text
-        </button>
-        <div id="captureStatus" class="record-status">Add a photo to begin</div>
+        <!-- Progress while a job reads (Extract here, Redo / Retry from
+             History): the meter, by job parts, never by photos. -->
+        <div id="extractMeter" class="take-meter" hidden>
+          <div class="meter" role="progressbar" aria-label="Reading" aria-valuemin="0" aria-valuemax="100">
+            <span class="meter-fill"></span>
+          </div>
+          <span class="take-meter-label"></span>
+        </div>
+        <!-- Outcome of the last job ("Done in N s", failures, retry and redo
+             results) until step 3 gives it a home in the result card. -->
+        <div id="captureStatus" class="record-status" role="status"></div>
       </section>
 
       <section class="card extracted-card">

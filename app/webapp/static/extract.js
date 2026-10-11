@@ -3,11 +3,19 @@
 
 'use strict';
 
-import { state, els, toast, modelLabel, copyText } from './state.js';
+import { state, els, toast, copyText } from './state.js';
 import { jsonApi } from './api.js';
-import { renderThumbnails, setStatus, syncPhotoOrder } from './capture.js';
+import {
+  renderThumbnails,
+  renderTakeOptions,
+  setStatus,
+  setProgress,
+  clearProgress,
+  syncPhotoOrder,
+} from './capture.js';
 import { loadHistory } from './sessions.js';
-import { pollUntilDone, extractStatusLine } from './poll.js';
+import { pollUntilDone, extractProgress } from './poll.js';
+import { defaultModel, defaultPromptId } from './settings.js';
 import { icon } from './_vendored/icons/icons.js';
 
 export function renderExtracted() {
@@ -37,14 +45,14 @@ function renderExtractStatus(body, startedAt) {
   } else if (body.phase === 'failed') {
     throw new Error(body.error || 'extract failed');
   } else {
-    setStatus(extractStatusLine(body, ''));
+    setProgress(extractProgress(body, ''));
   }
 }
 
 // ----------------------------------------------------------- job scaffold
 // The three OCR jobs — Extract, Redo (History) and Retry missing — share one
-// shape: start POST, poll to a terminal phase, show the outcome, and keep the
-// busy flag and the status line honest on success and failure alike.
+// shape: start POST, poll to a terminal phase (the meter shows the way), show
+// the outcome, and keep the busy flag honest on success and failure alike.
 export function postJob(sessionId, action, payload) {
   const opts = { method: 'POST', timeoutMs: 15000 };
   if (payload) {
@@ -55,37 +63,35 @@ export function postJob(sessionId, action, payload) {
 }
 
 // The terminal body of a job whose start answer was `started`. `prefix` words
-// the progress line per surface ('' | 'Redo ' | 'Retry · ').
+// the meter per surface ('' | 'Redo' | 'Retry').
 export function followJob(sessionId, started, prefix) {
   if (started.phase === 'succeeded') return Promise.resolve(started);
   return pollUntilDone(sessionId, function (b) {
-    setStatus(extractStatusLine(b, prefix));
+    setProgress(extractProgress(b, prefix));
   });
 }
 
 // Run `run()` inside the busy cycle. `begin` / `end` toggle the caller's own
-// button; `failLabel` heads the failure toast ('Extract failed'), and
-// `failStatus` heads the status line when it differs ('Failed: ' by default).
-// The final status line survives the thumbnail re-render that ends the cycle.
+// button; `startLabel` is the meter's first line; `failLabel` heads the
+// failure toast ('Extract failed'), and `failStatus` heads the outcome line
+// when it differs ('Failed: ' by default).
 export async function runTakeJob(opts) {
   if (state.busy) return;
   state.busy = true;
   if (opts.begin) opts.begin();
+  setStatus('');
+  setProgress({ label: opts.startLabel, fraction: 0 });
   renderThumbnails();
-  setStatus(opts.startStatus);
-  let finalStatusText = null;
   try {
     await opts.run();
-    finalStatusText = els.captureStatus.textContent;
   } catch (exc) {
     setStatus((opts.failStatus || 'Failed: ') + (exc.message || exc));
-    finalStatusText = els.captureStatus.textContent;
     toast(opts.failLabel + ': ' + (exc.message || exc), 'error');
   } finally {
     state.busy = false;
     if (opts.end) opts.end();
+    clearProgress();
     renderThumbnails();
-    if (finalStatusText) setStatus(finalStatusText);
   }
 }
 
@@ -104,10 +110,7 @@ export async function extract() {
   const t0 = Date.now();
   await runTakeJob({
     failLabel: 'Extract failed',
-    startStatus:
-      'Extracting from ' + readyPhotos.length + ' photo(s) with ' + modelLabel(state.model) + '…',
-    begin: function () { els.extractBtn.classList.add('busy'); },
-    end: function () { els.extractBtn.classList.remove('busy'); },
+    startLabel: 'Reading · starting',
     run: async function () {
       await syncPhotoOrder();
       const body = await postJob(state.sessionId, 'extract', {
@@ -133,13 +136,13 @@ export async function retryMissing(sessionId) {
   await runTakeJob({
     failLabel: 'Retry failed',
     failStatus: 'Retry failed: ',
-    startStatus: 'Queued retry…',
+    startLabel: 'Retry · starting',
     begin: function () { els.retryMissing.disabled = true; },
     end: function () { els.retryMissing.disabled = false; },
     run: async function () {
       const started = await postJob(sessionId, 'retry-missing');
       const before = (started.missing_photos || []).length;
-      const body = await followJob(sessionId, started, 'Retry · ');
+      const body = await followJob(sessionId, started, 'Retry');
       adoptTake(sessionId, body);
       loadHistory(0);
       const left = state.missingPhotos.length;
@@ -199,6 +202,7 @@ export function adoptTake(sessionId, body) {
   renderExtracted();
 }
 
+// Start over: an empty take on the Settings default model and style.
 export function resetTake() {
   dropPhotos();
   state.takeAdopted = false;
@@ -206,7 +210,12 @@ export function resetTake() {
   state.sessionIdPromise = null;
   state.extracted = '';
   state.missingPhotos = [];
+  if (state.config) {
+    state.model = defaultModel();
+    state.promptId = defaultPromptId();
+  }
+  renderTakeOptions();
   renderThumbnails();
   renderExtracted();
-  setStatus('Add a photo to begin');
+  setStatus('');
 }

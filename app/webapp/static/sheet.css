@@ -53,6 +53,8 @@
   border-top: 1px solid var(--line-muted);
   border-radius: 0;
 }
+.sheet-action[aria-current="true"] { font-weight: 600; }
+.sheet-action:not(.button-primary) .sheet-action-check { margin-left: auto; color: var(--accent-text); }
 .sheet-action[data-tone="danger"],
 .sheet-action[data-tone="danger"] .icon { color: var(--danger-text); }
 

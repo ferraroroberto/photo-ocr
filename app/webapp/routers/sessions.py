@@ -589,6 +589,26 @@ async def delete_all_sessions(request: Request) -> Dict[str, Any]:
     return {"removed": removed}
 
 
+@router.patch("/api/sessions/{session_id}")
+async def update_session(session_id: str, request: Request) -> Dict[str, Any]:
+    """Flip a take's ``incognito`` flag (the PWA's Save to History switch).
+
+    Refused while an extract, redo or retry is in flight: the job rewrites
+    the meta as it goes and could put the old value back.
+    """
+    body = await maybe_json(request)
+    if "incognito" not in body:
+        raise HTTPException(status_code=400, detail="nothing to update: send incognito")
+    archive: SessionArchive = request.app.state.archive
+    session = archive.get(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail=f"unknown session {session_id}")
+    if progress_meta(session).get("phase") in {"queued", "running", "merging"}:
+        raise HTTPException(status_code=409, detail="extraction in progress; try again when it ends")
+    archive.set_incognito(session_id, bool(body["incognito"]))
+    return {"session_id": session_id, "incognito": bool(body["incognito"])}
+
+
 @router.delete("/api/sessions/{session_id}")
 async def delete_one_session(session_id: str, request: Request) -> Dict[str, Any]:
     archive: SessionArchive = request.app.state.archive

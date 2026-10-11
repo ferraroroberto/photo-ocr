@@ -255,13 +255,13 @@ async function copyHistoryEntry(s) {
 async function redoHistoryEntry(s) {
   await runTakeJob({
     failLabel: 'Redo failed',
-    startStatus: 'Queued redo…',
+    startLabel: 'Redo · starting',
     run: async function () {
       const started = await postJob(s.session_id, 'redo', {
         model: state.model,
         prompt_id: state.promptId,
       });
-      const body = await followJob(s.session_id, started, 'Redo ');
+      const body = await followJob(s.session_id, started, 'Redo');
       adoptTake(s.session_id, body);
       refreshHistoryView();
       setStatus('Redo done — tap Copy');

@@ -402,6 +402,27 @@ class SessionArchive:
             if not s.meta.incognito
         )
 
+    def set_incognito(self, session_id: str, incognito: bool) -> Optional[Session]:
+        """Change a take's Save-to-History state after it was created.
+
+        The PWA creates the session on the first photo upload, before the
+        take's Save to History switch is on screen, so the switch must be
+        able to move it either way afterwards. History listing reads the
+        meta; the search index follows: an incognito take loses its row, a
+        saved one with text gets it (back).
+        """
+        session = self.get(session_id)
+        if session is None:
+            return None
+        session.meta.incognito = incognito
+        session.write_meta()
+        if incognito:
+            self.index.delete_session(session_id)
+        elif (session.read_extracted() or "").strip():
+            self.index_session(session)
+        logger.info(f"ℹ️ Session {session_id} incognito={incognito}")
+        return session
+
     def delete_session(self, session_id: str) -> bool:
         for folder in self._iter_session_folders():
             if folder.name == session_id:

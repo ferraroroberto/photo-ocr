@@ -22,11 +22,16 @@ import { jsonApi, hideLogin } from './api.js';
 import {
   handleFilePick,
   renderThumbnails,
+  renderTakeOptions,
+  renderHeadline,
+  openModelPicker,
+  openStylePicker,
+  openTakeMoreSheet,
   closePreview,
   setupDragDrop,
   setupThumbToolbar,
 } from './capture.js';
-import { extract, copyExtracted, resetTake, renderExtracted, retryMissing } from './extract.js';
+import { extract, copyExtracted, renderExtracted, retryMissing } from './extract.js';
 import {
   loadHistory,
   cleanAllHistory,
@@ -121,6 +126,7 @@ async function boot() {
     return;
   }
   await loadHistory(0);
+  renderTakeOptions();
   renderThumbnails();
   renderExtracted();
 }
@@ -160,18 +166,46 @@ els.galleryInput.addEventListener('change', function () {
   handleFilePick(els.galleryInput.files);
   els.galleryInput.value = '';
 });
+// The empty take's two starts are labels for the hidden file inputs (the
+// most reliable picker trigger on iOS); Enter / Space make them keyboard-
+// operable like the buttons they look like.
+els.takeStarts.forEach(function (start) {
+  start.addEventListener('keydown', function (ev) {
+    if (ev.key !== 'Enter' && ev.key !== ' ') return;
+    ev.preventDefault();
+    start.click();
+  });
+});
 els.extractBtn.addEventListener('click', extract);
+els.takeMore.addEventListener('click', openTakeMoreSheet);
+els.takeModel.addEventListener('click', openModelPicker);
+els.takeStyle.addEventListener('click', openStylePicker);
 els.copyExtracted.addEventListener('click', copyExtracted);
 els.retryMissing.addEventListener('click', function () { retryMissing(state.sessionId); });
-els.resetBtn.addEventListener('click', resetTake);
 // "Save to history" is the vendored switch (the fleet ships no native
 // checkboxes for on/off). On = saved, the default; its inverse is the
-// session's `incognito` flag, so the API contract is unchanged.
+// session's `incognito` flag. The take's session is created on its first
+// upload, before this switch is on screen, so a flip on a live take is
+// written to it; a failed write puts the switch back.
 const saveSwitch = switchEl(!state.incognito, {
   label: 'Save to history',
-  onToggle: function (saved, btn) {
+  onToggle: async function (saved, btn) {
     state.incognito = !saved;
     setSwitch(btn, saved);
+    renderHeadline();
+    if (!state.sessionId || state.takeAdopted) return;
+    try {
+      await jsonApi('/api/sessions/' + encodeURIComponent(state.sessionId), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ incognito: !saved }),
+      });
+    } catch (exc) {
+      state.incognito = saved;
+      setSwitch(btn, !saved);
+      renderHeadline();
+      toast('Save to history failed: ' + (exc.message || exc), 'error');
+    }
   },
 });
 els.saveToHistoryHost.appendChild(saveSwitch);
@@ -179,14 +213,18 @@ els.saveToHistoryHost.appendChild(saveSwitch);
 // a button can double-fire its click on WebKit, flipping the switch back.
 els.saveToHistoryLabel.addEventListener('click', function () { saveSwitch.click(); });
 
+// The Settings selects set this device's default, and the take in progress
+// follows it (as before the Capture chips existed).
 els.ocrModel.addEventListener('change', function () {
   state.model = els.ocrModel.value;
   localStorage.setItem(MODEL_KEY, state.model);
+  renderTakeOptions();
   updateSaveDirty();
 });
 els.ocrStyle.addEventListener('change', function () {
   state.promptId = els.ocrStyle.value;
   localStorage.setItem(PROMPT_KEY, state.promptId);
+  renderTakeOptions();
   refreshPromptPreview();
   updateSaveDirty();
 });
@@ -199,8 +237,8 @@ els.extracted.addEventListener('input', function () {
 
 els.saveSettings.addEventListener('click', async function () {
   const patch = {
-    ocr_model_default: state.model,
-    ocr_prompt_default: state.promptId,
+    ocr_model_default: els.ocrModel.value,
+    ocr_prompt_default: els.ocrStyle.value,
     history_retention_days: Math.max(1, parseInt(els.retentionDays.value, 10) || 30),
     max_photos_per_session: Math.max(1, parseInt(els.maxPhotos.value, 10) || 50),
   };

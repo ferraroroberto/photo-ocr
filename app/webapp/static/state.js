@@ -12,11 +12,12 @@
  *   state.extracted       — current extracted text
  *   state.missingPhotos   — filenames the current text could not read
  *                           (drives the Retry missing action)
- *   state.model           — selected model alias
- *   state.promptId        — selected prompt id
+ *   state.model           — this take's model alias (the Capture chip;
+ *                           a reset take starts from the Settings default)
+ *   state.promptId        — this take's prompt id (same)
  *   state.prompts         — [{ id, label, description, system }]
  *   state.config          — full /api/config response
- *   state.busy            — boolean: an extract is in flight
+ *   state.busy            — boolean: an extract, redo or retry is in flight
  *   state.takeAdopted     — boolean: sessionId is a History take whose result
  *                           was pulled into the Capture card (Redo / Retry
  *                           missing); the strip does not hold its photos, so
@@ -67,6 +68,10 @@ export const els = {
   themeToggles: document.querySelectorAll('.theme-toggle'),
   settingsGears: document.querySelectorAll('.home-settings'),
   settingsPane: document.getElementById('paneSettings'),
+  captureHeadline: document.getElementById('captureHeadline'),
+  takeEmpty: document.getElementById('takeEmpty'),
+  takeBuild: document.getElementById('takeBuild'),
+  takeStarts: document.querySelectorAll('.take-start'),
   thumbStrip: document.getElementById('thumbStrip'),
   thumbToolbar: document.getElementById('thumbToolbar'),
   thumbMoveLeft: document.getElementById('thumbMoveLeft'),
@@ -78,11 +83,17 @@ export const els = {
   cameraInput: document.getElementById('cameraInput'),
   galleryInput: document.getElementById('galleryInput'),
   extractBtn: document.getElementById('extractBtn'),
+  takeMore: document.getElementById('takeMenuBtn'),
+  takeModel: document.getElementById('takeModel'),
+  takeStyle: document.getElementById('takeStyle'),
+  extractMeter: document.getElementById('extractMeter'),
+  extractMeterBar: document.querySelector('#extractMeter .meter'),
+  extractMeterFill: document.querySelector('#extractMeter .meter-fill'),
+  extractMeterLabel: document.querySelector('#extractMeter .take-meter-label'),
   captureStatus: document.getElementById('captureStatus'),
   extracted: document.getElementById('extracted'),
   copyExtracted: document.getElementById('copyExtracted'),
   retryMissing: document.getElementById('retryMissing'),
-  resetBtn: document.getElementById('resetBtn'),
   saveToHistoryHost: document.getElementById('saveToHistoryHost'),
   saveToHistoryLabel: document.getElementById('saveToHistoryLabel'),
   ocrModel: document.getElementById('ocrModel'),

@@ -22,9 +22,10 @@ let sheetSeq = 0;
  * @param {string} o.title                 the heading (also the dialog's name)
  * @param {Node} [o.body]                  content between the header and the actions
  * @param {Array<object>} [o.actions]      full-width rows, in order:
- *   { label, icon?, tone?: 'primary' | 'danger', onSelect?() }. A `danger`
- *   action sits last, after a divider, in danger text. Choosing an action
- *   closes the sheet first, then runs `onSelect`.
+ *   { label, icon?, tone?: 'primary' | 'danger', current?, onSelect?() }. A
+ *   `danger` action sits last, after a divider, in danger text. `current`
+ *   marks a picker's chosen row (a trailing check, aria-current). Choosing an
+ *   action closes the sheet first, then runs `onSelect`.
  * @param {string} [o.className]           an extra class on the dialog (per use)
  * @param {(reason: string) => void} [o.onClose]  'action' | 'dismiss'
  * @returns {{dialog: HTMLDialogElement, body: HTMLElement, close: () => void}}
@@ -71,6 +72,10 @@ export function openSheet(o) {
       if (a.tone === 'danger') btn.dataset.tone = 'danger';
       if (a.icon) btn.innerHTML = icon(a.icon);
       btn.appendChild(document.createTextNode(a.label));
+      if (a.current) {
+        btn.setAttribute('aria-current', 'true');
+        btn.insertAdjacentHTML('beforeend', icon('check', 'sheet-action-check'));
+      }
       btn.addEventListener('click', function () {
         reason = 'action';
         dialog.close();
