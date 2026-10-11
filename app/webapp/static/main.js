@@ -35,8 +35,7 @@ import {
   loadHistory,
   cleanAllHistory,
   onSearchInput,
-  clearSearch,
-  initTakeMenu,
+  refreshHistoryView,
 } from './sessions.js';
 import {
   fetchConfig,
@@ -81,9 +80,14 @@ bindTextSize(document.getElementById('textSizeControl'), 'photo-ocr');
 // you left it, and owns the iOS pinning behaviour. Settings is no tab (fleet
 // NAV-03): every pane's header gear opens it, and choosing any tab leaves it,
 // so onChange hides the pane.
+// Opening History reloads it (there is no Refresh button); before boot has
+// the config the boot sequence loads it instead.
 initNavTabs({
   storageKey: TAB_KEY,
-  onChange: function () { els.settingsPane.hidden = true; },
+  onChange: function (tab) {
+    els.settingsPane.hidden = true;
+    if (tab === 'history' && state.config) refreshHistoryView();
+  },
 });
 
 // Show the Settings pane over the current tab. The vendored nav only manages
@@ -258,13 +262,7 @@ els.saveSettings.addEventListener('click', async function () {
   }
 });
 
-els.refreshHistory.addEventListener('click', function () {
-  // Refresh always drops back to the chronological browse list.
-  clearSearch();
-  loadHistory(0);
-});
 els.cleanAll.addEventListener('click', cleanAllHistory);
-initTakeMenu();
 els.loadMoreHistory.addEventListener('click', function () {
   loadHistory(state.historyOffset + HISTORY_PAGE_SIZE);
 });

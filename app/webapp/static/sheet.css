@@ -49,8 +49,10 @@
 }
 .sheet-action:not(.button-primary) .icon { color: var(--muted); }
 .sheet-action:not(.button-primary):active { background: var(--neutral-soft); }
-.sheet-action:not(.button-primary) + .sheet-action:not(.button-primary) {
-  border-top: 1px solid var(--line-muted);
+/* The divider closes each row but the last (a hidden row takes its own
+   divider with it, so a revealed-later action never leaves a double line). */
+.sheet-action:not(.button-primary):not(:last-child) {
+  border-bottom: 1px solid var(--line-muted);
   border-radius: 0;
 }
 .sheet-action[aria-current="true"] { font-weight: 600; }

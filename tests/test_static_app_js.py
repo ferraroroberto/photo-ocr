@@ -70,7 +70,7 @@ def test_extract_syncs_visible_photo_order(js_source: str) -> None:
 def test_history_renders_source_badge(js_source: str) -> None:
     # Externally-sourced takes (app-launcher, api, …) get a neutral status
     # chip in History; the unmarked default is the manual PWA take ("webapp").
-    assert "dataset.tone = 'neutral'" in js_source
+    assert "chipEl(take.source, 'neutral')" in js_source
     assert "'webapp'" in js_source
 
 

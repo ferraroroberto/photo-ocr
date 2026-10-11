@@ -1,16 +1,18 @@
-"""Browser regression for the History row (design.md ``action-row``): tap the
-row to copy, everything else behind one overflow menu, Delete last behind the
-confirm sheet (never the browser's own dialog). Delete all goes through the
-same sheet.
+"""Browser regression for History (design.md ``action-row``, #196): search
+first, takes under date overlines with exception chips only, a row tap
+copies, its ⋯ opens the take sheet (the text, Copy, Retry when unread, Redo
+with… a picked model, Delete last behind the confirm sheet), and Delete all
+lives in Settings › Storage behind the same confirm sheet.
 
-The session endpoints are intercepted so the test is deterministic and never
-touches the real archive; it still drives the real SPA and the real vendored
-``action-row`` / ``modal`` CSS.
+Every session and search endpoint is intercepted (invented takes), so the
+test is deterministic and never touches the real archive; it still drives
+the real SPA and the real vendored ``action-row`` / ``modal`` CSS.
 """
 
 from __future__ import annotations
 
 import json
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from playwright.sync_api import Page, Route, expect
@@ -19,52 +21,102 @@ from tests.e2e.conftest import is_unpainted
 
 pytestmark = pytest.mark.smoke
 
-_SESSIONS = [
-    {
-        "session_id": "s-one",
-        "created_at": "2026-10-03T08:00:00+00:00",
-        "photo_count": 1,
-        "model": None,
-        "extract_duration_s": 2.5,
-        "extracted_preview": "First take text",
-        "source": "webapp",
-    },
-    {
-        "session_id": "s-two",
-        "created_at": "2026-10-03T09:00:00+00:00",
-        "photo_count": 3,
-        "model": None,
-        "extract_duration_s": None,
-        "extracted_preview": "Second take text",
-        "source": "webapp",
-    },
-]
+
+def _iso(days_ago: int) -> str:
+    return (datetime.now(timezone.utc) - timedelta(days=days_ago)).isoformat()
 
 
-def test_history_row_tap_copies_and_menu_deletes(
-    authed_page: Page, base_url: str
-) -> None:
-    sessions = list(_SESSIONS)
+def _sessions() -> list[dict]:
+    return [
+        {
+            "session_id": "s-one",
+            "created_at": _iso(0),
+            "photo_count": 1,
+            "model": "gemini_flash",
+            "prompt_id": "verbatim-merge",
+            "extract_duration_s": 2.5,
+            "extracted_preview": "First take text",
+            "source": "webapp",
+            "error": None,
+            "extract_progress": {"missing_photos": []},
+        },
+        {
+            "session_id": "s-two",
+            "created_at": _iso(0),
+            "photo_count": 3,
+            "model": "gemini_flash",
+            "prompt_id": "verbatim-merge",
+            "extract_duration_s": None,
+            "extracted_preview": "Second take text",
+            "source": "app-launcher",
+            "error": None,
+            "extract_progress": {"missing_photos": ["02.jpg"]},
+        },
+        {
+            "session_id": "s-old",
+            "created_at": _iso(40),
+            "photo_count": 2,
+            "model": "gemini_flash",
+            "prompt_id": "verbatim-merge",
+            "extract_duration_s": 1.0,
+            "extracted_preview": None,
+            "source": "webapp",
+            "error": "invented failure",
+            "extract_progress": {"missing_photos": []},
+        },
+    ]
+
+
+def test_history_rows_take_sheet_and_deletes(authed_page: Page, base_url: str) -> None:
+    page = authed_page
+    sessions = _sessions()
+    more = {"left": 12}  # pretend 12 older takes are not loaded yet
     deletes: list = []
+    redo_bodies: list = []
+    list_calls = {"n": 0}
+
+    def ok(route: Route, body) -> None:
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+
+    def config(route: Route) -> None:
+        body = route.fetch().json()
+        body["ocr_models_available"] = ["gemini_flash", "claude_opus"]
+        body["search_enabled"] = True
+        body["history_retention_days"] = 30
+        ok(route, body)
 
     def list_sessions(route: Route) -> None:
-        route.fulfill(
-            status=200,
-            content_type="application/json",
-            body=json.dumps({"sessions": sessions, "total": len(sessions)}),
-        )
+        list_calls["n"] += 1
+        ok(route, {"sessions": sessions, "total": len(sessions) + more["left"]})
 
-    def session_text(route: Route) -> None:
-        route.fulfill(
-            status=200,
-            content_type="application/json",
-            body=json.dumps({"extracted": "FULL TEXT of the first take"}),
-        )
+    def text(route: Route) -> None:
+        sid = route.request.url.split("/api/sessions/")[1].split("/")[0]
+        ok(route, {"extracted": f"FULL TEXT of {sid}"})
 
-    def delete_session(route: Route) -> None:
+    def status(route: Route) -> None:
+        ok(route, {"phase": "succeeded", "missing_photos": ["02.jpg"], "duration_s": 3.0,
+                   "model": "gemini_flash", "prompt_id": "verbatim-merge"})
+
+    def search(route: Route) -> None:
+        q = route.request.url.split("q=")[1].split("&")[0]
+        hits = [] if q == "zzz" else [{
+            "session_id": "s-two", "created_at": sessions[1]["created_at"] if len(sessions) > 1 else _iso(0),
+            "model": "gemini_flash", "snippet": "[Second] take text", "source": "app-launcher",
+        }]
+        ok(route, {"query": q, "enabled": True, "results": hits})
+
+    def redo(route: Route) -> None:
+        redo_bodies.append(json.loads(route.request.post_data or "{}"))
+        ok(route, {"phase": "succeeded", "extracted": "REDONE", "model": "claude_opus",
+                   "duration_s": 2.0, "missing_photos": []})
+
+    def delete_one(route: Route) -> None:
+        if route.request.method != "DELETE":
+            route.fallback()
+            return
         deletes.append("s-one")
         sessions[:] = [s for s in sessions if s["session_id"] != "s-one"]
-        route.fulfill(status=200, content_type="application/json", body="{}")
+        ok(route, {})
 
     def delete_all(route: Route) -> None:
         if route.request.method != "DELETE":
@@ -72,76 +124,146 @@ def test_history_row_tap_copies_and_menu_deletes(
             return
         deletes.append("all")
         sessions.clear()
-        route.fulfill(status=200, content_type="application/json", body="{}")
+        more["left"] = 0
+        ok(route, {})
 
-    authed_page.route("**/api/sessions?*", list_sessions)
-    authed_page.route("**/api/sessions/s-one/text", session_text)
-    authed_page.route("**/api/sessions/s-one", delete_session)
-    authed_page.route("**/api/sessions", delete_all)
-    # A native dialog must never appear: record (and dismiss) any that does.
-    native: list = []
-    authed_page.on("dialog", lambda d: (native.append(d.type), d.dismiss()))
+    page.route("**/api/config", config)
+    page.route("**/api/sessions?*", list_sessions)
+    page.route("**/api/sessions/*/text", text)
+    page.route("**/api/sessions/s-two/extract/status", status)
+    page.route("**/api/search?*", search)
+    page.route("**/api/sessions/s-one/redo", redo)
+    page.route("**/api/sessions/s-one", delete_one)
+    page.route("**/api/sessions", delete_all)
     # Capture the clipboard write (permissions differ per engine).
-    authed_page.add_init_script(
+    page.add_init_script(
         "Object.defineProperty(navigator, 'clipboard', {value: "
         "{writeText: t => { window.__copied = t; return Promise.resolve(); }}})"
     )
-    authed_page.goto(f"{base_url}/", wait_until="domcontentloaded")
-    authed_page.locator("#tabHistory").click()
+    # A native dialog must never appear: record (and dismiss) any that does.
+    native: list = []
+    page.on("dialog", lambda d: (native.append(d.type), d.dismiss()))
+    page.goto(f"{base_url}/", wait_until="domcontentloaded")
+    calls_before = list_calls["n"]
+    page.locator("#tabHistory").click()
+    # Opening the tab reloads the list (there is no Refresh button).
+    expect(page.locator("#historyList .action-row")).to_have_count(3)
+    assert list_calls["n"] > calls_before
 
-    rows = authed_page.locator("#historyList .action-row")
-    expect(rows).to_have_count(2)
-    first = rows.first
-    # Snippet leads as the title; date · photos · model is the meta line.
-    expect(first.locator(".action-row-title")).to_have_text("First take text")
-    expect(first.locator(".action-row-meta")).to_contain_text("1 photo ·")
-    # No visible per-row Redo / Delete: one tap target plus one kebab.
+    pane = page.locator("#paneHistory")
+    # Search first, then the takes; no tool row, no "0/0".
+    expect(pane.locator("#historySearch")).to_be_visible()
+    expect(pane.locator("#refreshHistory, #historyCount, .history-tools")).to_have_count(0)
+    expect(pane.locator("#historySearch")).to_have_attribute("placeholder", "Search 15 saved takes…")
+    # Header names the exception among the loaded takes.
+    expect(page.locator("#historyHeadline")).to_have_text("1 partly read")
+    # Date overlines group the rows; Load more says what is left.
+    expect(page.locator("#historyList .history-group")).to_have_count(2)
+    expect(page.locator("#historyList .history-group").first).to_have_text("Today")
+    expect(page.locator("#loadMoreHistory")).to_have_text("Load more (12 left)")
+
+    rows = page.locator("#historyList .action-row")
+    first, second, old = rows.nth(0), rows.nth(1), rows.nth(2)
+    # Chips only for exceptions: none on a normal take; unread + caller; failed.
+    expect(first.locator(".chip")).to_have_count(0)
+    expect(second.locator(".chip[data-tone='attention']")).to_have_text("1 unread")
+    expect(second.locator(".chip[data-tone='neutral']")).to_have_text("app-launcher")
+    expect(old.locator(".chip[data-tone='danger']")).to_have_text("Failed")
+    expect(old.locator(".action-row-title")).to_have_text("invented failure")
+    expect(first.locator(".action-row-meta")).to_contain_text("1 photo · Gemini Flash")
+    # One tap target plus one kebab, the kebab a 44px unpainted icon button.
     expect(first.locator("button")).to_have_count(2)
     box = first.locator(".action-row-kebab").bounding_box()
     assert box and box["width"] >= 44 and box["height"] >= 44, box
-    assert is_unpainted(first.locator(".action-row-kebab"))  # an .icon-button (project-scaffolding#339)
+    assert is_unpainted(first.locator(".action-row-kebab"))
 
     # Tapping the row copies the full text, not the preview.
     first.locator(".action-row-main").click()
-    authed_page.wait_for_function("window.__copied !== undefined")
-    assert authed_page.evaluate("window.__copied") == "FULL TEXT of the first take"
+    page.wait_for_function("window.__copied !== undefined")
+    assert page.evaluate("window.__copied") == "FULL TEXT of s-one"
+    expect(page.locator("#toast")).to_contain_text("Copied 18 chars")
 
-    # The kebab opens the menu; Delete sits behind the confirm sheet, which
-    # stacks over the menu. Cancel, Escape and a backdrop tap all answer no
-    # and leave the menu open; only the sheet's Delete deletes.
+    # The kebab opens the take sheet: the text, Copy, no Retry (fully read),
+    # Redo with…, Delete last in danger text.
     first.locator(".action-row-kebab").click()
-    menu = authed_page.locator("#takeMenu")
-    expect(menu).to_be_visible()
-    expect(authed_page.locator("#takeRedo")).to_be_visible()
-    assert is_unpainted(menu.locator(".detail-close"))
-    confirm = authed_page.locator("dialog.confirm-sheet")
-    for dismiss in ("cancel", "escape", "backdrop"):
-        authed_page.locator("#takeDelete").click()
-        expect(confirm).to_be_visible()
-        expect(confirm.locator("h2")).to_have_text("Delete this take?")
-        if dismiss == "cancel":
-            confirm.get_by_role("button", name="Cancel").click()
-        elif dismiss == "escape":
-            authed_page.keyboard.press("Escape")
-        else:
-            authed_page.mouse.click(2, 2)
-        expect(confirm).to_have_count(0)
-        expect(menu).to_be_visible()
+    sheet = page.locator("dialog.take-sheet-dialog")
+    expect(sheet).to_be_visible()
+    expect(sheet.locator("h2")).to_contain_text("Today")
+    expect(sheet.locator(".take-sheet-text")).to_have_text("FULL TEXT of s-one")
+    expect(sheet.locator(".take-sheet-meta")).to_contain_text("2.5 s")
+    expect(sheet.get_by_role("button", name="Retry 0 unread")).to_be_hidden()
+    expect(sheet.locator(".sheet-action").last).to_have_text("Delete take")
+    expect(sheet.locator(".sheet-action").last).to_have_attribute("data-tone", "danger")
+    assert is_unpainted(sheet.locator(".detail-close"))
+
+    # Redo with… opens a model picker marking the take's own model and posts
+    # the picked one; the list refreshes after.
+    sheet.get_by_role("button", name="Redo with…").click()
+    picker = page.locator("dialog.sheet")
+    expect(picker.locator("[aria-current='true']")).to_have_text("Gemini Flash")
+    calls_before = list_calls["n"]
+    picker.get_by_role("button", name="Claude Opus").click()
+    expect(page.locator("#toast")).to_contain_text("Redo done")
+    assert redo_bodies == [{"model": "claude_opus", "prompt_id": "verbatim-merge"}], redo_bodies
+    assert list_calls["n"] > calls_before
+
+    # A partly read take's sheet offers Retry with the count.
+    second.locator(".action-row-kebab").click()
+    expect(sheet.get_by_role("button", name="Retry 1 unread")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(sheet).to_have_count(0)
+
+    # A search hit opens the same sheet; its unread count comes from the
+    # server once the sheet is up.
+    page.locator("#historySearch").fill("Second")
+    hit = page.locator("#historyList .action-row")
+    expect(hit).to_have_count(1)
+    expect(hit.locator("mark")).to_have_text("Second")
+    expect(page.locator("#historyList .history-group")).to_have_count(0)
+    hit.locator(".action-row-kebab").click()
+    expect(sheet.get_by_role("button", name="Retry 1 unread")).to_be_visible()
+    expect(sheet.locator(".take-sheet-text")).to_have_text("FULL TEXT of s-two")
+    page.keyboard.press("Escape")
+    expect(sheet).to_have_count(0)
+    # No matches offers clearing the search, which restores the list.
+    page.locator("#historySearch").fill("zzz")
+    expect(page.locator("#historyList")).to_contain_text("No matches")
+    page.get_by_role("button", name="Clear search").click()
+    expect(page.locator("#historySearch")).to_have_value("")
+    expect(rows).to_have_count(3)
+
+    # Delete from the sheet goes through the confirm sheet: Escape answers
+    # no, the verb deletes.
+    rows.nth(0).locator(".action-row-kebab").click()
+    sheet.get_by_role("button", name="Delete take").click()
+    confirm = page.locator("dialog.confirm-sheet")
+    expect(confirm.locator("h2")).to_have_text("Delete this take?")
+    page.keyboard.press("Escape")
+    expect(confirm).to_have_count(0)
     assert deletes == []
-    authed_page.locator("#takeDelete").click()
+    rows.nth(0).locator(".action-row-kebab").click()
+    sheet.get_by_role("button", name="Delete take").click()
     confirm.locator("[data-confirm='yes']").click()
-    expect(menu).to_be_hidden()
-    expect(rows).to_have_count(1)
+    expect(rows).to_have_count(2)
     assert deletes == ["s-one"]
 
-    # Delete all: the same sheet; Cancel keeps every take, the verb clears them.
-    authed_page.locator("#cleanAll").click()
+    # Delete all lives in Settings › Storage, behind the same confirm sheet.
+    page.locator("#paneHistory .home-settings").click()
+    page.locator("#cleanAll").click()
     expect(confirm.locator("h2")).to_have_text("Delete all saved takes?")
     confirm.get_by_role("button", name="Cancel").click()
     expect(confirm).to_have_count(0)
-    expect(rows).to_have_count(1)
-    authed_page.locator("#cleanAll").click()
+    page.locator("#cleanAll").click()
     confirm.locator("[data-confirm='yes']").click()
-    expect(rows).to_have_count(0)
+    expect(page.locator("#toast")).to_contain_text("History cleared")
     assert deletes == ["s-one", "all"]
+
+    # The empty state names its way forward.
+    page.locator("#tabHistory").click()
+    expect(rows).to_have_count(0)
+    empty = page.locator("#historyList .empty-state")
+    expect(empty).to_contain_text("No saved takes")
+    expect(empty).to_contain_text("30 days")
+    empty.get_by_role("button", name="Capture a take").click()
+    expect(page.locator("#paneCapture")).to_be_visible()
     assert native == []

@@ -22,13 +22,15 @@ let sheetSeq = 0;
  * @param {string} o.title                 the heading (also the dialog's name)
  * @param {Node} [o.body]                  content between the header and the actions
  * @param {Array<object>} [o.actions]      full-width rows, in order:
- *   { label, icon?, tone?: 'primary' | 'danger', current?, onSelect?() }. A
- *   `danger` action sits last, after a divider, in danger text. `current`
- *   marks a picker's chosen row (a trailing check, aria-current). Choosing an
- *   action closes the sheet first, then runs `onSelect`.
+ *   { label, icon?, tone?: 'primary' | 'danger', current?, hidden?, onSelect?() }.
+ *   A `danger` action sits last, after a divider, in danger text. `current`
+ *   marks a picker's chosen row (a trailing check, aria-current); `hidden`
+ *   starts it hidden (the caller reveals it from the returned `actions`).
+ *   Choosing an action closes the sheet first, then runs `onSelect`.
  * @param {string} [o.className]           an extra class on the dialog (per use)
  * @param {(reason: string) => void} [o.onClose]  'action' | 'dismiss'
- * @returns {{dialog: HTMLDialogElement, body: HTMLElement, close: () => void}}
+ * @returns {{dialog: HTMLDialogElement, body: HTMLElement, close: () => void,
+ *            actions: HTMLButtonElement[]}}  `actions` in the order given
  */
 export function openSheet(o) {
   const opener = document.activeElement;
@@ -62,6 +64,7 @@ export function openSheet(o) {
   card.appendChild(body);
 
   const actions = o.actions || [];
+  const buttons = [];
   if (actions.length) {
     const list = document.createElement('div');
     list.className = 'sheet-actions';
@@ -71,7 +74,11 @@ export function openSheet(o) {
       btn.className = a.tone === 'primary' ? 'button-primary sheet-action' : 'sheet-action';
       if (a.tone === 'danger') btn.dataset.tone = 'danger';
       if (a.icon) btn.innerHTML = icon(a.icon);
-      btn.appendChild(document.createTextNode(a.label));
+      const label = document.createElement('span');
+      label.className = 'sheet-action-label';
+      label.textContent = a.label;
+      btn.appendChild(label);
+      btn.hidden = !!a.hidden;
       if (a.current) {
         btn.setAttribute('aria-current', 'true');
         btn.insertAdjacentHTML('beforeend', icon('check', 'sheet-action-check'));
@@ -82,6 +89,7 @@ export function openSheet(o) {
         if (a.onSelect) a.onSelect();
       });
       list.appendChild(btn);
+      buttons.push(btn);
     });
     card.appendChild(list);
   }
@@ -98,7 +106,12 @@ export function openSheet(o) {
 
   document.body.appendChild(dialog);
   dialog.showModal();
-  return { dialog: dialog, body: body, close: function () { dialog.close(); } };
+  return {
+    dialog: dialog,
+    body: body,
+    close: function () { dialog.close(); },
+    actions: buttons,
+  };
 }
 
 /**

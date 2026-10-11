@@ -28,7 +28,8 @@ pytestmark = pytest.mark.smoke
 # The empty take's two starts; once a photo is ready, the take's own controls.
 _CAPTURE_TARGETS = (".choose-photos-btn", ".camera-btn")
 _TAKE_TARGETS = ("#takeModel", "#takeStyle", "#extractBtn", "#takeMenuBtn", ".thumb-add-btn")
-_HISTORY_TARGETS = ("#refreshHistory", "#cleanAll")
+# Whatever History shows: its rows (tap + kebab) or the empty state's action.
+_HISTORY_TARGETS = ("#historyList button",)
 # The vendored bottom-tab nav owns its own geometry (project-scaffolding): its
 # desktop-measure tabs are 37px, so the 44px touch floor is held on phone widths.
 _NAV_TABS = ("#tabCapture", "#tabHistory")
@@ -65,6 +66,14 @@ def test_primary_controls_fit_every_viewport_and_theme(
     authed_page: Page, base_url: str
 ) -> None:
     page = authed_page
+    # An empty History whatever the data root holds: its one target is the
+    # empty state's action.
+    page.route(
+        "**/api/sessions?*",
+        lambda route: route.fulfill(
+            status=200, content_type="application/json", body='{"sessions": [], "total": 0}'
+        ),
+    )
     page.goto(f"{base_url}/", wait_until="domcontentloaded")
     page.wait_for_selector("#extractBtn", state="attached", timeout=5_000)
     canvas: dict[str, str] = {}
