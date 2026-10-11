@@ -41,13 +41,19 @@ same archive shape, same auth model, but for pixels instead of audio.
   preference until overridden — same feature as home-automation and
   app-launcher) and the **Settings gear** that opens the Settings pane. An
   empty take shows only its two starts, **Choose photos** and **Camera**.
-  With photos in, the take card holds the strip (its last tile adds more),
-  one line with this take's **model** and **style** chips (each opens a
-  picker; Settings keeps the default a new take starts from) and the
-  **Save to history** switch, then **Extract**, which appears once a photo
-  is ready, with a meter while it reads; **Start over** sits in the take's
-  ⋯ menu. The Capture header names only exceptions (a blurry photo, a
-  reading take, Not saved to History). Messages use the fleet's neutral frosted
+  With photos in, the take card holds the strip (tap a photo for its sheet:
+  the photo whole, move left / right, retake or keep a quality-warned one,
+  remove; the last tile adds more), one line with this take's **model** and
+  **style** chips (each opens a picker; Settings keeps the default a new take
+  starts from) and the **Save to history** switch, then **Extract**, which
+  appears once a photo is ready, with a meter while it reads; **Start over**
+  sits in the take's ⋯ menu. After Extract the card shows the result: the
+  photos fold to an "N photos ›" row, a meta line (model, time, cached,
+  saved to History), the editable text, **Copy text** as the primary,
+  **New take**, and **Retry N unread** on a partly read take; a failed job
+  shows the server's own message. The Capture header names only exceptions
+  (a blurry photo, a reading take, unread photos, Not saved to History).
+  Messages use the fleet's neutral frosted
   **toast** (the nav bar's glass; only a real error tints). A build-identity footer is visible from every
   tab. Settings carries the persisted **Text size**
   (Small / Default / Large) control that makes the viewport zoom lock
@@ -295,14 +301,14 @@ photo-ocr/
 │  iPhone / Android (PWA installed to Home Screen)                │
 │                                                                 │
 │  [🖼 Choose photos] [📷 Camera], N times, then [+] for more      │
-│  ┌──────┐ ┌──────┐ ┌──────┐  reorder, delete, preview           │
+│  ┌──────┐ ┌──────┐ ┌──────┐  tap one: move, retake, remove      │
 │  │ #1   │ │ #2   │ │ #3   │                                    │
 │  └──────┘ └──────┘ └──────┘                                    │
 │  [🔍 Extract text]                                              │
 │  ┌────────────────────────────────────────────────────┐         │
 │  │ <extracted text — editable>                        │         │
 │  └────────────────────────────────────────────────────┘         │
-│  [📋 Copy]                                                       │
+│  [📋 Copy text]  [New take]  then "3 photos ›" for the strip     │
 └───────────────────────────────┬─────────────────────────────────┘
                                 │ HTTPS, multipart upload
                                 │ Bearer token + Cloudflare Access

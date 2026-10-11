@@ -1,14 +1,17 @@
-/* Photo OCR — the extract action, the result textarea, copy-to-
+/* Photo OCR — the extract action, the result view of the take card (meta
+ * line, editable text, Copy text, New take, Retry missing), copy-to-
  * clipboard, and resetting the current take. */
 
 'use strict';
 
-import { state, els, toast, copyText } from './state.js';
+import { state, els, toast, modelLabel, copyText } from './state.js';
 import { jsonApi } from './api.js';
 import {
   renderThumbnails,
   renderTakeOptions,
-  setStatus,
+  renderView,
+  renderHeadline,
+  setError,
   setProgress,
   clearProgress,
   syncPhotoOrder,
@@ -18,11 +21,52 @@ import { pollUntilDone, extractProgress } from './poll.js';
 import { defaultModel, defaultPromptId } from './settings.js';
 import { icon } from './_vendored/icons/icons.js';
 
+// The result's one meta line, from the outcome the job reported: model,
+// time, cached, and whether the take is in History. The photo count is the
+// "N photos ›" row's, so it is not repeated here.
+function resultMeta(r) {
+  const parts = [];
+  if (r.cached) parts.push('Cached result');
+  if (r.model) parts.push(modelLabel(r.model));
+  if (r.seconds) parts.push(r.seconds + ' s');
+  parts.push(r.saved ? 'saved to History' : 'not saved to History');
+  return parts.join(' · ');
+}
+
 export function renderExtracted() {
+  const r = state.result;
   els.extracted.value = state.extracted || '';
   els.copyExtracted.disabled = !state.extracted;
-  // The one action for a partly read take; absent when nothing is missing.
-  els.retryMissing.hidden = !(state.sessionId && state.missingPhotos.length);
+  if (r) {
+    els.resultMeta.textContent = resultMeta(r);
+    // A take that read nothing says so instead of an empty box and a
+    // disabled Copy.
+    const empty = !state.extracted;
+    els.resultEmpty.hidden = !empty;
+    els.extracted.hidden = empty;
+    els.copyExtracted.hidden = empty;
+  }
+  // The one action for a partly read take, naming how many; absent when
+  // nothing is missing.
+  const missing = state.missingPhotos.length;
+  els.retryMissing.hidden = !(state.sessionId && missing);
+  els.retryMissingLabel.textContent = 'Retry ' + missing + ' unread';
+  renderView();
+  renderHeadline();
+}
+
+// The take's result from a job's terminal body. `startedAt` times it when the
+// server did not.
+function takeResult(body, startedAt) {
+  const elapsed = startedAt ? (Date.now() - startedAt) / 1000 : 0;
+  const seconds = body.duration_s ? Number(body.duration_s) : elapsed;
+  return {
+    model: body.model || state.model,
+    seconds: seconds ? seconds.toFixed(1) : '',
+    cached: !!body.reused,
+    // A History take is in History; this take is unless its switch is off.
+    saved: state.takeAdopted || !state.incognito,
+  };
 }
 
 // Render one poll body. The poll loop (poll.js) filters terminal phases,
@@ -32,16 +76,9 @@ function renderExtractStatus(body, startedAt) {
   if (body.phase === 'succeeded') {
     state.extracted = body.extracted || '';
     state.missingPhotos = body.missing_photos || [];
+    state.result = takeResult(body, startedAt);
+    state.showPhotos = false;
     renderExtracted();
-    const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
-    const seconds = body.duration_s ? Number(body.duration_s).toFixed(1) : elapsed;
-    if (body.reused) {
-      setStatus('Already extracted — showing cached result · ' + seconds + ' s');
-    } else if (!state.extracted) {
-      setStatus('No readable text detected · ' + seconds + ' s');
-    } else {
-      setStatus('Done in ' + seconds + ' s — tap Copy');
-    }
   } else if (body.phase === 'failed') {
     throw new Error(body.error || 'extract failed');
   } else {
@@ -73,19 +110,19 @@ export function followJob(sessionId, started, prefix) {
 
 // Run `run()` inside the busy cycle. `begin` / `end` toggle the caller's own
 // button; `startLabel` is the meter's first line; `failLabel` heads the
-// failure toast ('Extract failed'), and `failStatus` heads the outcome line
-// when it differs ('Failed: ' by default).
+// failure toast ('Extract failed'), and `failStatus` heads the card's error
+// line when it differs ('Failed: ' by default).
 export async function runTakeJob(opts) {
   if (state.busy) return;
   state.busy = true;
   if (opts.begin) opts.begin();
-  setStatus('');
+  setError('');
   setProgress({ label: opts.startLabel, fraction: 0 });
   renderThumbnails();
   try {
     await opts.run();
   } catch (exc) {
-    setStatus((opts.failStatus || 'Failed: ') + (exc.message || exc));
+    setError((opts.failStatus || 'Failed: ') + (exc.message || exc));
     toast(opts.failLabel + ': ' + (exc.message || exc), 'error');
   } finally {
     state.busy = false;
@@ -147,13 +184,11 @@ export async function retryMissing(sessionId) {
       loadHistory(0);
       const left = state.missingPhotos.length;
       if (body.retry_error) {
-        setStatus('Retry failed: ' + body.retry_error);
+        setError('Retry failed: ' + body.retry_error);
         toast('Retry failed: ' + body.retry_error, 'error');
       } else if (!left) {
-        setStatus('All photos read — tap Copy');
         toast('All photos read.');
       } else {
-        setStatus(left + ' photo(s) still missing');
         toast('Read ' + (before - left) + ' of ' + before + ' missing; ' + left + ' still missing.');
       }
     },
@@ -166,11 +201,9 @@ export async function copyExtracted() {
   if (!txt) return;
   try {
     await copyText(txt);
-    els.copyExtracted.classList.add('copied');
     const original = els.copyExtracted.innerHTML;
     els.copyExtracted.innerHTML = icon('check') + ' Copied';
     setTimeout(function () {
-      els.copyExtracted.classList.remove('copied');
       els.copyExtracted.innerHTML = original;
     }, 1200);
   } catch (exc) {
@@ -188,7 +221,7 @@ function dropPhotos() {
   state.photos = [];
 }
 
-// Show a History take's result in the Capture card (Redo / Retry missing).
+// Show a job's result in the Capture card (Redo from History, Retry missing).
 // When it is a different take from the one in the strip, the strip's photos
 // aren't its photos: drop them, and let the next added photo start a new take.
 export function adoptTake(sessionId, body) {
@@ -199,10 +232,14 @@ export function adoptTake(sessionId, body) {
   state.sessionId = sessionId;
   state.extracted = body.extracted || '';
   state.missingPhotos = body.missing_photos || [];
+  state.result = takeResult(body, 0);
+  state.showPhotos = false;
+  renderThumbnails();
   renderExtracted();
 }
 
-// Start over: an empty take on the Settings default model and style.
+// Start over (New take, or the take's ⋯): an empty take on the Settings
+// default model and style.
 export function resetTake() {
   dropPhotos();
   state.takeAdopted = false;
@@ -210,12 +247,14 @@ export function resetTake() {
   state.sessionIdPromise = null;
   state.extracted = '';
   state.missingPhotos = [];
+  state.result = null;
+  state.showPhotos = false;
   if (state.config) {
     state.model = defaultModel();
     state.promptId = defaultPromptId();
   }
+  setError('');
   renderTakeOptions();
   renderThumbnails();
   renderExtracted();
-  setStatus('');
 }

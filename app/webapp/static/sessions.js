@@ -6,7 +6,6 @@
 import { state, els, toast, HISTORY_PAGE_SIZE, modelLabel, copyText } from './state.js';
 import { jsonApi } from './api.js';
 import { adoptTake, followJob, postJob, retryMissing, runTakeJob } from './extract.js';
-import { setStatus } from './capture.js';
 import { icon } from './_vendored/icons/icons.js';
 import { emptyStateEl } from './_vendored/empty-state/empty-state.js';
 import { confirmSheet } from './sheet.js';
@@ -264,7 +263,6 @@ async function redoHistoryEntry(s) {
       const body = await followJob(s.session_id, started, 'Redo');
       adoptTake(s.session_id, body);
       refreshHistoryView();
-      setStatus('Redo done — tap Copy');
       toast('Redo done.');
     },
   });

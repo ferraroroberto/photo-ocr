@@ -1,10 +1,10 @@
-"""Browser regression for the Capture thumbnail toolbar (#147).
+"""Browser regression for the Capture photo sheet (#147, #195).
 
-A thumbnail is a 96px tile; the old per-photo overlay controls (remove 24px,
-move 22px, the quality warning's Retake / Keep) sat under the 44px hit-target
-floor and the tile clips its overflow, so they could not be expanded. The fix:
-tap a thumbnail to select it (``aria-pressed`` + a ring), and act from one
-toolbar below the strip whose buttons are real 44px targets.
+A thumbnail is a 96px tile; per-photo overlay controls on it sat under the
+44px hit-target floor and the tile clips its overflow (#147). Tapping a tile
+opens one sheet with the photo and every photo action (move left / right,
+Retake and Keep for a quality-warned photo, Remove) as real 44px targets; it
+replaced the selection toolbar and the separate full-size preview (#195).
 
 The session endpoints are mocked (no real archive session is created); the
 quality gate runs for real on the picked pixels, so a flat grey photo is the
@@ -24,14 +24,7 @@ from playwright.sync_api import Page, Route, expect
 pytestmark = pytest.mark.smoke
 
 _HIT_MIN = 44
-_TOOLBAR_BUTTONS = (
-    "#thumbMoveLeft",
-    "#thumbMoveRight",
-    "#thumbView",
-    "#thumbRetake",
-    "#thumbKeep",
-    "#thumbRemove",
-)
+_SHEET = "dialog.photo-sheet-dialog"
 
 
 def _jpeg(*, noisy: bool) -> bytes:
@@ -133,7 +126,7 @@ def _assert_hit_targets(page: Page, selectors: list[str]) -> None:
             )
 
 
-def test_thumbnail_toolbar_selects_and_acts(authed_page: Page, base_url: str) -> None:
+def test_photo_sheet_holds_every_photo_action(authed_page: Page, base_url: str) -> None:
     deleted = _mock_session_api(authed_page)
     errors: list[str] = []
     authed_page.on("pageerror", lambda exc: errors.append(str(exc)))
@@ -152,72 +145,59 @@ def test_thumbnail_toolbar_selects_and_acts(authed_page: Page, base_url: str) ->
     expect(thumbs).to_have_count(3, timeout=10_000)
     expect(authed_page.locator("#thumbStrip li.thumb.warned")).to_have_count(1)
 
-    toolbar = authed_page.locator("#thumbToolbar")
-    expect(toolbar).to_be_visible()
-    # Nothing selected: the toolbar is there but inert.
-    for sel in _TOOLBAR_BUTTONS:
-        expect(authed_page.locator(sel)).to_be_disabled()
-    expect(authed_page.locator("#thumbStrip [aria-pressed='true']")).to_have_count(0)
+    # A tile is one 44px+ button that opens its photo's sheet.
+    tiles = authed_page.locator("#thumbStrip .thumb-select")
+    expect(tiles.nth(0)).to_have_attribute("aria-haspopup", "dialog")
+    _assert_hit_targets(authed_page, ["#thumbStrip button"])
 
-    # Select photo 1 by tap: ring state is aria-pressed, toolbar arms.
-    select = authed_page.locator("#thumbStrip .thumb-select")
-    select.nth(0).click()
-    expect(select.nth(0)).to_have_attribute("aria-pressed", "true")
-    expect(select.nth(1)).to_have_attribute("aria-pressed", "false")
-    expect(authed_page.locator("#thumbMoveLeft")).to_be_disabled()  # first photo
-    for sel in ("#thumbMoveRight", "#thumbView", "#thumbRemove"):
-        expect(authed_page.locator(sel)).to_be_enabled()
-    # Not warned: Retake / Keep are not offered.
-    expect(authed_page.locator("#thumbRetake")).to_be_hidden()
-    expect(authed_page.locator("#thumbKeep")).to_be_hidden()
+    tiles.nth(0).click()
+    sheet = authed_page.locator(_SHEET)
+    expect(sheet).to_be_visible()
+    expect(sheet.locator("h2")).to_have_text("Photo 1 of 3")
+    expect(sheet.locator(".photo-sheet-frame img")).to_have_count(1)
+    move_left = sheet.get_by_role("button", name="Move left")
+    move_right = sheet.get_by_role("button", name="Move right")
+    expect(move_left).to_be_disabled()  # first photo
+    expect(move_right).to_be_enabled()
+    # Not warned: Retake / Keep are not offered; Remove is, last.
+    expect(sheet.get_by_role("button", name="Retake")).to_have_count(0)
+    expect(sheet.locator(".sheet-action").last).to_have_text("Remove photo")
+    # The × is the vendored modal close (34px + its ::before band to 44).
+    _assert_hit_targets(authed_page, [f"{_SHEET} button:not(.detail-close)"])
 
-    # Every thumbnail control is a real 44px target.
-    _assert_hit_targets(
-        authed_page,
-        ["#thumbStrip .thumb-select", "#thumbStrip button"]
-        + [s for s in _TOOLBAR_BUTTONS if s not in ("#thumbRetake", "#thumbKeep")],
-    )
-
-    # Move right: the selected photo travels with its selection.
+    # Move right: the photo travels, the sheet stays open on it.
     before = _srcs(authed_page)
-    authed_page.locator("#thumbMoveRight").click()
+    move_right.click()
     after = _srcs(authed_page)
     assert after[1] == before[0] and after[0] == before[1], (before, after)
-    expect(select.nth(1)).to_have_attribute("aria-pressed", "true")
-    expect(authed_page.locator("#thumbMoveLeft")).to_be_enabled()
+    expect(sheet.locator("h2")).to_have_text("Photo 2 of 3")
+    expect(move_left).to_be_enabled()
+    # Escape closes it; focus returns to that photo's tile.
+    authed_page.keyboard.press("Escape")
+    expect(sheet).to_have_count(0)
+    expect(tiles.nth(1)).to_be_focused()
 
-    # The quality-warned photo (now at index 0 → select it): Retake / Keep
-    # appear in the toolbar at 44px, and Keep dismisses the warning.
-    select.nth(0).click()
-    expect(authed_page.locator("#thumbRetake")).to_be_visible()
-    expect(authed_page.locator("#thumbKeep")).to_be_visible()
-    _assert_hit_targets(authed_page, ["#thumbRetake", "#thumbKeep"])
-    authed_page.locator("#thumbKeep").click()
+    # The quality-warned photo (now at index 0): Retake / Keep, the warning
+    # named; Keep dismisses it.
+    tiles.nth(0).click()
+    expect(sheet.locator(".photo-sheet-warning")).to_contain_text("Blurry")
+    expect(sheet.get_by_role("button", name="Retake")).to_be_visible()
+    sheet.get_by_role("button", name="Keep it").click()
+    expect(sheet).to_have_count(0)
     expect(authed_page.locator("#thumbStrip li.thumb.warned")).to_have_count(0)
-    expect(authed_page.locator("#thumbKeep")).to_be_hidden()
-    expect(select.nth(0)).to_have_attribute("aria-pressed", "true")
 
-    # View opens the preview (a tap on the tile now selects, not previews).
-    authed_page.locator("#thumbView").click()
-    expect(authed_page.locator("#previewDialog")).to_be_visible()
-    authed_page.locator("#previewClose").click()
-    expect(authed_page.locator("#previewDialog")).to_be_hidden()
-
-    # Tapping elsewhere clears the selection.
-    authed_page.locator("#paneCapture .home-title").click()
-    expect(authed_page.locator("#thumbStrip [aria-pressed='true']")).to_have_count(0)
-    expect(authed_page.locator("#thumbRemove")).to_be_disabled()
-
-    # Keyboard: a thumbnail is a focusable toggle button.
-    select.nth(2).focus()
+    # Keyboard: a tile opens its sheet with Enter; a backdrop tap closes it.
+    tiles.nth(2).focus()
     authed_page.keyboard.press("Enter")
-    expect(select.nth(2)).to_have_attribute("aria-pressed", "true")
+    expect(sheet.locator("h2")).to_have_text("Photo 3 of 3")
+    authed_page.mouse.click(2, 2)
+    expect(sheet).to_have_count(0)
 
-    # Remove drops the photo, hits the API, and clears the selection.
-    authed_page.locator("#thumbRemove").click()
+    # Remove drops the photo and hits the API.
+    tiles.nth(2).click()
+    sheet.get_by_role("button", name="Remove photo").click()
     expect(authed_page.locator("#thumbStrip li.thumb")).to_have_count(2)
-    expect(authed_page.locator("#thumbStrip [aria-pressed='true']")).to_have_count(0)
-    expect(authed_page.locator("#thumbRemove")).to_be_disabled()
+    _wait_until(authed_page, lambda: deleted)
     assert len(deleted) == 1, deleted
     assert errors == [], errors
 
@@ -253,7 +233,7 @@ def test_removing_a_photo_mid_upload_deletes_it_server_side(
     authed_page.set_input_files("#galleryInput", files=[_file("a.jpg", noisy=True)])
     expect(authed_page.locator("#thumbStrip li.thumb.uploading")).to_have_count(1)
     authed_page.locator("#thumbStrip .thumb-select").click()
-    authed_page.locator("#thumbRemove").click()
+    authed_page.locator(_SHEET).get_by_role("button", name="Remove photo").click()
     expect(authed_page.locator("#thumbStrip li.thumb")).to_have_count(0)
 
     _wait_until(authed_page, lambda: held)
