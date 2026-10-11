@@ -9,6 +9,7 @@ import { adoptTake, followJob, postJob, retryMissing, runTakeJob } from './extra
 import { setStatus } from './capture.js';
 import { icon } from './_vendored/icons/icons.js';
 import { emptyStateEl } from './_vendored/empty-state/empty-state.js';
+import { confirmSheet } from './sheet.js';
 
 export async function loadHistory(offset) {
   state.historyOffset = offset || 0;
@@ -73,11 +74,13 @@ function makeSessionRow(sessionId, metaText, previewText, isSnippet, source, mis
   meta.className = 'action-row-meta';
   meta.textContent = metaText;
   // Flag externally-sourced takes (app-launcher, api, …) so History is
-  // an attributable cross-fleet audit trail. Manual PWA takes ("webapp")
-  // are the unmarked default — no badge keeps the common case clean.
+  // an attributable cross-fleet audit trail: a neutral status chip. Manual
+  // PWA takes ("webapp") are the unmarked default — no chip keeps the
+  // common case clean.
   if (source && source !== 'webapp') {
     const badge = document.createElement('span');
-    badge.className = 'source-badge';
+    badge.className = 'chip';
+    badge.dataset.tone = 'neutral';
     badge.textContent = source;
     meta.appendChild(document.createTextNode(' '));
     meta.appendChild(badge);
@@ -307,9 +310,17 @@ export function initTakeMenu() {
     dlg.close();
     if (ref) redoHistoryEntry(ref);
   });
+  // The confirm stacks over the menu: Cancel leaves the menu open on Delete.
   els.takeDelete.addEventListener('click', async function () {
     const ref = menuTake;
-    if (!ref || !confirm('Delete this take?')) return;
+    if (!ref) return;
+    const yes = await confirmSheet({
+      title: 'Delete this take?',
+      message: 'Its photos and text are deleted for good.',
+      confirmLabel: 'Delete',
+      danger: true,
+    });
+    if (!yes) return;
     dlg.close();
     await deleteHistoryEntry(ref);
   });
@@ -328,7 +339,13 @@ async function deleteHistoryEntry(s) {
 }
 
 export async function cleanAllHistory() {
-  if (!confirm('Delete all saved takes?')) return;
+  const yes = await confirmSheet({
+    title: 'Delete all saved takes?',
+    message: 'Every saved take, with its photos and text, is deleted for good.',
+    confirmLabel: 'Delete all',
+    danger: true,
+  });
+  if (!yes) return;
   try {
     await jsonApi('/api/sessions', { method: 'DELETE' });
     refreshHistoryView();

@@ -126,7 +126,8 @@ export function renderThumbnails() {
 
     if (warned) {
       const chip = document.createElement('span');
-      chip.className = 'warn-chip';
+      chip.className = 'chip';
+      chip.dataset.tone = 'attention';
       chip.textContent = warningLabel(photo.warnings);
       li.appendChild(chip);
     }

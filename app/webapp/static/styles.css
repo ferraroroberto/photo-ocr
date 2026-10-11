@@ -29,11 +29,15 @@
      light uses the deeper text red. */
   --deficit: var(--danger-text);
   --attention: #9a6700;
+  --attention-text: #7d4e00; /* attention text on its own tint, 5.75:1 */
   /* derived surface roles (mapped onto the neutral tokens above) */
   --input-bg: var(--card-off);
   --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
   --accent-border-soft: color-mix(in srgb, var(--accent) 24%, transparent);
   --accent-border-strong: color-mix(in srgb, var(--accent) 28%, transparent);
+  /* neutral-soft: the chip / segmented-track fill (fg on it; fg-muted drops
+     under AA). Never canvas-subtle inside a card: true black in dark. */
+  --neutral-soft: color-mix(in srgb, var(--muted) 16%, transparent);
   --deficit-soft: color-mix(in srgb, var(--danger) 12%, transparent);
   --deficit-border-soft: color-mix(in srgb, var(--danger) 30%, transparent);
   --close-bg: transparent;  /* glyph-only controls draw nothing at rest (fleet-config#1259) */
@@ -112,6 +116,7 @@
   --danger-text: #ff7b72;
   --deficit: #da3633;       /* the vendored error toast: white text holds 4.5:1 */
   --attention: #d29922;
+  --attention-text: #e3b341; /* 6.84:1 on its tint */
   --input-bg: var(--bg);
   --close-bg: transparent;
   /* Depth on a near-black canvas comes from surface lightness, not shadow. */
@@ -272,31 +277,28 @@ html, body {
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
 }
-.thumb .seq,
-.thumb .warn-chip {
+.thumb .seq {
   position: absolute;
+  top: var(--space-xs);
+  left: var(--space-xs);
+  padding: 2px 6px;
   font-size: var(--font-caption);
+  font-variant-numeric: tabular-nums;
   background: rgba(0, 0, 0, 0.65);
   color: #fff;
   border-radius: var(--radius-pill);
   pointer-events: none;
 }
-.thumb .seq {
-  top: var(--space-xs);
-  left: var(--space-xs);
-  padding: 2px 6px;
-  font-variant-numeric: tabular-nums;
-}
-/* The advisory quality label (Blurry / Dark / Glare) — the Retake / Keep
-   choice it used to carry lives in the toolbar on selection. */
-.thumb .warn-chip {
+/* The advisory quality label (Blurry / Dark / Glare) is the attention .chip,
+   placed along the tile's foot; the Retake / Keep choice it used to carry
+   lives in the toolbar on selection. */
+.thumb .chip {
+  position: absolute;
   left: var(--space-xs);
   right: var(--space-xs);
   bottom: var(--space-xs);
-  padding: 2px var(--space-sm);
-  text-align: center;
-  font-weight: 600;
-  line-height: 1.2;
+  justify-content: center;
+  pointer-events: none;
 }
 .thumb.uploading {
   outline: 2px solid var(--attention);
@@ -405,13 +407,6 @@ html, body {
   align-items: center;
   gap: var(--space-sm);
 }
-
-/* Build-identity footer (which build the PWA is running). */
-.page-foot {
-  margin: var(--space-md) var(--space-xs);
-  text-align: center;
-}
-.page-foot p { margin: 2px 0; }
 
 .text-out {
   width: 100%;
@@ -585,19 +580,8 @@ hr {
   padding: 0 2px;
 }
 /* A take is an action-row (_vendored/action-row): the row layout, title/meta
-   type and 44px kebab all come from the component; only the source badge and
-   the overflow menu are app-side. */
-.history-item .source-badge {
-  display: inline-block;
-  background: var(--card);
-  color: var(--ink);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-pill);
-  padding: 0 7px;
-  font-size: var(--font-caption);
-  line-height: 16px;
-  vertical-align: middle;
-}
+   type and 44px kebab all come from the component; only the overflow menu is
+   app-side (the caller badge is the neutral .chip). */
 
 /* The overflow menu (a <dialog> on the vendored modal shell): full-width
    actions, the destructive one last, after a divider. */
@@ -620,6 +604,49 @@ hr {
   width: 100%;
   margin-top: 10px;
   justify-content: center;
+}
+
+/* ---------- status chip ----------
+   design.md "status chip": one class, one tone map, exceptions only — a
+   normal state gets no chip and success never tints. caption type, sentence
+   case, rounded.pill. Each tone is its 16% tint with the matching text token
+   (neutral: fg on neutral-soft). The tint is mixed over --card rather than
+   transparent: identical on a card, and still opaque where a chip sits on a
+   photo (the thumbnail's quality chip).
+     attention: needs the user soon (a quality warning, a partly read take)
+     accent:    work in progress (reading, merging)
+     neutral:   a plain fact (not saved, an external caller)
+     danger:    broken (failed, hub down) */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  max-width: 100%;
+  padding: 2px var(--space-sm);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--muted) 16%, var(--card));
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--font-caption);
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+.chip[data-tone="attention"] {
+  background: color-mix(in srgb, var(--attention) 16%, var(--card));
+  color: var(--attention-text);
+}
+.chip[data-tone="accent"] {
+  background: color-mix(in srgb, var(--accent) 16%, var(--card));
+  color: var(--accent-text);
+}
+.chip[data-tone="danger"] {
+  background: color-mix(in srgb, var(--danger) 16%, var(--card));
+  color: var(--danger-text);
 }
 
 /* ---------- toast ---------- */
@@ -646,20 +673,23 @@ hr {
   object-fit: contain;
   display: block;
 }
-.preview-close {
+/* The close is the vendored .icon-button (a glyph on nothing, COMP-05) at a
+   real 44px box. The lightbox is black in both themes, so it restates the
+   glyph tokens light (token values only, not the recipe). Two classes: this
+   file loads before icon-button.css, whose `position: relative` would win a
+   one-class tie. */
+.preview-dialog {
+  --muted: rgba(255, 255, 255, 0.8);
+  --ink: #ffffff;
+}
+.preview-dialog .preview-close {
+  --icon-btn-box: 44px;
   position: absolute;
   top: env(safe-area-inset-top, 12px);
   right: 12px;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.6);
-  color: #fff;
-  border: 0;
-  font-size: var(--icon-title);
-  cursor: pointer;
   z-index: 10;
 }
+.preview-dialog .preview-close .icon { width: var(--icon-title); height: var(--icon-title); }
 
 /* ---------- login overlay ---------- */
 .login-overlay {

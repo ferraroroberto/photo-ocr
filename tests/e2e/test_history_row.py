@@ -1,6 +1,7 @@
 """Browser regression for the History row (design.md ``action-row``): tap the
-row to copy, everything else behind one overflow menu, Delete last behind a
-confirm.
+row to copy, everything else behind one overflow menu, Delete last behind the
+confirm sheet (never the browser's own dialog). Delete all goes through the
+same sheet.
 
 The session endpoints are intercepted so the test is deterministic and never
 touches the real archive; it still drives the real SPA and the real vendored
@@ -44,6 +45,7 @@ def test_history_row_tap_copies_and_menu_deletes(
     authed_page: Page, base_url: str
 ) -> None:
     sessions = list(_SESSIONS)
+    deletes: list = []
 
     def list_sessions(route: Route) -> None:
         route.fulfill(
@@ -60,12 +62,25 @@ def test_history_row_tap_copies_and_menu_deletes(
         )
 
     def delete_session(route: Route) -> None:
+        deletes.append("s-one")
         sessions[:] = [s for s in sessions if s["session_id"] != "s-one"]
+        route.fulfill(status=200, content_type="application/json", body="{}")
+
+    def delete_all(route: Route) -> None:
+        if route.request.method != "DELETE":
+            route.fallback()
+            return
+        deletes.append("all")
+        sessions.clear()
         route.fulfill(status=200, content_type="application/json", body="{}")
 
     authed_page.route("**/api/sessions?*", list_sessions)
     authed_page.route("**/api/sessions/s-one/text", session_text)
     authed_page.route("**/api/sessions/s-one", delete_session)
+    authed_page.route("**/api/sessions", delete_all)
+    # A native dialog must never appear: record (and dismiss) any that does.
+    native: list = []
+    authed_page.on("dialog", lambda d: (native.append(d.type), d.dismiss()))
     # Capture the clipboard write (permissions differ per engine).
     authed_page.add_init_script(
         "Object.defineProperty(navigator, 'clipboard', {value: "
@@ -91,13 +106,42 @@ def test_history_row_tap_copies_and_menu_deletes(
     authed_page.wait_for_function("window.__copied !== undefined")
     assert authed_page.evaluate("window.__copied") == "FULL TEXT of the first take"
 
-    # The kebab opens the menu; Delete sits behind a confirm.
+    # The kebab opens the menu; Delete sits behind the confirm sheet, which
+    # stacks over the menu. Cancel, Escape and a backdrop tap all answer no
+    # and leave the menu open; only the sheet's Delete deletes.
     first.locator(".action-row-kebab").click()
     menu = authed_page.locator("#takeMenu")
     expect(menu).to_be_visible()
     expect(authed_page.locator("#takeRedo")).to_be_visible()
     assert is_unpainted(menu.locator(".detail-close"))
-    authed_page.once("dialog", lambda d: d.accept())
+    confirm = authed_page.locator("dialog.confirm-sheet")
+    for dismiss in ("cancel", "escape", "backdrop"):
+        authed_page.locator("#takeDelete").click()
+        expect(confirm).to_be_visible()
+        expect(confirm.locator("h2")).to_have_text("Delete this take?")
+        if dismiss == "cancel":
+            confirm.get_by_role("button", name="Cancel").click()
+        elif dismiss == "escape":
+            authed_page.keyboard.press("Escape")
+        else:
+            authed_page.mouse.click(2, 2)
+        expect(confirm).to_have_count(0)
+        expect(menu).to_be_visible()
+    assert deletes == []
     authed_page.locator("#takeDelete").click()
+    confirm.locator("[data-confirm='yes']").click()
     expect(menu).to_be_hidden()
     expect(rows).to_have_count(1)
+    assert deletes == ["s-one"]
+
+    # Delete all: the same sheet; Cancel keeps every take, the verb clears them.
+    authed_page.locator("#cleanAll").click()
+    expect(confirm.locator("h2")).to_have_text("Delete all saved takes?")
+    confirm.get_by_role("button", name="Cancel").click()
+    expect(confirm).to_have_count(0)
+    expect(rows).to_have_count(1)
+    authed_page.locator("#cleanAll").click()
+    confirm.locator("[data-confirm='yes']").click()
+    expect(rows).to_have_count(0)
+    assert deletes == ["s-one", "all"]
+    assert native == []

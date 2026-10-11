@@ -1,0 +1,71 @@
+/* Photo OCR — the sheet (sheet.js): the app-side layer on the vendored modal
+ * shell (_vendored/modal/modal.css). The shell owns the dialog box, its
+ * safe-area-aware phone anchoring (top margin past the status bar, height
+ * capped short of the home indicator), the scroll lock and the × close; this
+ * file only lays out what goes inside the card. No sticky footer: actions end
+ * the sheet in the flow, so a tall sheet scrolls to them instead of covering
+ * its last rows (task-os PR#405). */
+
+.sheet-body:empty { display: none; }
+
+.sheet-message {
+  margin: 0 0 var(--space-md);
+  color: var(--ink);
+}
+
+/* Action list: flat full-width rows at the 48px button height, a hairline
+   between neighbours (the list-row divider). A danger action is the last row,
+   after a divider, in danger text: never the loudest control in the sheet. */
+.sheet-actions {
+  display: flex;
+  flex-direction: column;
+}
+.sheet-body:not(:empty) + .sheet-actions { margin-top: var(--space-sm); }
+.sheet-action {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  width: 100%;
+  min-height: 48px;
+  cursor: pointer;
+}
+.sheet-action .icon { width: var(--icon-title); height: var(--icon-title); }
+/* The primary keeps button.css's fill: this file loads after it, so the
+   plain-row surface below must never match a .button-primary. */
+.sheet-action.button-primary {
+  justify-content: center;
+  margin-bottom: var(--space-sm);
+  font-size: var(--font-label);
+}
+.sheet-action:not(.button-primary) {
+  padding: 0 var(--space-xs);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--font-body);
+  text-align: left;
+}
+.sheet-action:not(.button-primary) .icon { color: var(--muted); }
+.sheet-action:not(.button-primary):active { background: var(--neutral-soft); }
+.sheet-action:not(.button-primary) + .sheet-action:not(.button-primary) {
+  border-top: 1px solid var(--line-muted);
+  border-radius: 0;
+}
+.sheet-action[data-tone="danger"],
+.sheet-action[data-tone="danger"] .icon { color: var(--danger-text); }
+
+/* Confirm: Cancel and the verb as equal peers on one row at 48px, an
+   adjacent cluster on real geometry. */
+.sheet-confirm {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-sm);
+}
+.sheet-confirm > button {
+  min-height: 48px;
+  padding: 0 var(--space-sm);
+  font-size: var(--font-label);
+  font-weight: 700;
+}
