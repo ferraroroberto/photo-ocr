@@ -66,10 +66,13 @@ same archive shape, same auth model, but for pixels instead of audio.
   `webapp_config.json`.
 - **History + redo.** Every take lands in `archive/YYYY/MM/DD/HH-MM-SS-<id>/`.
   Re-run with a different model from the History tab without re-capturing.
-  A History row is one tap-to-copy row (snippet first, date · photos · model
-  as its meta line); **Retry missing** (partly read takes only), **Redo** and
-  **Delete** live in the row's overflow menu,
-  Delete last and behind a confirm.
+  History opens on search, then the takes under date overlines (Today,
+  Yesterday, This week, then by month) and reloads whenever the tab opens.
+  A row is one tap-to-copy row (the text first; when, exception chips for
+  unread / failed / another calling app, then photos and model). Its ⋯
+  opens the take sheet: the text, **Copy text**, **Retry N unread** (partly
+  read takes only), **Redo with…** (pick the model) and **Delete take** last,
+  behind a confirm. **Delete all saved takes** is in Settings › Storage.
 - **Pre-flight quality gate.** Each photo is scored on-device for blur,
   glare, and exposure the moment it's added — a bad shot gets an advisory
   label on its thumbnail and a one-tap Retake, before any hub round-trip is
