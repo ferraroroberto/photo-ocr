@@ -1,14 +1,17 @@
-/* Photo OCR — photo capture, upload, the thumbnail strip (tap a tile to
- * select it, act from the toolbar), per-photo delete/reorder, the preview
- * dialog, and drag & drop. */
+/* Photo OCR — the take card: the empty take's two starts, photo capture and
+ * upload, the thumbnail strip (tap a tile to select it, act from the
+ * toolbar; its last tile adds more), per-photo delete/reorder, this take's
+ * model / style / Save to history line, the header's exception line, the
+ * progress meter, the preview dialog, and drag & drop. */
 
 'use strict';
 
-import { state, els, toast } from './state.js';
+import { state, els, toast, modelLabel } from './state.js';
 import { jsonApi } from './api.js';
 import { assessImage } from './quality.js';
 import { icon } from './_vendored/icons/icons.js';
 import { resetTake } from './extract.js';
+import { openSheet } from './sheet.js';
 
 function clientId() {
   return 'c' + Math.random().toString(36).slice(2, 10);
@@ -27,8 +30,142 @@ function applyServerPhotoOrder(serverPhotos) {
   });
 }
 
+// The outcome of the last job (Done in N s, failures, retry / redo results).
+// In-flight progress is the meter's (setProgress), never this line.
 export function setStatus(text) {
   els.captureStatus.textContent = text || '';
+}
+
+// The meter while a job reads: `{ label, fraction }` from poll.js
+// extractProgress (or a starting label at 0). clearProgress hides it.
+export function setProgress(p) {
+  const pct = Math.round(Math.max(0, Math.min(1, p.fraction || 0)) * 100);
+  els.extractMeter.hidden = false;
+  els.extractMeterFill.style.width = pct + '%';
+  els.extractMeterBar.setAttribute('aria-valuenow', String(pct));
+  els.extractMeterLabel.textContent = p.label || '';
+}
+export function clearProgress() {
+  els.extractMeter.hidden = true;
+  els.extractMeterLabel.textContent = '';
+}
+
+function maxPhotos() {
+  return state.config && state.config.max_photos_per_session
+    ? state.config.max_photos_per_session
+    : 50;
+}
+
+function isWarned(photo) {
+  return !!(photo.warnings && photo.warnings.length && !photo.warningDismissed);
+}
+
+// The Capture header's context line: exceptions only (design.md page-header),
+// each part in its tone, at most two parts, empty when the take is normal.
+// Computed from the same state the card draws, so the two never disagree.
+export function renderHeadline() {
+  const photos = state.photos;
+  const count = function (status) {
+    return photos.filter(function (p) { return p.status === status; }).length;
+  };
+  const parts = [];
+  if (state.busy) parts.push({ text: 'Reading', tone: 'accent' });
+  const failed = count('failed');
+  if (failed) parts.push({ text: failed + ' failed', tone: 'danger', photo: true });
+  const uploading = count('pending') + count('uploading');
+  if (uploading) parts.push({ text: 'Uploading ' + uploading, tone: 'neutral' });
+  const warned = photos.filter(isWarned);
+  if (warned.length) {
+    const kinds = new Set(warned.map(function (p) { return warningLabel(p.warnings); }));
+    const word = kinds.size === 1 ? Array.from(kinds)[0].toLowerCase() : 'unclear';
+    parts.push({ text: warned.length + ' ' + word, tone: 'attention', photo: true });
+  }
+  if (state.incognito) parts.push({ text: 'Not saved to History', tone: 'neutral' });
+
+  const shown = parts.slice(0, 2);
+  els.captureHeadline.innerHTML = '';
+  // "3 photos · 1 blurry": a lone photo exception names the take's size.
+  if (shown.length === 1 && shown[0].photo) {
+    els.captureHeadline.append(photos.length + (photos.length === 1 ? ' photo · ' : ' photos · '));
+  }
+  shown.forEach(function (part, i) {
+    if (i) els.captureHeadline.append(' · ');
+    const span = document.createElement('span');
+    span.className = 'headline-part';
+    span.dataset.tone = part.tone;
+    span.textContent = part.text;
+    els.captureHeadline.appendChild(span);
+  });
+}
+
+// This take's model and style chips: the per-take choice. Settings holds the
+// default a new take starts from.
+function styleLabel(id) {
+  const prompt = (state.prompts || []).find(function (p) { return p.id === id; });
+  return prompt ? prompt.label || prompt.id : String(id || '');
+}
+
+function fillChip(chip, text, name) {
+  chip.innerHTML = '';
+  const label = document.createElement('span');
+  label.className = 'take-chip-text';
+  label.textContent = text;
+  chip.appendChild(label);
+  chip.insertAdjacentHTML('beforeend', icon('chevron-down'));
+  chip.setAttribute('aria-label', name + ' for this take: ' + text);
+}
+
+export function renderTakeOptions() {
+  fillChip(els.takeModel, modelLabel(state.model || ''), 'Model');
+  fillChip(els.takeStyle, styleLabel(state.promptId), 'Style');
+}
+
+export function openModelPicker() {
+  const models = (state.config && state.config.ocr_models_available) || [];
+  openSheet({
+    title: 'Model for this take',
+    actions: models.map(function (m) {
+      return {
+        label: modelLabel(m),
+        current: m === state.model,
+        onSelect: function () { state.model = m; renderTakeOptions(); },
+      };
+    }),
+  });
+}
+
+export function openStylePicker() {
+  openSheet({
+    title: 'Style for this take',
+    actions: (state.prompts || []).map(function (p) {
+      return {
+        label: p.label || p.id,
+        current: p.id === state.promptId,
+        onSelect: function () { state.promptId = p.id; renderTakeOptions(); },
+      };
+    }),
+  });
+}
+
+// The strip's + tile and the take's ⋯ each open one sheet.
+function openAddSheet() {
+  openSheet({
+    title: 'Add photos',
+    actions: [
+      { label: 'Choose photos', icon: 'image', onSelect: function () { els.galleryInput.click(); } },
+      { label: 'Camera', icon: 'camera', onSelect: function () { els.cameraInput.click(); } },
+    ],
+  });
+}
+
+export function openTakeMoreSheet() {
+  openSheet({
+    title: 'This take',
+    actions: [
+      // The old Reset: drops the photos and the text, no confirm.
+      { label: 'Start over', icon: 'eraser', onSelect: resetTake },
+    ],
+  });
 }
 
 // ----------------------------------------------------------- rendering
@@ -56,8 +193,7 @@ function clearSelection() {
 function syncToolbar() {
   const idx = selectedIndex();
   const photo = idx >= 0 ? state.photos[idx] : null;
-  const warned = !!(photo && photo.warnings && photo.warnings.length && !photo.warningDismissed);
-  els.thumbToolbar.hidden = state.photos.length === 0;
+  const warned = !!(photo && isWarned(photo));
   els.thumbMoveLeft.disabled = !photo || idx === 0;
   els.thumbMoveRight.disabled = !photo || idx === state.photos.length - 1;
   els.thumbView.disabled = !photo || !photo.previewUrl;
@@ -96,7 +232,7 @@ export function renderThumbnails() {
     if (photo.status === 'failed') li.classList.add('failed');
     const selected = photo.clientId === state.selectedPhotoId;
     if (selected) li.classList.add('selected');
-    const warned = !!(photo.warnings && photo.warnings.length && !photo.warningDismissed);
+    const warned = isWarned(photo);
     if (warned) li.classList.add('warned');
 
     // The tile itself is the select toggle (a real button: focusable, Enter /
@@ -135,21 +271,36 @@ export function renderThumbnails() {
     els.thumbStrip.appendChild(li);
     if (photo.clientId === refocusId) pick.focus();
   });
+  // The last tile adds more photos (both starts, in a sheet); it disables at
+  // the take's max.
+  const full = state.photos.length >= maxPhotos();
+  const addLi = document.createElement('li');
+  addLi.className = 'thumb-add';
+  const add = document.createElement('button');
+  add.type = 'button';
+  add.className = 'thumb-add-btn';
+  add.disabled = full;
+  add.setAttribute('aria-label', full ? 'Add photos (max ' + maxPhotos() + ' reached)' : 'Add photos');
+  add.innerHTML = icon('plus');
+  add.addEventListener('click', openAddSheet);
+  addLi.appendChild(add);
+  els.thumbStrip.appendChild(addLi);
+
   els.thumbStrip.scrollLeft = scrollLeft;
   syncToolbar();
 
+  // Empty take: only the two starts. Otherwise the strip, the options line
+  // and Extract, which appears once a photo is ready to read.
   const haveAny = state.photos.length > 0;
   const haveReady = state.photos.some(function (p) { return p.status === 'ready'; });
-  els.extractBtn.disabled = !haveReady || state.busy;
-  if (state.busy) {
-    // captureStatus owned by extract flow
-  } else if (!haveAny) {
-    setStatus('Add a photo to begin');
-  } else if (!haveReady) {
-    setStatus('Uploading…');
-  } else {
-    setStatus(state.photos.length + ' photo(s) ready · tap Extract');
-  }
+  els.takeEmpty.hidden = haveAny;
+  els.takeBuild.hidden = !haveAny;
+  els.extractBtn.hidden = !haveReady;
+  els.extractBtn.disabled = state.busy;
+  // A running job rewrites the take's meta: the switch waits for it.
+  const saveSwitch = els.saveToHistoryHost.querySelector('[role="switch"]');
+  if (saveSwitch) saveSwitch.disabled = state.busy;
+  renderHeadline();
 }
 
 // ----------------------------------------------------------- capture
@@ -158,9 +309,7 @@ export function handleFilePick(files) {
   // The Capture card is showing a History take's result: its photos aren't in
   // the strip, so a new photo belongs to a new take, not appended to that one.
   if (state.takeAdopted) resetTake();
-  const maxAllowed = state.config && state.config.max_photos_per_session
-    ? state.config.max_photos_per_session
-    : 50;
+  const maxAllowed = maxPhotos();
   const spaceLeft = maxAllowed - state.photos.length;
   if (spaceLeft <= 0) {
     toast('Reached the max (' + maxAllowed + ') for this take. Extract or reset.', 'error');

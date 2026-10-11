@@ -206,19 +206,34 @@ html, body {
 }
 
 /* ---------- header ---------- */
-/* "Save to history": a labelled row in the Capture card, the switch trailing.
-   The row's own margins would double the card's column gap. */
-.save-row { margin: 0; }
-.save-row > span:first-child { cursor: pointer; }
-.save-switch { display: inline-flex; }
+/* The Capture header's exception line (capture.js renderHeadline): each part
+   in its tone's text colour; the vendored home-head .status owns the slot,
+   the muted separators and the ellipsis. */
+.headline-part[data-tone="accent"] { color: var(--accent-text); }
+.headline-part[data-tone="attention"] { color: var(--attention-text); }
+.headline-part[data-tone="danger"] { color: var(--danger-text); }
+.headline-part[data-tone="neutral"] { color: var(--ink); }
 
 /* ---------- capture zone ---------- */
 /* The Capture pane's take card; its column gap spaces its rows. */
-.capture-zone {
+.capture-zone,
+.take-build {
   display: flex;
   flex-direction: column;
   align-items: stretch;
   gap: var(--gap);
+}
+
+/* Empty take: the vendored empty-state block, its two starts side by side
+   as equal 48px buttons (Choose photos the primary, Camera the tint). */
+.take-empty { padding-bottom: var(--space-md); }
+.take-starts {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-sm);
+  width: 100%;
+  max-width: 420px;
+  margin-top: var(--space-sm);
 }
 
 .thumb-strip {
@@ -232,20 +247,22 @@ html, body {
   -webkit-overflow-scrolling: touch;
   min-height: 0;
 }
-.thumb-strip:empty { display: none; }
 
-.thumb {
+.thumb,
+.thumb-add {
   position: relative;
   flex: 0 0 auto;
   width: 96px;
   height: 96px;
   border-radius: var(--radius-md);
-  background: var(--card-off);
-  border: 1px solid var(--line);
   overflow: hidden;
   scroll-snap-align: start;
-  cursor: pointer;
   user-select: none;
+}
+.thumb {
+  background: var(--card-off);
+  border: 1px solid var(--line);
+  cursor: pointer;
 }
 .thumb img {
   width: 100%;
@@ -312,6 +329,24 @@ html, body {
   outline: 2px solid var(--attention);
   outline-offset: -2px;
 }
+/* The strip's last tile adds photos: a dashed, unfilled square (never
+   canvas-subtle inside a card: true black in dark) with a plus glyph. */
+.thumb-add { border: 1px dashed var(--control-border); }
+.thumb-add-btn {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.thumb-add-btn .icon { width: var(--icon-feature); height: var(--icon-feature); }
+.thumb-add-btn:not(:disabled):hover { color: var(--ink); }
+.thumb-add-btn:disabled { color: var(--line); cursor: default; }
 /* Selected: a ring inside the status outline (so an uploading / failed /
    warned tile keeps both signals), mirrored by aria-pressed on the button. */
 .thumb.selected::after {
@@ -327,7 +362,7 @@ html, body {
 /* Icon-only rows: the icon-button box is the 44px floor, so neighbours at
    the row gap never overlap targets. */
 .thumb-toolbar,
-.capture-actions,
+.extract-row,
 .history-tools {
   --icon-btn-box: 44px;
 }
@@ -351,19 +386,70 @@ html, body {
 .thumb-toolbar #thumbRetake,
 .thumb-toolbar #thumbKeep { order: 2; flex: 1 1 45%; justify-content: center; }
 
-.capture-actions {
+/* This take's options: the model and style chips (neutral, quiet: the
+   owner never changes the model per take, so they must not compete with
+   Extract) and Save to history, trailing. The chips share one 44px row
+   that holds their tap bands; on a narrow phone Save to history wraps under
+   them instead of a chip wrapping into a neighbour's band. */
+.take-options {
   display: flex;
-  gap: 10px;
-  align-items: stretch;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
 }
-/* One .button-primary per view (Extract); Add photo is the .button-tint —
-   the fleet's accent-soft secondary emphasis (opt-in action that stands out
-   without competing with the solid primary). The vendored button.css owns
-   the fill/border/disabled recipe for both tiers; this app layers only the
-   icon+label flex layout and flex-sizing on top (per-app markup extras,
-   never a re-statement of the vendored fill/color/border declarations). */
+.take-chips {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 0;
+  height: var(--hit-min);
+}
+/* A chip that opens a picker: the chip look on a real button, its target
+   grown to 44px vertically only (neighbours sit side by side). Two classes:
+   the status-chip rules below would win a one-class tie. */
+.chip.take-chip {
+  position: relative;
+  min-width: 0;
+  max-width: 50%;
+  overflow: visible;   /* .chip clips; the 44px band below must stay tappable */
+  cursor: pointer;
+}
+.take-chip-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.take-chip::before {
+  content: "";
+  position: absolute;
+  inset: -12px 0;
+}
+.take-chip .icon { width: var(--icon-inline); height: var(--icon-inline); flex: none; }
+.take-save {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-height: var(--hit-min);
+  margin-left: auto;
+  font-size: var(--font-label);
+}
+.take-save > span:first-child { cursor: pointer; }
+.save-switch { display: inline-flex; }
+
+/* Extract (the view's one primary once a photo is ready) and the take's
+   overflow, on one row that keeps its height while Extract is absent. */
+.extract-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-height: 48px;
+}
+.extract-row .take-more { margin-left: auto; }
+/* The vendored button.css owns the fill/border/disabled recipe for every
+   tier; this app layers only the icon+label flex layout and sizing on top
+   (never a re-statement of the vendored fill/color/border declarations). */
 .extract-btn,
-.add-photo-btn {
+.take-start {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -373,28 +459,43 @@ html, body {
   touch-action: manipulation;
 }
 .extract-btn .icon,
-.add-photo-btn .icon { width: var(--icon-title); height: var(--icon-title); }
+.take-start .icon { width: var(--icon-title); height: var(--icon-title); }
+.take-start { cursor: pointer; font-size: var(--font-label); }
 .button-primary:active { transform: scale(0.98); }
+.extract-btn { flex: 1 1 auto; }
 
-.add-photo-btn { flex: 1 1 auto; }
-
-.extract-btn { width: 100%; }
-.extract-btn.busy {
-  background: var(--attention);
-  animation: pulse-bg 1.6s ease-in-out infinite;
+/* The meter while a job reads (design.md meter): a 6px pill track on
+   neutral-soft, the fill in the accent, the line under it in body-sm. */
+.take-meter {
+  display: grid;
+  gap: var(--space-xs);
 }
-@keyframes pulse-bg {
-  0%, 100% { opacity: 1; }
-  50%      { opacity: 0.7; }
+.meter {
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--neutral-soft);
+  overflow: hidden;
 }
-
-.record-status {
-  margin-top: var(--space-xs);
+.meter-fill {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 0.3s ease;
+}
+.take-meter-label {
   color: var(--muted);
-  font-size: var(--font-label);
-  min-height: 18px;
+  font-size: var(--font-body-sm);
+}
+
+/* The last job's outcome (Done in N s, failures). Absent when empty. */
+.record-status {
+  color: var(--muted);
+  font-size: var(--font-body-sm);
   text-align: center;
 }
+.record-status:empty { display: none; }
 
 /* ---------- cards ----------
    Base .card + header row come from _vendored/card/card.css. App-side
@@ -480,7 +581,7 @@ html, body {
 .shaded-btn:active { background: var(--line-muted); }
 .shaded-btn:disabled { opacity: 0.55; cursor: default; }
 .shaded-btn:disabled:active { background: var(--card-off); }
-/* Dirty state: unsaved changes — same accent tint as .add-photo-btn, so
+/* Dirty state: unsaved changes — same accent tint as the Camera start, so
    "this button is armed" reads consistently across the app. */
 .shaded-btn--accent:not(:disabled) {
   background: var(--accent-soft);

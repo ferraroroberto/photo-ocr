@@ -204,7 +204,7 @@ def test_thumbnail_toolbar_selects_and_acts(authed_page: Page, base_url: str) ->
     expect(authed_page.locator("#previewDialog")).to_be_hidden()
 
     # Tapping elsewhere clears the selection.
-    authed_page.locator("#captureStatus").click()
+    authed_page.locator("#paneCapture .home-title").click()
     expect(authed_page.locator("#thumbStrip [aria-pressed='true']")).to_have_count(0)
     expect(authed_page.locator("#thumbRemove")).to_be_disabled()
 

@@ -39,10 +39,15 @@ same archive shape, same auth model, but for pixels instead of audio.
   **Settings is never a tab:** every pane opens with the vendored `home-head`
   row, which carries the sun-moon **theme toggle** (it follows the system
   preference until overridden — same feature as home-automation and
-  app-launcher) and the **Settings gear** that opens the Settings pane. The
-  Capture card's toolbar carries the take-scoped controls: add photo /
-  gallery / reset, then a labelled **Save to history** switch that keeps a
-  take out of History when off. Messages use the fleet's neutral frosted
+  app-launcher) and the **Settings gear** that opens the Settings pane. An
+  empty take shows only its two starts, **Choose photos** and **Camera**.
+  With photos in, the take card holds the strip (its last tile adds more),
+  one line with this take's **model** and **style** chips (each opens a
+  picker; Settings keeps the default a new take starts from) and the
+  **Save to history** switch, then **Extract**, which appears once a photo
+  is ready, with a meter while it reads; **Start over** sits in the take's
+  ⋯ menu. The Capture header names only exceptions (a blurry photo, a
+  reading take, Not saved to History). Messages use the fleet's neutral frosted
   **toast** (the nav bar's glass; only a real error tints). A build-identity footer is visible from every
   tab. Settings carries the persisted **Text size**
   (Small / Default / Large) control that makes the viewport zoom lock
@@ -289,7 +294,7 @@ photo-ocr/
 ┌─────────────────────────────────────────────────────────────────┐
 │  iPhone / Android (PWA installed to Home Screen)                │
 │                                                                 │
-│  [📷 Add photo] capture or pick from gallery, N times           │
+│  [🖼 Choose photos] [📷 Camera], N times, then [+] for more      │
 │  ┌──────┐ ┌──────┐ ┌──────┐  reorder, delete, preview           │
 │  │ #1   │ │ #2   │ │ #3   │                                    │
 │  └──────┘ └──────┘ └──────┘                                    │
@@ -314,6 +319,7 @@ photo-ocr/
 │   ├── /api/sessions/{id}/redo        start re-run with new model│
 │   ├── /api/sessions/{id}/retry-missing  re-read unread photos   │
 │   ├── /api/sessions                  list (newest first)        │
+│   ├── /api/sessions/{id}  PATCH      Save to history on / off   │
 │   ├── /api/search                    full-text search (FTS5)     │
 │   ├── /api/config, /api/login, /api/version, …                 │
 │   └── archive/YYYY/MM/DD/<id>/  01.jpg…NN.jpg + extracted.txt   │

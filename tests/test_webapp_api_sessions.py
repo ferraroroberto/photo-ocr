@@ -148,3 +148,57 @@ def test_extract_unknown_model_is_400(client: TestClient, jpeg_bytes: bytes) -> 
         json={"model": "definitely_not_a_model"},
     )
     assert r.status_code == 400
+
+
+def _saved_take_with_text(client: TestClient, text: str) -> str:
+    """A saved take whose extracted text is in the archive and the index."""
+    archive = client.app.state.archive
+    sid = client.post("/api/sessions", json={}).json()["session_id"]
+    session = archive.get(sid)
+    session.write_extracted(text, "gemini_flash", {}, {}, "verbatim-merge")
+    archive.index_session(archive.get(sid))
+    return sid
+
+
+def _search_ids(client: TestClient, q: str) -> set:
+    results = client.get("/api/search", params={"q": q}).json()["results"]
+    return {r["session_id"] for r in results}
+
+
+def test_patch_incognito_moves_a_take_out_of_and_back_into_history(
+    client: TestClient,
+) -> None:
+    # The PWA creates the session on the first upload, before its Save to
+    # History switch is on screen, so the switch flips it afterwards.
+    sid = _saved_take_with_text(client, "zebra invented text")
+    assert sid in _search_ids(client, "zebra")
+
+    r = client.patch(f"/api/sessions/{sid}", json={"incognito": True})
+    assert r.status_code == 200
+    assert r.json() == {"session_id": sid, "incognito": True}
+    listed = {s["session_id"] for s in client.get("/api/sessions").json()["sessions"]}
+    assert sid not in listed
+    assert sid not in _search_ids(client, "zebra")
+
+    client.patch(f"/api/sessions/{sid}", json={"incognito": False})
+    listed = {s["session_id"] for s in client.get("/api/sessions").json()["sessions"]}
+    assert sid in listed
+    assert sid in _search_ids(client, "zebra")
+
+
+def test_patch_session_rejects_bad_requests(client: TestClient) -> None:
+    sid = client.post("/api/sessions", json={}).json()["session_id"]
+    assert client.patch(f"/api/sessions/{sid}", json={}).status_code == 400
+    assert client.patch("/api/sessions/nope", json={"incognito": True}).status_code == 404
+
+
+def test_patch_incognito_refused_while_a_job_runs(client: TestClient) -> None:
+    # A running job rewrites the meta and could restore the old value.
+    from src.extract_job import set_extract_progress
+
+    archive = client.app.state.archive
+    sid = client.post("/api/sessions", json={}).json()["session_id"]
+    set_extract_progress(archive.get(sid), phase="running", chunks_total=2, chunks_done=0)
+    r = client.patch(f"/api/sessions/{sid}", json={"incognito": True})
+    assert r.status_code == 409
+    assert archive.get(sid).meta.incognito is False

@@ -67,15 +67,18 @@ def test_boot_renders_spa(authed_page: Page, base_url: str) -> None:
     assert model_count >= 1, f"#ocrModel rendered no options (got {model_count})"
     assert style_count >= 1, f"#ocrStyle rendered no options (got {style_count})"
 
-    # The Extract button is the headline UI; if it's gone, the app is
-    # useless. It MUST be disabled with no photos added — asserting that
-    # state catches the regression where the disable-until-photo logic
-    # accidentally gets removed.
-    extract_btn = authed_page.locator("#extractBtn")
-    expect(extract_btn).to_be_visible()
-    expect(extract_btn).to_be_disabled()
-    expect(extract_btn).to_contain_text("Extract")
-    expect(authed_page.locator("#captureStatus")).to_be_visible()
+    # The empty take shows only its two starts (Choose photos the primary,
+    # Camera the second): no Extract, no switch row, no status line, and a
+    # header with no exception (#194).
+    empty = authed_page.locator("#takeEmpty")
+    expect(empty).to_be_visible()
+    expect(empty.locator(".choose-photos-btn")).to_have_class(re.compile(r"\bbutton-primary\b"))
+    expect(empty.locator(".camera-btn")).to_be_visible()
+    expect(authed_page.locator("#takeBuild")).to_be_hidden()
+    expect(authed_page.locator("#extractBtn")).to_be_hidden()
+    expect(authed_page.get_by_role("switch", name="Save to history")).to_be_hidden()
+    expect(authed_page.locator("#captureStatus")).to_be_hidden()
+    expect(authed_page.locator("#captureHeadline")).to_have_text("")
 
     # The login overlay markup is wired so showLogin() can reveal it. We
     # exercise the DOM directly rather than triggering a real 401: the
@@ -186,17 +189,22 @@ def test_settings_pane_shows_prompt_preview(
 def test_save_to_history_switch_sets_incognito(
     authed_page: Page, base_url: str
 ) -> None:
-    """The Capture card's labelled "Save to history" switch is on by default
-    and its inverse is the session's ``incognito`` flag: turning it off makes
-    the next take's ``POST /api/sessions`` carry ``incognito: true``."""
+    """The take's labelled "Save to history" switch is on by default and its
+    inverse is the session's ``incognito`` flag. The switch appears with the
+    first photo, after that photo's upload created the session, so a flip is
+    written to the live take (``PATCH``), and the header names the off state."""
     import io
     import json
+    import os
 
     pil = pytest.importorskip("PIL.Image", reason="Pillow needed to pick a photo")
     buf = io.BytesIO()
-    pil.new("RGB", (64, 48), color=(180, 190, 200)).save(buf, format="JPEG")
+    # Noise, so the quality gate has nothing to say and the header's only
+    # exception is the switch's.
+    pil.frombytes("RGB", (128, 128), os.urandom(128 * 128 * 3)).save(buf, format="JPEG")
 
     created: list[dict] = []
+    patched: list[dict] = []
 
     def create_session(route) -> None:
         created.append(json.loads(route.request.post_data or "{}"))
@@ -206,30 +214,53 @@ def test_save_to_history_switch_sets_incognito(
             body=json.dumps({"session_id": "mocked"}),
         )
 
-    # Only the create call matters; the photo upload that follows is dropped.
-    authed_page.route("**/api/sessions", create_session)
-    authed_page.route("**/api/sessions/mocked/photos", lambda r: r.abort())
-    _navigate_collecting_errors(authed_page, base_url)
+    def patch_session(route) -> None:
+        patched.append(json.loads(route.request.post_data or "{}"))
+        route.fulfill(status=200, content_type="application/json", body="{}")
 
-    switch = authed_page.get_by_role("switch", name="Save to history")
-    expect(switch).to_have_attribute("aria-checked", "true")
-    switch.click()
-    expect(switch).to_have_attribute("aria-checked", "false")
-    # The row's text toggles it too.
-    label = authed_page.locator("#saveToHistoryLabel")
-    label.click()
-    expect(switch).to_have_attribute("aria-checked", "true")
-    label.click()
-    expect(switch).to_have_attribute("aria-checked", "false")
+    authed_page.route("**/api/sessions", create_session)
+    authed_page.route("**/api/sessions/mocked", patch_session)
+    authed_page.route(
+        "**/api/sessions/mocked/photos",
+        lambda r: r.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps({"added": [{"sequence_index": 1}], "photos": []}),
+        ),
+    )
+    _navigate_collecting_errors(authed_page, base_url)
 
     authed_page.locator("#galleryInput").set_input_files(
         {"name": "p.jpg", "mimeType": "image/jpeg", "buffer": buf.getvalue()}
     )
+    switch = authed_page.get_by_role("switch", name="Save to history")
+    expect(switch).to_be_visible()
+    expect(switch).to_have_attribute("aria-checked", "true")
     for _ in range(50):
         if created:
             break
         authed_page.wait_for_timeout(100)
-    assert created and created[0].get("incognito") is True, created
+    assert created and created[0].get("incognito") is False, created
+    # The upload ran after the session was known client-side.
+    expect(authed_page.locator("#thumbStrip li.thumb.ready")).to_have_count(1)
+    expect(authed_page.locator("#captureHeadline")).to_have_text("")
+
+    headline = authed_page.locator("#captureHeadline")
+    switch.click()
+    expect(switch).to_have_attribute("aria-checked", "false")
+    expect(headline).to_contain_text("Not saved to History")
+    # The row's text toggles it too.
+    label = authed_page.locator("#saveToHistoryLabel")
+    label.click()
+    expect(switch).to_have_attribute("aria-checked", "true")
+    expect(headline).not_to_contain_text("Not saved")
+    label.click()
+    expect(switch).to_have_attribute("aria-checked", "false")
+    for _ in range(50):
+        if len(patched) == 3:
+            break
+        authed_page.wait_for_timeout(100)
+    assert patched == [{"incognito": True}, {"incognito": False}, {"incognito": True}], patched
 
 
 _SHOW_TOAST_JS = r"""async ([message, kind]) => {
