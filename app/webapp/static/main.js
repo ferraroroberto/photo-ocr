@@ -27,11 +27,10 @@ import {
   openModelPicker,
   openStylePicker,
   openTakeMoreSheet,
-  closePreview,
+  showPhotosView,
   setupDragDrop,
-  setupThumbToolbar,
 } from './capture.js';
-import { extract, copyExtracted, renderExtracted, retryMissing } from './extract.js';
+import { extract, copyExtracted, renderExtracted, resetTake, retryMissing } from './extract.js';
 import {
   loadHistory,
   cleanAllHistory,
@@ -181,6 +180,9 @@ els.takeMore.addEventListener('click', openTakeMoreSheet);
 els.takeModel.addEventListener('click', openModelPicker);
 els.takeStyle.addEventListener('click', openStylePicker);
 els.copyExtracted.addEventListener('click', copyExtracted);
+els.newTake.addEventListener('click', resetTake);
+els.showPhotos.addEventListener('click', function () { showPhotosView(true); });
+els.showText.addEventListener('click', function () { showPhotosView(false); });
 els.retryMissing.addEventListener('click', function () { retryMissing(state.sessionId); });
 // "Save to history" is the vendored switch (the fleet ships no native
 // checkboxes for on/off). On = saved, the default; its inverse is the
@@ -270,11 +272,5 @@ if (els.historySearch) {
   els.historySearch.addEventListener('input', onSearchInput);
 }
 
-els.previewClose.addEventListener('click', closePreview);
-els.previewDialog.addEventListener('click', function (ev) {
-  if (ev.target === els.previewDialog) closePreview();
-});
-
 setupDragDrop();
-setupThumbToolbar();
 boot();

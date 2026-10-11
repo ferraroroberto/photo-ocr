@@ -219,22 +219,16 @@
           </div>
         </div>
 
-        <!-- Building a take: the strip (its last tile adds more photos), the
-             selected photo's toolbar, the take-options line, then Extract. -->
+        <!-- Building a take: the strip (tap a photo for its sheet; the last
+             tile adds more), the take-options line, then Extract. With a
+             result, a row leads back to the text. -->
         <div id="takeBuild" class="take-build" hidden>
+          <button id="showText" type="button" class="take-link" hidden>
+            <svg class="icon" aria-hidden="true"><use href="#i-file-text"></use></svg>
+            <span class="take-link-label">Show the text</span>
+            <svg class="icon take-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+          </button>
           <ul id="thumbStrip" class="thumb-strip" aria-label="Photos in this take"></ul>
-          <!-- Tap a thumbnail to select it; the selected photo's actions live
-               here as real 44px targets (a 96px tile clips any overlay control
-               to a size under the hit-target floor). Disabled until one is
-               selected. -->
-          <div id="thumbToolbar" class="thumb-toolbar" role="toolbar" aria-label="Selected photo">
-            <button id="thumbMoveLeft" type="button" class="icon-button" title="Move left" aria-label="Move photo left" disabled><svg class="icon" aria-hidden="true"><use href="#i-chevron-left"></use></svg></button>
-            <button id="thumbMoveRight" type="button" class="icon-button" title="Move right" aria-label="Move photo right" disabled><svg class="icon" aria-hidden="true"><use href="#i-chevron-right"></use></svg></button>
-            <button id="thumbView" type="button" class="ghost-btn" title="View full size" disabled><svg class="icon" aria-hidden="true"><use href="#i-image"></use></svg> View</button>
-            <button id="thumbRetake" type="button" class="ghost-btn" hidden disabled><svg class="icon" aria-hidden="true"><use href="#i-camera"></use></svg> Retake</button>
-            <button id="thumbKeep" type="button" class="ghost-btn" hidden disabled><svg class="icon" aria-hidden="true"><use href="#i-check"></use></svg> Keep</button>
-            <button id="thumbRemove" type="button" class="icon-button danger thumb-remove" title="Remove" aria-label="Remove photo" disabled><svg class="icon" aria-hidden="true"><use href="#i-trash-2"></use></svg></button>
-          </div>
 
           <!-- This take's options: model and style (neutral chips, each opens
                a picker sheet; Settings keeps the default) and Save to history
@@ -253,9 +247,34 @@
 
           <div class="extract-row">
             <button id="extractBtn" type="button" class="button-primary extract-btn">
-              <svg class="icon" aria-hidden="true"><use href="#i-scan-text"></use></svg> Extract text
+              <svg class="icon" aria-hidden="true"><use href="#i-scan-text"></use></svg> <span class="extract-label">Extract text</span>
             </button>
             <button id="takeMenuBtn" type="button" class="icon-button take-more" title="More for this take" aria-label="More for this take" aria-haspopup="dialog"><svg class="icon" aria-hidden="true"><use href="#i-ellipsis-vertical"></use></svg></button>
+          </div>
+        </div>
+
+        <!-- The result: the take's photos fold to one row, then the meta line,
+             the text (editable; edits are what Copy copies), Copy text as the
+             primary, New take, and Retry missing on a partly read take. -->
+        <div id="takeResult" class="take-result" hidden>
+          <button id="showPhotos" type="button" class="take-link">
+            <svg class="icon" aria-hidden="true"><use href="#i-image"></use></svg>
+            <span id="showPhotosLabel" class="take-link-label"></span>
+            <svg class="icon take-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+          </button>
+          <p id="resultMeta" class="result-meta"></p>
+          <p id="resultEmpty" class="result-empty" hidden>No readable text detected in these photos.</p>
+          <textarea id="extracted" class="text-out editable" rows="8" aria-label="Extracted text"></textarea>
+          <button id="copyExtracted" type="button" class="button-primary result-copy">
+            <svg class="icon" aria-hidden="true"><use href="#i-copy"></use></svg> Copy text
+          </button>
+          <div class="result-actions">
+            <button id="newTake" type="button" class="button-ghost">
+              <svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg> New take
+            </button>
+            <button id="retryMissing" type="button" class="button-tint" hidden title="Re-read only the photos that could not be read">
+              <svg class="icon" aria-hidden="true"><use href="#i-refresh-cw"></use></svg> <span id="retryMissingLabel">Retry missing</span>
+            </button>
           </div>
         </div>
         <input id="cameraInput" type="file" accept="image/*" capture="environment" multiple hidden>
@@ -269,20 +288,9 @@
           </div>
           <span class="take-meter-label"></span>
         </div>
-        <!-- Outcome of the last job ("Done in N s", failures, retry and redo
-             results) until step 3 gives it a home in the result card. -->
-        <div id="captureStatus" class="record-status" role="status"></div>
-      </section>
-
-      <section class="card extracted-card">
-        <div class="card-head">
-          <h2 class="card-title"><svg class="icon" aria-hidden="true"><use href="#i-file-text"></use></svg> Extracted text</h2>
-          <div class="card-head-actions">
-            <button id="retryMissing" class="copy-btn" type="button" hidden title="Re-read only the photos that could not be read"><svg class="icon" aria-hidden="true"><use href="#i-refresh-cw"></use></svg> Retry missing</button>
-            <button id="copyExtracted"class="copy-btn" type="button" disabled><svg class="icon" aria-hidden="true"><use href="#i-copy"></use></svg> Copy</button>
-          </div>
-        </div>
-        <textarea id="extracted" class="text-out editable" placeholder="Tap Extract — the text from your photos will appear here, deduplicated and copy-ready." rows="6"></textarea>
+        <!-- A failed job, in its own words (with its toast): the server's
+             hub-down and still-working messages arrive unchanged. -->
+        <p id="takeError" class="take-error" role="alert" hidden></p>
       </section>
     </section>
 
@@ -380,11 +388,6 @@
 
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
   </main>
-
-  <dialog id="previewDialog" class="preview-dialog">
-    <button id="previewClose" type="button" class="icon-button preview-close" aria-label="Close preview"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
-    <img id="previewImg" class="preview-img" alt="Photo preview">
-  </dialog>
 
   <!-- A History row's overflow menu: the actions that are not the row's tap
        (Copy). Retry missing (only on a partly read take), Redo, then the

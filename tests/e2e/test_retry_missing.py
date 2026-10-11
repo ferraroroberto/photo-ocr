@@ -1,6 +1,7 @@
-"""Browser regression for "Retry missing" (#168): a partly read take shows one
-action beside the result, a click re-reads only the unread photos, and the
-outcome is one toast.
+"""Browser regression for "Retry missing" (#168, #195): a partly read take
+shows one tinted action in the result card naming the unread count (and the
+header says so), a click re-reads only the unread photos, and the outcome is
+one toast.
 
 The real SPA and the real photo upload run; only the OCR job endpoints are
 intercepted, so the test is deterministic and never touches the hub. The
@@ -11,6 +12,7 @@ from __future__ import annotations
 
 import io
 import json
+import re
 
 import pytest
 import requests
@@ -113,11 +115,15 @@ def test_retry_missing_appears_only_when_photos_are_missing_and_fills_the_gap(
 
         expect(authed_page.locator("#extracted")).to_have_value(_PARTIAL, timeout=5_000)
         expect(retry).to_be_visible()
+        expect(retry).to_have_text("Retry 1 unread")
+        expect(retry).to_have_class(re.compile(r"\bbutton-tint\b"))
+        expect(authed_page.locator("#captureHeadline")).to_contain_text("1 photo unread")
 
         retry.click()
 
         expect(authed_page.locator("#extracted")).to_have_value(_WHOLE, timeout=5_000)
         expect(retry).to_be_hidden()
+        expect(authed_page.locator("#captureHeadline")).not_to_contain_text("unread")
         expect(authed_page.locator("#toast")).to_contain_text("All photos read")
     finally:
         for sid in _session_ids(base_url) - before:

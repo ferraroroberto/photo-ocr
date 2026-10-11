@@ -1,6 +1,7 @@
 """Browser regression for the core capture flow: photo upload, this take's
-model and style chosen from the Capture chips, then non-blocking extract
-progress on the meter.
+model and style chosen from the Capture chips, non-blocking extract progress
+on the meter, then the result card (meta line, Copy text, the photos row,
+New take).
 
 The test uses the real SPA and real photo upload path, but intercepts
 only the OCR job endpoints. That keeps it deterministic and independent
@@ -23,6 +24,7 @@ from __future__ import annotations
 
 import io
 import json
+import re
 
 import pytest
 import requests
@@ -128,6 +130,11 @@ def test_photo_upload_then_extract_progress(
         authed_page.route("**/api/sessions/*/extract", handle_extract)
         authed_page.route("**/api/sessions/*/extract/status", handle_status)
         authed_page.clock.install()
+        # Capture the clipboard write (permissions differ per engine).
+        authed_page.add_init_script(
+            "Object.defineProperty(navigator, 'clipboard', {value: "
+            "{writeText: t => { window.__copied = t; return Promise.resolve(); }}})"
+        )
         authed_page.goto(f"{base_url}/", wait_until="domcontentloaded")
         authed_page.wait_for_selector("#extractBtn", state="attached", timeout=5_000)
 
@@ -181,10 +188,10 @@ def test_photo_upload_then_extract_progress(
         # names the exception; the outcome line stays empty until the end.
         meter = authed_page.locator("#extractMeter")
         headline = authed_page.locator("#captureHeadline")
-        status = authed_page.locator("#captureStatus")
+        result = authed_page.locator("#takeResult")
         expect(meter).to_contain_text("part 1 of 2", timeout=5_000)
         expect(headline).to_contain_text("Reading")
-        expect(status).to_be_hidden()
+        expect(result).to_be_hidden()
         assert extract_bodies == [{"model": "claude_opus", "prompt_id": "invented-style"}], extract_bodies
         # The SPA waits POLL_INTERVAL_MS between status polls; fast-forward
         # its clock instead of sleeping the real second twice.
@@ -195,9 +202,33 @@ def test_photo_upload_then_extract_progress(
         expect(authed_page.locator("#extracted")).to_have_value(
             "done text", timeout=5_000
         )
-        expect(status).to_contain_text("Done in 3.2 s", timeout=5_000)
+        # The result takes the card: meta line, Copy text as the primary,
+        # the photos folded to one row; no Retry on a fully read take.
+        expect(result).to_be_visible()
+        expect(authed_page.locator("#takeBuild")).to_be_hidden()
+        expect(authed_page.locator("#resultMeta")).to_contain_text("3.2 s")
+        expect(authed_page.locator("#resultMeta")).to_contain_text("saved to History")
+        expect(authed_page.locator("#retryMissing")).to_be_hidden()
         expect(meter).to_be_hidden()
         expect(headline).not_to_contain_text("Reading")
+        copy = authed_page.locator("#copyExtracted")
+        expect(copy).to_have_class(re.compile(r"\bbutton-primary\b"))
+        copy.click()
+        expect(copy).to_contain_text("Copied")
+        assert authed_page.evaluate("window.__copied") == "done text"
+
+        # "1 photo ›" reopens the strip (Extract again is there), and the
+        # text is one row away.
+        authed_page.locator("#showPhotos").click()
+        expect(authed_page.locator("#takeBuild")).to_be_visible()
+        expect(authed_page.locator("#extractBtn")).to_contain_text("Extract again")
+        authed_page.locator("#showText").click()
+        expect(result).to_be_visible()
+
+        # New take: an empty take again.
+        authed_page.locator("#newTake").click()
+        expect(authed_page.locator("#takeEmpty")).to_be_visible()
+        expect(result).to_be_hidden()
     finally:
         # Don't leave test sessions in the archive.
         new_ids = set(_sessions_by_id(base_url)) - before

@@ -7,9 +7,11 @@
  *                            concurrent multi-select uploads share one session
  *   state.photos          — [{ clientId, seq, file, previewUrl, status,
  *                              error, warnings, warningDismissed }]
- *   state.selectedPhotoId — clientId of the thumbnail the toolbar acts on
- *                           (null = none; cleared when that photo goes away)
  *   state.extracted       — current extracted text
+ *   state.result          — the take's last outcome, or null before one:
+ *                           { model, seconds, cached, saved } (its meta line)
+ *   state.showPhotos      — boolean: a take with a result shows its photos
+ *                           ("N photos ›") instead of the text
  *   state.missingPhotos   — filenames the current text could not read
  *                           (drives the Retry missing action)
  *   state.model           — this take's model alias (the Capture chip;
@@ -46,8 +48,9 @@ export const state = {
   sessionId: null,
   sessionIdPromise: null,
   photos: [],
-  selectedPhotoId: null,
   extracted: '',
+  result: null,
+  showPhotos: false,
   missingPhotos: [],
   model: null,
   promptId: null,
@@ -73,13 +76,6 @@ export const els = {
   takeBuild: document.getElementById('takeBuild'),
   takeStarts: document.querySelectorAll('.take-start'),
   thumbStrip: document.getElementById('thumbStrip'),
-  thumbToolbar: document.getElementById('thumbToolbar'),
-  thumbMoveLeft: document.getElementById('thumbMoveLeft'),
-  thumbMoveRight: document.getElementById('thumbMoveRight'),
-  thumbView: document.getElementById('thumbView'),
-  thumbRetake: document.getElementById('thumbRetake'),
-  thumbKeep: document.getElementById('thumbKeep'),
-  thumbRemove: document.getElementById('thumbRemove'),
   cameraInput: document.getElementById('cameraInput'),
   galleryInput: document.getElementById('galleryInput'),
   extractBtn: document.getElementById('extractBtn'),
@@ -90,10 +86,19 @@ export const els = {
   extractMeterBar: document.querySelector('#extractMeter .meter'),
   extractMeterFill: document.querySelector('#extractMeter .meter-fill'),
   extractMeterLabel: document.querySelector('#extractMeter .take-meter-label'),
-  captureStatus: document.getElementById('captureStatus'),
+  extractLabel: document.querySelector('#extractBtn .extract-label'),
+  showText: document.getElementById('showText'),
+  takeResult: document.getElementById('takeResult'),
+  showPhotos: document.getElementById('showPhotos'),
+  showPhotosLabel: document.getElementById('showPhotosLabel'),
+  resultMeta: document.getElementById('resultMeta'),
+  resultEmpty: document.getElementById('resultEmpty'),
   extracted: document.getElementById('extracted'),
   copyExtracted: document.getElementById('copyExtracted'),
+  newTake: document.getElementById('newTake'),
   retryMissing: document.getElementById('retryMissing'),
+  retryMissingLabel: document.getElementById('retryMissingLabel'),
+  takeError: document.getElementById('takeError'),
   saveToHistoryHost: document.getElementById('saveToHistoryHost'),
   saveToHistoryLabel: document.getElementById('saveToHistoryLabel'),
   ocrModel: document.getElementById('ocrModel'),
@@ -114,9 +119,6 @@ export const els = {
   takeRetry: document.getElementById('takeRetry'),
   takeRedo: document.getElementById('takeRedo'),
   takeDelete: document.getElementById('takeDelete'),
-  previewDialog: document.getElementById('previewDialog'),
-  previewImg: document.getElementById('previewImg'),
-  previewClose: document.getElementById('previewClose'),
   loginOverlay: document.getElementById('loginOverlay'),
   loginForm: document.getElementById('loginForm'),
   loginPassword: document.getElementById('loginPassword'),

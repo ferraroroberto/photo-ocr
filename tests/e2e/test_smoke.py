@@ -77,7 +77,7 @@ def test_boot_renders_spa(authed_page: Page, base_url: str) -> None:
     expect(authed_page.locator("#takeBuild")).to_be_hidden()
     expect(authed_page.locator("#extractBtn")).to_be_hidden()
     expect(authed_page.get_by_role("switch", name="Save to history")).to_be_hidden()
-    expect(authed_page.locator("#captureStatus")).to_be_hidden()
+    expect(authed_page.locator("#takeResult")).to_be_hidden()
     expect(authed_page.locator("#captureHeadline")).to_have_text("")
 
     # The login overlay markup is wired so showLogin() can reveal it. We

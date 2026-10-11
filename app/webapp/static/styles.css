@@ -277,8 +277,8 @@ html, body {
   color: var(--muted);
   font-size: var(--icon-feature);
 }
-/* The tile is one select toggle (a real button) filling the 96px square; the
-   chips are decoration over the photo and never take a tap. Chips on a photo
+/* The tile is one button filling the 96px square (it opens the photo's
+   sheet); the chips are decoration over the photo and never take a tap. Chips on a photo
    are theme-invariant (they sit on the image, not on a themed surface) —
    literal scrim colors by design. */
 .thumb .thumb-select {
@@ -347,44 +347,51 @@ html, body {
 .thumb-add-btn .icon { width: var(--icon-feature); height: var(--icon-feature); }
 .thumb-add-btn:not(:disabled):hover { color: var(--ink); }
 .thumb-add-btn:disabled { color: var(--line); cursor: default; }
-/* Selected: a ring inside the status outline (so an uploading / failed /
-   warned tile keeps both signals), mirrored by aria-pressed on the button. */
-.thumb.selected::after {
-  content: "";
-  position: absolute;
-  inset: 2px;
-  border: 3px solid var(--accent);
-  border-radius: calc(var(--radius-md) - 2px);
-  box-shadow: 0 0 0 1px #fff;
-  pointer-events: none;
-}
-
 /* Icon-only rows: the icon-button box is the 44px floor, so neighbours at
    the row gap never overlap targets. */
-.thumb-toolbar,
 .extract-row,
 .history-tools {
   --icon-btn-box: 44px;
 }
-/* The selected photo's actions: real 44px targets (.icon-button at a 44px
-   box / .ghost-btn) side by side — an adjacent cluster, so geometry, not
-   hit-area expansion. Wraps rather than shrinking a target when Retake / Keep
-   appear on a narrow phone. */
-.thumb-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+
+/* The photo sheet (capture.js openPhotoSheet): the photo whole in a box
+   reserved up front so nothing shifts while it loads, the named warning,
+   then Move left / Move right as two equal 44px buttons. */
+.photo-sheet {
+  display: grid;
+  gap: var(--gap);
+}
+.photo-sheet-frame {
+  height: min(36vh, 300px);
+  border-radius: var(--radius-md);
+  background: var(--neutral-soft);
+  overflow: hidden;
+}
+.photo-sheet-frame img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.photo-sheet-warning {
+  margin: 0;
+  color: var(--attention-text);
+  font-size: var(--font-body-sm);
+}
+.photo-sheet-moves {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: var(--space-sm);
 }
-.thumb-toolbar .ghost-btn:disabled {
-  color: var(--muted);
-  cursor: default;
+.photo-sheet-moves .button-surface {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  height: auto;
+  min-height: var(--hit-min);
 }
-.thumb-toolbar .ghost-btn .icon { width: var(--icon-title); height: var(--icon-title); }
-.thumb-toolbar .thumb-remove { margin-left: auto; order: 1; }
-/* Retake / Keep share their own row under the cluster on a phone. */
-.thumb-toolbar #thumbRetake,
-.thumb-toolbar #thumbKeep { order: 2; flex: 1 1 45%; justify-content: center; }
+.photo-sheet-moves .icon { width: var(--icon-title); height: var(--icon-title); }
 
 /* This take's options: the model and style chips (neutral, quiet: the
    owner never changes the model per take, so they must not compete with
@@ -489,13 +496,70 @@ html, body {
   font-size: var(--font-body-sm);
 }
 
-/* The last job's outcome (Done in N s, failures). Absent when empty. */
-.record-status {
+/* A link row inside the take card (the design.md settings-group link row):
+   lead glyph, label, chevron, the whole row one target at rows.md. "N photos"
+   folds the photos under a result; "Show the text" goes back. */
+.take-link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  width: 100%;
+  min-height: var(--row-md);
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--line-muted);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--font-body);
+  text-align: left;
+  cursor: pointer;
+}
+.take-link .icon { width: var(--icon-title); height: var(--icon-title); color: var(--muted); }
+.take-link-label { flex: 1 1 auto; }
+.take-link .take-link-chevron { width: var(--icon-inline); height: var(--icon-inline); }
+
+/* The result view: meta line, the text, Copy text (the view's primary, full
+   width), then New take and, on a partly read take, the tinted Retry. */
+.take-result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+.result-meta {
+  margin: 0;
   color: var(--muted);
   font-size: var(--font-body-sm);
-  text-align: center;
 }
-.record-status:empty { display: none; }
+.result-empty { margin: 0; }
+.result-copy,
+.result-actions > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4em;
+  min-height: 48px;
+}
+.result-copy { width: 100%; }
+.result-copy .icon,
+.result-actions .icon { width: var(--icon-title); height: var(--icon-title); }
+.result-actions {
+  display: flex;
+  gap: var(--space-sm);
+}
+.result-actions > button {
+  flex: 1 1 0;
+  min-width: 0;
+  font-size: var(--font-label);
+  font-weight: 700;
+}
+
+/* A failed job's own message, in danger text (its toast says it too). */
+.take-error {
+  margin: 0;
+  color: var(--danger-text);
+  font-size: var(--font-body-sm);
+}
 
 /* ---------- cards ----------
    Base .card + header row come from _vendored/card/card.css. App-side
@@ -528,31 +592,8 @@ html, body {
   color: var(--muted);
 }
 
-.copy-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35em;
-  min-height: var(--hit-min);
-  padding: 6px var(--gap);
-  font-size: var(--font-label);
-  white-space: nowrap;
-  background: var(--card-off);
-  color: var(--ink);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  transition: background 0.15s;
-}
-.copy-btn:active { background: var(--line-muted); }
 /* Button glyphs take the 16px inline step, not the button text's 1em. */
-.copy-btn .icon,
 .shaded-btn .icon { width: var(--icon-inline); height: var(--icon-inline); }
-.copy-btn[disabled] { color: var(--muted); cursor: not-allowed; }
-.copy-btn.copied {
-  background: var(--accent-soft);
-  color: var(--accent-text);
-  border-color: var(--accent-border-soft);
-}
 
 /* Full-width shaded action — home-automation's .range-tab recipe (Network
    tab Refresh / Reset router): card-off fill, hairline border, control
@@ -753,44 +794,6 @@ hr {
 /* ---------- toast ---------- */
 /* The toast is the vendored component (_vendored/toast/toast.css): the nav's
    glass, neutral for every message, tinted only for a real error. */
-
-/* ---------- preview dialog (photo lightbox — theme-invariant blacks) ---------- */
-.preview-dialog {
-  border: 0;
-  padding: 0;
-  background: rgba(0, 0, 0, 0.95);
-  max-width: 100vw;
-  max-height: 100vh;
-  width: 100vw;
-  height: 100vh;
-  margin: 0;
-}
-.preview-dialog::backdrop {
-  background: rgba(0, 0, 0, 0.95);
-}
-.preview-img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  display: block;
-}
-/* The close is the vendored .icon-button (a glyph on nothing, COMP-05) at a
-   real 44px box. The lightbox is black in both themes, so it restates the
-   glyph tokens light (token values only, not the recipe). Two classes: this
-   file loads before icon-button.css, whose `position: relative` would win a
-   one-class tie. */
-.preview-dialog {
-  --muted: rgba(255, 255, 255, 0.8);
-  --ink: #ffffff;
-}
-.preview-dialog .preview-close {
-  --icon-btn-box: 44px;
-  position: absolute;
-  top: env(safe-area-inset-top, 12px);
-  right: 12px;
-  z-index: 10;
-}
-.preview-dialog .preview-close .icon { width: var(--icon-title); height: var(--icon-title); }
 
 /* ---------- login overlay ---------- */
 .login-overlay {
