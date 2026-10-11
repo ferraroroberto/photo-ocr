@@ -43,8 +43,8 @@ def _navigate_collecting_errors(
 
 def test_boot_renders_spa(authed_page: Page, base_url: str) -> None:
     """One page load, four boot checks (they shared an identical setup and
-    each paid a load per projection): no JS errors, both OCR selects
-    populated, the Capture zone rendered, and the login overlay markup
+    each paid a load per projection): no JS errors, the Settings rows filled
+    from the config, the Capture zone rendered, and the login overlay markup
     wired. The overlay check mutates the DOM, so it runs last."""
     errors = _navigate_collecting_errors(authed_page, base_url, boot_settled=True)
     # boot() awaits fetchConfig, then the History request, then renders.
@@ -56,16 +56,10 @@ def test_boot_renders_spa(authed_page: Page, base_url: str) -> None:
     )
     assert errors == [], "JS errors during boot:\n  - " + "\n  - ".join(errors)
 
-    # renderOcrOptions runs after /api/config resolves. Both selects must
-    # end up with at least one <option> or the dropdowns are empty.
-    # state="attached" not "visible" — <option> inside a collapsed <select>
-    # has no layout box so the default visible state never resolves.
-    authed_page.wait_for_selector("#ocrModel option", state="attached", timeout=5_000)
-    authed_page.wait_for_selector("#ocrStyle option", state="attached", timeout=5_000)
-    model_count = authed_page.locator("#ocrModel option").count()
-    style_count = authed_page.locator("#ocrStyle option").count()
-    assert model_count >= 1, f"#ocrModel rendered no options (got {model_count})"
-    assert style_count >= 1, f"#ocrStyle rendered no options (got {style_count})"
+    # renderSettings runs after /api/config resolves: the default model and
+    # style rows must carry a value, or the config never reached the page.
+    for row in ("#setModelValue", "#setStyleValue", "#setRetentionValue", "#setMaxPhotosValue"):
+        expect(authed_page.locator(row)).not_to_have_text("")
 
     # The empty take shows only its two starts (Choose photos the primary,
     # Camera the second): no Extract, no switch row, no status line, and a
@@ -97,22 +91,62 @@ def test_boot_renders_spa(authed_page: Page, base_url: str) -> None:
     expect(pw).to_have_value("dummy")
 
 
-def test_settings_pane_shows_prompt_preview(
+def test_settings_groups_save_as_they_change(
     authed_page: Page, base_url: str
 ) -> None:
     """Settings is never a tab (fleet NAV-03): it opens from the header gear
-    that every pane carries beside the theme toggle, and any tab tap leaves
-    it. The prompt preview inside it is always visible (unfolded by request
-    — no disclosure). Catches a Settings tab creeping back into the nav, a
-    pane missing its gear, a broken gear, a missing prompt preview, and a
-    Save button that no longer tracks dirty state (#76) in one shot."""
+    every pane carries beside the theme toggle, and any tab tap leaves it.
+    It is three inset groups (Display, Reading, Storage) whose rows save to
+    the server as they change, with a toast, and revert on a failed save;
+    the prompt opens read-only in a sheet; a retention outside the presets
+    is shown as-is; the device keeps no model / style of its own (#197).
+
+    ``/api/config`` is served from an in-memory store here, so the test
+    never writes the checkout's real config file."""
+    import json
+
+    store: dict = {}
+    posts: list[dict] = []
+    fail = {"next": False}
+
+    def config(route) -> None:
+        if route.request.method == "POST":
+            patch = json.loads(route.request.post_data or "{}")
+            posts.append(patch)
+            if fail["next"]:
+                fail["next"] = False
+                route.fulfill(status=500, content_type="application/json",
+                              body=json.dumps({"detail": "invented failure"}))
+                return
+            store.update(patch)
+            route.fulfill(status=200, content_type="application/json",
+                          body=json.dumps({"ok": True, "config": dict(store)}))
+            return
+        if not store:
+            body = route.fetch().json()
+            body["ocr_models_available"] = ["gemini_flash", "claude_opus"]
+            body["ocr_model_default"] = "gemini_flash"
+            body["history_retention_days"] = 45  # outside the presets
+            body["max_photos_per_session"] = 50
+            store.update(body)
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(store))
+
+    authed_page.route("**/api/config", config)
+    # A device value left by the old Settings must not shadow the server.
+    authed_page.add_init_script(
+        "localStorage.setItem('photo-ocr.model', 'claude_opus');"
+        "localStorage.setItem('photo-ocr.promptId', 'stale');"
+    )
     _navigate_collecting_errors(authed_page, base_url)
-    # renderSettings (and so the dirty-state pass) runs after /api/config.
-    authed_page.wait_for_selector("#ocrModel option", state="attached", timeout=5_000)
-    # The Capture pane is the default tab; Settings starts hidden.
+    expect(authed_page.locator("#setModelValue")).to_have_text("Gemini Flash")
+    assert authed_page.evaluate(
+        "[localStorage.getItem('photo-ocr.model'), localStorage.getItem('photo-ocr.promptId')]"
+    ) == [None, None]
+
+    # The Capture pane is the default tab; Settings starts hidden. The nav
+    # lists only the real destinations, and every pane (Settings included)
+    # opens with the home-head row: theme toggle, then the gear.
     expect(authed_page.locator("#paneSettings")).to_be_hidden()
-    # The nav lists only the real destinations, and every pane (Settings
-    # included) opens with the home-head row: theme toggle, then the gear.
     expect(authed_page.locator('.tabs .tab[data-tab="settings"]')).to_have_count(0)
     expect(authed_page.locator(".tabs .tab")).to_have_count(2)
     for pane in ("#paneCapture", "#paneHistory", "#paneSettings"):
@@ -122,68 +156,109 @@ def test_settings_pane_shows_prompt_preview(
         # .icon-button's (project-scaffolding#339): a glyph on nothing at rest
         assert is_unpainted(head.locator(".home-toggle"))
     authed_page.locator("#paneCapture .home-settings").click()
-    expect(authed_page.locator("#paneSettings")).to_be_visible()
+    pane = authed_page.locator("#paneSettings")
+    expect(pane).to_be_visible()
     expect(authed_page.locator("#paneCapture")).to_be_hidden()
-    expect(authed_page.locator("#ocrPromptPreview")).to_be_visible()
-    # Save defaults is dirty-aware: disabled while the selection matches the
-    # persisted defaults, armed once an input differs.
-    save_btn = authed_page.locator("#saveSettings")
-    expect(save_btn).to_be_visible()
-    expect(save_btn).to_be_disabled()
-    max_photos = authed_page.locator("#maxPhotos")
-    current = int(max_photos.input_value() or "50")
-    max_photos.fill(str(current + 1))
-    expect(save_btn).to_be_enabled()
+
+    # Three groups under overlines; no card titles, no Save button.
+    expect(pane.locator(".settings-overline")).to_have_text(["Display", "Reading", "Storage"])
+    expect(pane.locator(".card-title, #saveSettings, #ocrPromptPreview")).to_have_count(0)
+    expect(pane.locator(".settings-group").last.locator(".settings-row").last).to_have_id("cleanAll")
+
+    # Default model: a picker sheet; the pick saves at once, with a toast,
+    # and survives a reload (the store is what GET /api/config serves).
+    authed_page.locator("#setModel").click()
+    authed_page.locator("dialog.sheet").get_by_role("button", name="Claude Opus").click()
+    expect(authed_page.locator("#setModelValue")).to_have_text("Claude Opus")
+    expect(authed_page.locator("#toast")).to_contain_text("Default model: Claude Opus")
+    assert posts[-1] == {"ocr_model_default": "claude_opus"}, posts
+    # A failed save says so and keeps the row's old value.
+    fail["next"] = True
+    authed_page.locator("#setModel").click()
+    authed_page.locator("dialog.sheet").get_by_role("button", name="Gemini Flash").click()
+    expect(authed_page.locator("#toast")).to_contain_text("Save failed")
+    expect(authed_page.locator("#setModelValue")).to_have_text("Claude Opus")
+
+    # Keep takes for: 45 days is not a preset, so it shows as-is and no
+    # segment is raised until one is picked.
+    expect(authed_page.locator("#setRetentionValue")).to_have_text("45 days")
+    authed_page.locator("#setRetention").click()
+    sheet = authed_page.locator("dialog.sheet")
+    expect(sheet).to_contain_text("Now 45 days")
+    expect(sheet.locator(".segmented-item[aria-pressed='true']")).to_have_count(0)
+    sheet.get_by_role("button", name="90 days").click()
+    expect(sheet.locator(".segmented-item[aria-pressed='true']")).to_have_text("90 days")
+    expect(authed_page.locator("#setRetentionValue")).to_have_text("90 days")
+    assert posts[-1] == {"history_retention_days": 90}, posts
+    authed_page.keyboard.press("Escape")
+    expect(sheet).to_have_count(0)
+
+    # Max photos: saves when the field is left, inside 1-100 only.
+    authed_page.locator("#setMaxPhotos").click()
+    field = authed_page.locator("#maxPhotosInput")
+    field.fill("500")
+    field.press("Enter")
+    expect(authed_page.locator(".settings-sheet-error")).to_be_visible()
+    expect(field).to_have_value("50")
+    field.fill("20")
+    field.press("Enter")
+    expect(authed_page.locator("#setMaxPhotosValue")).to_have_text("20")
+    assert posts[-1] == {"max_photos_per_session": 20}, posts
+    authed_page.keyboard.press("Escape")
+
+    # The prompt opens read-only in a sheet.
+    authed_page.locator("#setPrompt").click()
+    prompt = authed_page.locator("dialog.prompt-sheet-dialog .prompt-sheet-text")
+    expect(prompt).to_be_visible()
+    expect(prompt).not_to_have_text("")
+    authed_page.keyboard.press("Escape")
+
+    # Reload: everything came back from the server, nothing from the device;
+    # Capture's chip starts from the new default.
+    authed_page.reload(wait_until="domcontentloaded")
+    expect(authed_page.locator("#setModelValue")).to_have_text("Claude Opus")
+    expect(authed_page.locator("#setRetentionValue")).to_have_text("90 days")
+    expect(authed_page.locator("#setMaxPhotosValue")).to_have_text("20")
+    assert authed_page.evaluate("localStorage.getItem('photo-ocr.model')") is None
+    expect(authed_page.locator("#takeModel")).to_have_attribute(
+        "aria-label", "Model for this take: Claude Opus"
+    )
 
     # Any tab tap leaves Settings; the gear on another pane reopens it.
     authed_page.locator("#tabHistory").click()
-    expect(authed_page.locator("#paneSettings")).to_be_hidden()
-    expect(authed_page.locator("#paneHistory")).to_be_visible()
+    expect(pane).to_be_hidden()
     authed_page.locator("#paneHistory .home-settings").click()
-    expect(authed_page.locator("#paneSettings")).to_be_visible()
-    expect(authed_page.locator("#paneHistory")).to_be_hidden()
+    expect(pane).to_be_visible()
 
-    # Type scale (TYPE-01): read lines sit on body-sm (14px) or above, never
-    # the 12px caption, and the label role is the spec's 0.875rem.
+    # Type scale (TYPE-01): row values sit on body-sm (14px), row labels on
+    # body (16px), never the 12px caption; every control inherits the page
+    # font (the vendored base layer).
     sizes = authed_page.evaluate(
-        "['#ocrPromptPreview', '.row > span', '.stacked > span']"
+        "['#setModelValue', '#setModel .settings-label']"
         ".map(q => getComputedStyle(document.querySelector(q)).fontSize)"
     )
-    assert sizes == ["14px", "14px", "14px"], sizes
-
-    # What the rendered design review measures: every form control (the
-    # monospace-free prompt preview included) inherits the page font, field
-    # boundaries are a drawn border, button glyphs sit on the 16px step, and
-    # the text-size control is findable by its accessible name.
-    facts = authed_page.evaluate(
+    assert sizes == ["14px", "16px"], sizes
+    off = authed_page.evaluate(
         """() => {
           const body = getComputedStyle(document.body).fontFamily;
-          const off = [...document.querySelectorAll('button, input, select, textarea')]
+          return [...document.querySelectorAll('button, input, select, textarea')]
             .filter(e => getComputedStyle(e).fontFamily !== body).length;
-          const sel = getComputedStyle(document.getElementById('ocrModel'));
-          const save = document.querySelector('#saveSettings .icon').getBoundingClientRect();
-          return { off, border: sel.borderTopWidth, saveIcon: Math.round(save.width) };
         }"""
     )
-    assert facts == {"off": 0, "border": "1px", "saveIcon": 16}, facts
-    expect(authed_page.get_by_label("Text size")).to_be_visible()
+    assert off == 0, off
 
-    # Text size (A11Y-02): the zoom lock's escape. Large scales the root
-    # font-size, survives a reload through the pre-paint boot, and form
-    # controls inherit the page font (TYPE-02, the vendored base layer).
+    # Text size (A11Y-02): the zoom lock's escape, the vendored segmented
+    # control. Large scales the root font-size and survives a reload.
+    expect(authed_page.get_by_role("group", name="Text size")).to_be_visible()
     authed_page.locator('#textSizeControl [data-textsize="large"]').click()
-    expect(authed_page.locator("html")).to_have_attribute("data-textsize", "large")
-    root_px = authed_page.evaluate(
-        "getComputedStyle(document.documentElement).fontSize"
+    expect(authed_page.locator('#textSizeControl [data-textsize="large"]')).to_have_attribute(
+        "aria-pressed", "true"
     )
+    expect(authed_page.locator("html")).to_have_attribute("data-textsize", "large")
+    root_px = authed_page.evaluate("getComputedStyle(document.documentElement).fontSize")
     assert root_px == "18px", f"Large should be 112.5% of 16px, got {root_px}"
     authed_page.reload(wait_until="domcontentloaded")
     expect(authed_page.locator("html")).to_have_attribute("data-textsize", "large")
-    fonts = authed_page.evaluate(
-        "[document.body, document.getElementById('tabHistory')]"
-        ".map(e => getComputedStyle(e).fontFamily)"
-    )
-    assert fonts[0] == fonts[1], f"controls must inherit the page font: {fonts}"
 
 
 def test_save_to_history_switch_sets_incognito(

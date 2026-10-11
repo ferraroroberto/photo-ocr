@@ -564,12 +564,6 @@ html, body {
    Base .card + header row come from _vendored/card/card.css. App-side
    extras only. */
 .card { margin: var(--gap) 0; }
-.card-head { margin-bottom: var(--space-sm); }
-.card-head-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-}
 
 .text-out {
   width: 100%;
@@ -584,50 +578,6 @@ html, body {
   white-space: pre-wrap;
   word-wrap: break-word;
 }
-.prompt-preview {
-  min-height: 80px;
-  font: var(--font-body-sm) / 1.4 var(--font);
-  color: var(--muted);
-}
-
-/* Button glyphs take the 16px inline step, not the button text's 1em. */
-.shaded-btn .icon { width: var(--icon-inline); height: var(--icon-inline); }
-
-/* Full-width shaded action — home-automation's .range-tab recipe (Network
-   tab Refresh / Reset router): card-off fill, hairline border, control
-   height, muted 600 label. The ::before extends the tap target to >=44px
-   vertically without inflating the visual pill. */
-.shaded-btn {
-  position: relative;
-  width: 100%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.35em;
-  height: var(--control-h);
-  margin-top: var(--space-xs);
-  background: var(--card-off);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  padding: 0 10px;
-  color: var(--muted);
-  font-size: var(--font-label);
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-.shaded-btn::before { content: ""; position: absolute; inset: -4px 0; }
-.shaded-btn:active { background: var(--line-muted); }
-.shaded-btn:disabled { opacity: 0.55; cursor: default; }
-.shaded-btn:disabled:active { background: var(--card-off); }
-/* Dirty state: unsaved changes — same accent tint as the Camera start, so
-   "this button is armed" reads consistently across the app. */
-.shaded-btn--accent:not(:disabled) {
-  background: var(--accent-soft);
-  color: var(--accent);
-  border-color: var(--accent-border-strong);
-}
-
 .ghost-btn {
   display: inline-flex;
   align-items: center;
@@ -644,39 +594,112 @@ html, body {
 }
 .ghost-btn:active { background: var(--card-off); }
 
-/* ---------- settings ---------- */
-.row {
+/* ---------- settings ----------
+   design.md settings group: overline headers over inset groups; each row a
+   lead glyph, a label, the current value in fg-muted and a chevron when it
+   opens a sheet (rows.md tall, the whole row one target). Text size, changed
+   often, stays inline as the vendored segmented control. */
+.settings-overline {
+  margin: var(--space-md) var(--space-xs) var(--space-xs);
+  color: var(--muted);
+  font-size: var(--font-caption);
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.card.settings-group {
+  margin-top: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.settings-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin: 10px 0;
-  min-height: 44px;
+  gap: var(--space-sm);
+  width: 100%;
+  min-height: var(--row-md);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--font-body);
+  text-align: left;
 }
-.row > span:first-child { flex: 0 0 auto; font-size: var(--font-label); }
-/* Settings selects/inputs reach the 44px floor with real geometry: a --hit-min
-   tall box with a drawn 1px control-border (the action-row filter's recipe),
-   so the boundary is a real border, not a shadow. */
-.row .select-native,
-.row .input-native {
-  flex: 1 1 auto;
+.settings-row + .settings-row { border-top: 1px solid var(--line-muted); }
+.settings-row > .icon { width: var(--icon-title); height: var(--icon-title); color: var(--muted); flex: none; }
+.settings-label { flex: 1 1 auto; min-width: 0; }
+.settings-value {
+  max-width: 50%;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: var(--font-body-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.settings-row .settings-chevron { width: var(--icon-inline); height: var(--icon-inline); color: var(--muted); flex: none; }
+.settings-link,
+.settings-danger { cursor: pointer; }
+.settings-link:active,
+.settings-danger:active { background: var(--neutral-soft); }
+/* The destructive row: last in its group, danger text, never a filled
+   button (it opens the confirm sheet). */
+.settings-danger,
+.settings-danger > .icon { color: var(--danger-text); }
+.settings-segmented { flex: 0 1 60%; }
+
+/* Settings sheets: a note or one field, an error line in danger text. */
+.settings-sheet {
+  display: grid;
+  gap: var(--space-sm);
+}
+.settings-sheet-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--font-body-sm);
+}
+.settings-sheet-field {
+  display: grid;
+  gap: var(--space-xs);
+  font-size: var(--font-body-sm);
+}
+.settings-sheet-field .input-native {
   height: var(--hit-min);
   padding: 0 10px;
-  background: var(--input-bg);
-  color: var(--ink);
   border: 1px solid var(--control-border);
   border-radius: var(--radius-md);
-  font-size: var(--font-label);
-  max-width: 60%;
+  background: var(--input-bg);
+  color: var(--ink);
+  font-size: var(--font-body);
 }
-
-.stacked {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin: 10px 0;
+.settings-sheet-error {
+  margin: 0;
+  color: var(--danger-text);
+  font-size: var(--font-body-sm);
 }
-.stacked > span { font-size: var(--font-body-sm); }
+/* The prompt sheet: the style's prompt, read-only and scrollable. */
+.prompt-sheet {
+  display: grid;
+  gap: var(--space-sm);
+}
+.prompt-sheet-meta {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--font-body-sm);
+}
+.prompt-sheet-text {
+  max-height: min(50vh, 360px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: var(--gap);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  font-size: var(--font-body-sm);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
 
 .muted { color: var(--muted); }
 .small { font-size: var(--font-body-sm); }
@@ -758,32 +781,6 @@ html, body {
   margin: 0;
   color: var(--danger-text);
   font-size: var(--font-body-sm);
-}
-
-/* A destructive row in a settings card: plain danger text at 44px, never a
-   filled button (Settings › Storage › Delete all saved takes). */
-.danger-row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  width: 100%;
-  min-height: var(--hit-min);
-  margin-top: var(--space-sm);
-  padding: 0;
-  border: 0;
-  border-top: 1px solid var(--line-muted);
-  background: transparent;
-  color: var(--danger-text);
-  font: inherit;
-  font-size: var(--font-label);
-  text-align: left;
-  cursor: pointer;
-}
-.danger-row .icon { width: var(--icon-inline); height: var(--icon-inline); }
-.load-more-btn {
-  width: 100%;
-  margin-top: 10px;
-  justify-content: center;
 }
 
 /* ---------- status chip ----------

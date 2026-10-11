@@ -55,9 +55,13 @@ same archive shape, same auth model, but for pixels instead of audio.
   (a blurry photo, a reading take, unread photos, Not saved to History).
   Messages use the fleet's neutral frosted
   **toast** (the nav bar's glass; only a real error tints). A build-identity footer is visible from every
-  tab. Settings carries the persisted **Text size**
-  (Small / Default / Large) control that makes the viewport zoom lock
-  acceptable. Shared components are vendored verbatim under
+  tab. Settings is three inset groups whose rows save to the server as they
+  change (no Save button): **Display** (the persisted **Text size**, Small /
+  Default / Large, the control that makes the viewport zoom lock
+  acceptable), **Reading** (the default model and style a new take starts
+  from, and the prompt that style sends, read-only) and **Storage** (keep
+  takes for 7 / 30 / 90 days or 1 year, max photos per take, delete all
+  saved takes). Every device follows the server's defaults. Shared components are vendored verbatim under
   `app/webapp/static/_vendored/` from `project-scaffolding`.
 - **Searchable archive.** A search box on the History tab runs full-text search
   (SQLite FTS5) over every past extract — "find the bakery receipt". The index
@@ -265,7 +269,7 @@ photo-ocr/
 │   │   ├── manager.py
 │   │   └── static/              PWA: index.html, ES-module JS, styles.css, icons
 │   │       └── _vendored/       fleet components (nav · home-head · icons · card ·
-│   │                            button · toast · empty-state · base · range-tab · text-size ·
+│   │                            button · toast · empty-state · base · text-size ·
 │   │                            action-row · modal · switch · icon-button · select-native ·
 │   │                            segmented · page-foot),
 │   │                            copied verbatim from project-scaffolding
@@ -369,7 +373,7 @@ The `webapp` section is optional (all three keys default as shown). **This is th
 
 ### `config/webapp_config.json` (gitignored)
 
-Created on first **💾 Save defaults** tap. Schema lives in
+Created on the first Settings change. Schema lives in
 `config/webapp_config.sample.json`:
 
 | Key | Default | Notes |
