@@ -1,14 +1,17 @@
-/* Photo OCR — the History panel: list render, paging, tap-to-copy rows with
- * a Redo / Delete overflow menu, and the clean-all action. */
+/* Photo OCR — the History panel: search first, then the takes grouped under
+ * date overlines, paged with "Load more (N left)". A row tap copies the take;
+ * its ⋯ opens the take sheet (the text, Copy, Retry, Redo with…, Delete).
+ * Also the delete-all action Settings › Storage calls. */
 
 'use strict';
 
 import { state, els, toast, HISTORY_PAGE_SIZE, modelLabel, copyText } from './state.js';
 import { jsonApi } from './api.js';
 import { adoptTake, followJob, postJob, retryMissing, runTakeJob } from './extract.js';
+import { defaultPromptId } from './settings.js';
 import { icon } from './_vendored/icons/icons.js';
 import { emptyStateEl } from './_vendored/empty-state/empty-state.js';
-import { confirmSheet } from './sheet.js';
+import { confirmSheet, openSheet } from './sheet.js';
 
 export async function loadHistory(offset) {
   state.historyOffset = offset || 0;
@@ -43,47 +46,145 @@ function highlightSnippet(snip) {
   return escapeHtml(snip).replace(/\[([^[\]]*)\]/g, '<mark>$1</mark>');
 }
 
-// Shared row component for both the chronological history list and the
-// search-result list — one DOM shape, two data sources. One take is one
-// action-row (design.md): tap the row to copy it, one trailing overflow
-// control for everything else (Redo, Delete). The snippet leads as the
-// title; date, photo count and model are the one muted meta line.
-function makeSessionRow(sessionId, metaText, previewText, isSnippet, source, missing) {
+// ----------------------------------------------------------- dates
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
+  'August', 'September', 'October', 'November', 'December'];
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+function pad(n) { return String(n).padStart(2, '0'); }
+
+// Whole days between the take's day and today (0 = today), or null when the
+// date can't be read.
+function daysAgo(iso) {
+  const d = new Date(iso);
+  if (!iso || Number.isNaN(d.getTime())) return null;
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const day = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  return Math.round((today - day) / 86400000);
+}
+
+// The overline a take sits under: Today / Yesterday / This week / its month.
+// Pure in the take's own date, so the groups stay stable across Load more.
+function dateGroup(iso) {
+  const days = daysAgo(iso);
+  if (days === null) return 'Earlier';
+  if (days <= 0) return 'Today';
+  if (days === 1) return 'Yesterday';
+  if (days < 7) return 'This week';
+  const d = new Date(iso);
+  return MONTHS_LONG[d.getMonth()] + ' ' + d.getFullYear();
+}
+
+// The row's "when", short because its overline already says the day or month.
+function rowWhen(iso) {
+  const days = daysAgo(iso);
+  if (days === null) return '?';
+  const d = new Date(iso);
+  const time = pad(d.getHours()) + ':' + pad(d.getMinutes());
+  if (days <= 1) return time;
+  if (days < 7) return WEEKDAYS[d.getDay()] + ' ' + time;
+  return d.getDate() + ' ' + MONTHS[d.getMonth()];
+}
+
+// The take sheet's title: the full "when".
+function fullWhen(iso) {
+  const days = daysAgo(iso);
+  if (days === null) return 'Take';
+  const d = new Date(iso);
+  const time = pad(d.getHours()) + ':' + pad(d.getMinutes());
+  if (days <= 0) return 'Today, ' + time;
+  if (days === 1) return 'Yesterday, ' + time;
+  return d.getDate() + ' ' + MONTHS[d.getMonth()] + ' ' + d.getFullYear() + ', ' + time;
+}
+
+// ----------------------------------------------------------- rows
+function chipEl(text, tone) {
+  const chip = document.createElement('span');
+  chip.className = 'chip';
+  chip.dataset.tone = tone;
+  chip.textContent = text;
+  return chip;
+}
+
+// What a take's row and sheet know about it. Browse rows carry everything;
+// a search hit carries no photo count, duration or unread count (they are
+// left undefined, never invented, and the sheet asks the server).
+function browseTake(s) {
+  return {
+    session_id: s.session_id,
+    created_at: s.created_at,
+    photos: s.photo_count,
+    model: s.model,
+    prompt_id: s.prompt_id,
+    duration: s.extract_duration_s,
+    missing: ((s.extract_progress || {}).missing_photos || []).length,
+    failed: !!s.error,
+    source: s.source,
+  };
+}
+
+function searchTake(r) {
+  return {
+    session_id: r.session_id,
+    created_at: r.created_at,
+    photos: undefined,
+    model: r.model,
+    prompt_id: undefined,
+    duration: undefined,
+    missing: undefined,
+    failed: false,
+    source: r.source,
+  };
+}
+
+// The exception chips, in one place for the row and the sheet: unread
+// (attention), failed (danger), the calling app (neutral). Normal takes none.
+function takeChips(take) {
+  const chips = [];
+  if (take.missing) chips.push(chipEl(take.missing + ' unread', 'attention'));
+  if (take.failed) chips.push(chipEl('Failed', 'danger'));
+  // Externally sourced takes (app-launcher, api, …) keep History an
+  // attributable cross-fleet audit trail; the PWA's own ("webapp") is plain.
+  if (take.source && take.source !== 'webapp') chips.push(chipEl(take.source, 'neutral'));
+  return chips;
+}
+
+function photosText(n) {
+  return n + (n === 1 ? ' photo' : ' photos');
+}
+
+// Shared row for the browse list and the search results — one DOM shape, two
+// data sources. One take is one action-row (design.md): tap the row to copy
+// it, one trailing ⋯ for the take sheet. The text (or the failure) leads; the
+// meta line is when, the exception chips, then photos and model.
+function makeSessionRow(take, titleText, isSnippet) {
   const li = document.createElement('li');
   li.className = 'action-row history-item';
-  // `missing` = count of unread photos; undefined when the list can't say
-  // (search hits), in which case the menu asks the server when it opens.
-  const ref = { session_id: sessionId, missing: missing };
 
   const main = document.createElement('button');
   main.type = 'button';
   main.className = 'action-row-main';
   main.title = 'Copy this take';
-  main.addEventListener('click', function () { copyHistoryEntry(ref); });
+  main.addEventListener('click', function () { copyHistoryEntry(take); });
 
   const title = document.createElement('span');
   title.className = 'action-row-title preview';
   if (isSnippet) {
-    title.innerHTML = highlightSnippet(previewText);
+    title.innerHTML = highlightSnippet(titleText);
   } else {
-    title.textContent = previewText;
+    title.textContent = titleText;
   }
 
   const meta = document.createElement('span');
   meta.className = 'action-row-meta';
-  meta.textContent = metaText;
-  // Flag externally-sourced takes (app-launcher, api, …) so History is
-  // an attributable cross-fleet audit trail: a neutral status chip. Manual
-  // PWA takes ("webapp") are the unmarked default — no chip keeps the
-  // common case clean.
-  if (source && source !== 'webapp') {
-    const badge = document.createElement('span');
-    badge.className = 'chip';
-    badge.dataset.tone = 'neutral';
-    badge.textContent = source;
-    meta.appendChild(document.createTextNode(' '));
-    meta.appendChild(badge);
-  }
+  meta.append(rowWhen(take.created_at));
+  takeChips(take).forEach(function (chip) { meta.append(' ', chip); });
+  const rest = [];
+  if (take.photos !== undefined) rest.push(photosText(take.photos));
+  rest.push(take.model ? modelLabel(take.model) : '—');
+  meta.append(' · ' + rest.join(' · '));
   main.append(title, meta);
 
   const more = document.createElement('button');
@@ -92,10 +193,35 @@ function makeSessionRow(sessionId, metaText, previewText, isSnippet, source, mis
   more.setAttribute('aria-label', 'More actions');
   more.setAttribute('aria-haspopup', 'dialog');
   more.innerHTML = icon('ellipsis-vertical');
-  more.addEventListener('click', function () { openTakeMenu(ref, metaText); });
+  more.addEventListener('click', function () { openTakeSheet(take); });
 
   li.append(main, more);
   return li;
+}
+
+function groupHeader(label) {
+  const li = document.createElement('li');
+  li.className = 'history-group';
+  li.setAttribute('role', 'presentation');
+  li.textContent = label;
+  return li;
+}
+
+// The History header names exceptions only: how many of the loaded takes are
+// partly read (it counts what is loaded, so it never claims more). Empty
+// otherwise, and in search mode (hits don't know).
+function renderHistoryHeadline() {
+  els.historyHeadline.innerHTML = '';
+  if (state.searchQuery) return;
+  const partly = state.historyItems.filter(function (s) {
+    return ((s.extract_progress || {}).missing_photos || []).length > 0;
+  }).length;
+  if (!partly) return;
+  const part = document.createElement('span');
+  part.className = 'headline-part';
+  part.dataset.tone = 'attention';
+  part.textContent = partly + ' partly read';
+  els.historyHeadline.appendChild(part);
 }
 
 function renderHistory() {
@@ -104,72 +230,76 @@ function renderHistory() {
     renderSearchResults();
     return;
   }
-  els.historyCount.textContent =
-    state.historyItems.length + '/' + state.historyTotal;
+  renderHistoryHeadline();
   els.historyList.innerHTML = '';
+  if (els.historySearch) {
+    els.historySearch.placeholder = state.historyTotal
+      ? 'Search ' + state.historyTotal + (state.historyTotal === 1 ? ' saved take…' : ' saved takes…')
+      : 'Search extracted text…';
+  }
   if (!state.historyItems.length) {
-    // Canonical fleet empty-state block — never a silent empty container.
+    // Canonical fleet empty-state block, naming the way forward.
     const li = document.createElement('li');
-    li.appendChild(emptyStateEl('history', 'No saved takes yet'));
+    const empty = emptyStateEl('history', 'No saved takes', {
+      actionLabel: 'Capture a take',
+      onAction: function () { document.getElementById('tabCapture').click(); },
+    });
+    const days = state.config && state.config.history_retention_days;
+    if (days) {
+      const hint = document.createElement('p');
+      hint.className = 'empty-state-hint';
+      hint.textContent = 'With Save to history on, takes are kept here for ' + days + ' days.';
+      empty.insertBefore(hint, empty.querySelector('.empty-state-action'));
+    }
+    li.appendChild(empty);
     els.historyList.appendChild(li);
   }
+  let group = null;
   state.historyItems.forEach(function (s) {
-    const unread = ((s.extract_progress || {}).missing_photos || []).length;
-    const parts = [
-      formatDate(s.created_at),
-      s.photo_count + (s.photo_count === 1 ? ' photo' : ' photos'),
-      (s.model ? modelLabel(s.model) : '—') +
-        (s.extract_duration_s
-          ? ' · ' + s.extract_duration_s.toFixed(1) + 's'
-          : ''),
-    ];
-    if (unread) parts.push(unread + ' unread');
+    const label = dateGroup(s.created_at);
+    if (label !== group) {
+      els.historyList.appendChild(groupHeader(label));
+      group = label;
+    }
     els.historyList.appendChild(
-      makeSessionRow(
-        s.session_id,
-        parts.join(' · '),
-        s.extracted_preview || (s.error ? 'Error — ' + s.error : '(no text)'),
-        false,
-        s.source,
-        unread
-      )
+      makeSessionRow(browseTake(s), s.error || s.extracted_preview || '(no text)', false)
     );
   });
-  els.loadMoreHistory.hidden =
-    state.historyItems.length >= state.historyTotal;
+  const left = state.historyTotal - state.historyItems.length;
+  els.loadMoreHistory.hidden = left <= 0;
+  els.loadMoreLabel.textContent = 'Load more (' + left + ' left)';
 }
 
 function renderSearchResults() {
   const results = state.searchResults || [];
-  els.historyCount.textContent =
-    results.length + (results.length === 1 ? ' match' : ' matches');
+  renderHistoryHeadline();
   els.historyList.innerHTML = '';
   if (!results.length) {
-    const empty = document.createElement('li');
-    empty.className = 'history-empty';
-    empty.textContent = 'No matches for “' + state.searchQuery + '”';
-    els.historyList.appendChild(empty);
+    const li = document.createElement('li');
+    li.appendChild(
+      emptyStateEl('history', 'No matches for “' + state.searchQuery + '”', {
+        actionLabel: 'Clear search',
+        onAction: function () {
+          clearSearch();
+          renderHistory();
+          if (els.historySearch) els.historySearch.focus();
+        },
+      })
+    );
+    els.historyList.appendChild(li);
   } else {
+    // Ranked by relevance, so no date overlines.
     results.forEach(function (r) {
-      els.historyList.appendChild(
-        makeSessionRow(
-          r.session_id,
-          formatDate(r.created_at) + ' · ' + (r.model ? modelLabel(r.model) : '—'),
-          r.snippet || '(match)',
-          true,
-          r.source,
-          undefined
-        )
-      );
+      els.historyList.appendChild(makeSessionRow(searchTake(r), r.snippet || '(match)', true));
     });
   }
   // Search returns a single ranked page — no incremental loading.
   els.loadMoreHistory.hidden = true;
 }
 
-// Re-render the history panel after a mutation, staying in whichever
-// mode (search vs. browse) the user is currently in.
-function refreshHistoryView() {
+// Re-render the history panel after a mutation or on opening the tab,
+// staying in whichever mode (search vs. browse) the user is in.
+export function refreshHistoryView() {
   if (state.searchQuery) {
     runSearch(state.searchQuery);
   } else {
@@ -205,33 +335,12 @@ export function onSearchInput() {
   searchTimer = setTimeout(function () { runSearch(q); }, 250);
 }
 
-// Drop out of search mode — used by the Refresh button.
-export function clearSearch() {
+// Drop out of search mode (the no-matches state's Clear search).
+function clearSearch() {
   if (els.historySearch) els.historySearch.value = '';
   if (searchTimer) clearTimeout(searchTimer);
   state.searchQuery = '';
   state.searchResults = [];
-}
-
-function formatDate(iso) {
-  if (!iso) return '?';
-  try {
-    const d = new Date(iso);
-    const pad = function (n) { return String(n).padStart(2, '0'); };
-    return (
-      d.getFullYear() +
-      '-' +
-      pad(d.getMonth() + 1) +
-      '-' +
-      pad(d.getDate()) +
-      ' ' +
-      pad(d.getHours()) +
-      ':' +
-      pad(d.getMinutes())
-    );
-  } catch (_) {
-    return iso;
-  }
 }
 
 async function copyHistoryEntry(s) {
@@ -251,77 +360,132 @@ async function copyHistoryEntry(s) {
   }
 }
 
-async function redoHistoryEntry(s) {
+// Re-run a take with the model picked in "Redo with…" and the take's own
+// style (the Settings default when the take doesn't say).
+async function redoHistoryEntry(take, model) {
   await runTakeJob({
     failLabel: 'Redo failed',
     startLabel: 'Redo · starting',
     run: async function () {
-      const started = await postJob(s.session_id, 'redo', {
-        model: state.model,
-        prompt_id: state.promptId,
+      const started = await postJob(take.session_id, 'redo', {
+        model: model,
+        prompt_id: take.prompt_id || defaultPromptId(),
       });
-      const body = await followJob(s.session_id, started, 'Redo');
-      adoptTake(s.session_id, body);
+      const body = await followJob(take.session_id, started, 'Redo');
+      adoptTake(take.session_id, body);
       refreshHistoryView();
       toast('Redo done.');
     },
   });
 }
 
-// The overflow menu is one shared <dialog>; it remembers which take opened it.
-let menuTake = null;
-
-function openTakeMenu(ref, metaText) {
-  menuTake = ref;
-  els.takeMenuWhen.textContent = metaText;
-  els.takeRetry.hidden = !ref.missing;
-  els.takeMenu.showModal();
-  if (ref.missing === undefined) revealRetryIfMissing(ref);
+// ----------------------------------------------------------- take sheet
+// One sheet per take, from a browse row or a search hit: the when as title,
+// the meta (photos, model, duration, exception chips), the text read-only in
+// a box reserved before it arrives, then Copy text (the primary), Retry N
+// unread (only when there are), Redo with…, and Delete take last.
+function sheetMeta(el, take) {
+  el.innerHTML = '';
+  const parts = [];
+  if (take.photos !== undefined) parts.push(photosText(take.photos));
+  if (take.model) parts.push(modelLabel(take.model));
+  if (take.duration) parts.push(Number(take.duration).toFixed(1) + ' s');
+  el.append(parts.join(' · '));
+  takeChips(take).forEach(function (chip) { el.append(' ', chip); });
 }
 
-// A search hit doesn't carry its unread photos; ask the server once the menu
-// is up and show the action only if that take still has some.
-async function revealRetryIfMissing(ref) {
-  try {
-    const body = await jsonApi(
-      '/api/sessions/' + encodeURIComponent(ref.session_id) + '/extract/status'
-    );
-    ref.missing = (body.missing_photos || []).length;
-    if (menuTake === ref) els.takeRetry.hidden = !ref.missing;
-  } catch (_) {
-    // The menu still works without it; Redo remains.
+function retryLabel(n) {
+  return 'Retry ' + n + ' unread';
+}
+
+function openTakeSheet(take) {
+  const body = document.createElement('div');
+  body.className = 'take-sheet';
+  const meta = document.createElement('p');
+  meta.className = 'take-sheet-meta';
+  sheetMeta(meta, take);
+  const text = document.createElement('div');
+  text.className = 'take-sheet-text';
+  text.tabIndex = 0;
+  text.setAttribute('role', 'region');
+  text.setAttribute('aria-label', 'Text of this take');
+  text.textContent = 'Loading the text…';
+  text.classList.add('loading');
+  const error = document.createElement('p');
+  error.className = 'take-sheet-error';
+  error.hidden = true;
+  body.append(meta, text, error);
+
+  const sheet = openSheet({
+    title: fullWhen(take.created_at),
+    body: body,
+    className: 'take-sheet-dialog',
+    actions: [
+      { label: 'Copy text', icon: 'copy', tone: 'primary', onSelect: function () { copyHistoryEntry(take); } },
+      {
+        label: retryLabel(take.missing || 0),
+        icon: 'refresh-cw',
+        hidden: !take.missing,
+        onSelect: function () { retryMissing(take.session_id); },
+      },
+      { label: 'Redo with…', icon: 'redo-2', onSelect: function () { openRedoPicker(take); } },
+      { label: 'Delete take', icon: 'trash-2', tone: 'danger', onSelect: function () { confirmDelete(take); } },
+    ],
+  });
+  const retryBtn = sheet.actions[1];
+
+  jsonApi('/api/sessions/' + encodeURIComponent(take.session_id) + '/text')
+    .then(function (res) {
+      text.classList.remove('loading');
+      text.textContent = res.extracted || '(no text)';
+    })
+    .catch(function (exc) {
+      text.classList.remove('loading');
+      text.textContent = '';
+      error.textContent = 'Could not load the text: ' + (exc.message || exc);
+      error.hidden = false;
+    });
+
+  // A search hit doesn't carry its unread photos, duration or style: ask the
+  // server once the sheet is up, and reveal Retry only if it has some.
+  if (take.missing === undefined) {
+    jsonApi('/api/sessions/' + encodeURIComponent(take.session_id) + '/extract/status')
+      .then(function (status) {
+        take.missing = (status.missing_photos || []).length;
+        take.duration = status.duration_s;
+        take.model = status.model || take.model;
+        take.prompt_id = status.prompt_id;
+        sheetMeta(meta, take);
+        retryBtn.querySelector('.sheet-action-label').textContent = retryLabel(take.missing);
+        retryBtn.hidden = !take.missing;
+      })
+      .catch(function () { /* the sheet works without it; Redo remains */ });
   }
 }
 
-export function initTakeMenu() {
-  const dlg = els.takeMenu;
-  dlg.querySelector('.detail-close').addEventListener('click', function () { dlg.close(); });
-  // A tap on the backdrop (the dialog element itself, outside its card) dismisses.
-  dlg.addEventListener('click', function (e) { if (e.target === dlg) dlg.close(); });
-  els.takeRetry.addEventListener('click', function () {
-    const ref = menuTake;
-    dlg.close();
-    if (ref) retryMissing(ref.session_id);
+// "Redo with…": the models, the take's own one marked.
+function openRedoPicker(take) {
+  const models = (state.config && state.config.ocr_models_available) || [];
+  openSheet({
+    title: 'Redo with',
+    actions: models.map(function (m) {
+      return {
+        label: modelLabel(m),
+        current: m === take.model,
+        onSelect: function () { redoHistoryEntry(take, m); },
+      };
+    }),
   });
-  els.takeRedo.addEventListener('click', function () {
-    const ref = menuTake;
-    dlg.close();
-    if (ref) redoHistoryEntry(ref);
+}
+
+async function confirmDelete(take) {
+  const yes = await confirmSheet({
+    title: 'Delete this take?',
+    message: 'Its photos and text are deleted for good.',
+    confirmLabel: 'Delete',
+    danger: true,
   });
-  // The confirm stacks over the menu: Cancel leaves the menu open on Delete.
-  els.takeDelete.addEventListener('click', async function () {
-    const ref = menuTake;
-    if (!ref) return;
-    const yes = await confirmSheet({
-      title: 'Delete this take?',
-      message: 'Its photos and text are deleted for good.',
-      confirmLabel: 'Delete',
-      danger: true,
-    });
-    if (!yes) return;
-    dlg.close();
-    await deleteHistoryEntry(ref);
-  });
+  if (yes) await deleteHistoryEntry(take);
 }
 
 async function deleteHistoryEntry(s) {
@@ -336,6 +500,7 @@ async function deleteHistoryEntry(s) {
   }
 }
 
+// Settings › Storage › Delete all saved takes.
 export async function cleanAllHistory() {
   const yes = await confirmSheet({
     title: 'Delete all saved takes?',

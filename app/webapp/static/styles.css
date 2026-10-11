@@ -349,8 +349,7 @@ html, body {
 .thumb-add-btn:disabled { color: var(--line); cursor: default; }
 /* Icon-only rows: the icon-button box is the 44px floor, so neighbours at
    the row gap never overlap targets. */
-.extract-row,
-.history-tools {
+.extract-row {
   --icon-btn-box: 44px;
 }
 
@@ -566,7 +565,6 @@ html, body {
    extras only. */
 .card { margin: var(--gap) 0; }
 .card-head { margin-bottom: var(--space-sm); }
-.history-tools { justify-content: flex-end; }
 .card-head-actions {
   display: flex;
   align-items: center;
@@ -680,12 +678,6 @@ html, body {
 }
 .stacked > span { font-size: var(--font-body-sm); }
 
-hr {
-  border: 0;
-  border-top: 1px solid var(--line-muted);
-  margin: var(--gap) 0;
-}
-
 .muted { color: var(--muted); }
 .small { font-size: var(--font-body-sm); }
 
@@ -710,10 +702,22 @@ hr {
   margin: 0;
   padding: 0;
 }
-.history-empty {
-  font-size: var(--font-body-sm);
+/* Date overlines (Today / Yesterday / This week / the month): the one legal
+   caps use (design.md overline), heading each group of rows. */
+.history-group {
+  padding: var(--space-md) 0 var(--space-xs);
   color: var(--muted);
-  padding: var(--space-sm) 2px;
+  font-size: var(--font-caption);
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.history-group:first-child { padding-top: var(--space-xs); }
+/* The empty state's one helper line (the retention fact). */
+.empty-state-hint {
+  margin: 0;
+  font-size: var(--font-body-sm);
 }
 .history-item .preview mark {
   background: color-mix(in srgb, var(--attention) 30%, transparent);
@@ -722,26 +726,60 @@ hr {
   padding: 0 2px;
 }
 /* A take is an action-row (_vendored/action-row): the row layout, title/meta
-   type and 44px kebab all come from the component; only the overflow menu is
-   app-side (the caller badge is the neutral .chip). */
+   type and 44px kebab all come from the component; the chips are the one
+   status .chip. */
 
-/* The overflow menu (a <dialog> on the vendored modal shell): full-width
-   actions, the destructive one last, after a divider. */
-.take-menu { width: min(360px, 92vw); }
-.take-menu .detail-card { display: flex; flex-direction: column; }
-.take-menu-when { margin: 0 0 var(--space-sm); font-size: var(--font-body-sm); }
-.take-menu hr { margin: var(--space-sm) 0; width: 100%; }
-.take-menu-btn {
-  display: inline-flex;
+/* The take sheet (sessions.js openTakeSheet): meta, then the text read-only
+   in a box reserved before it arrives, so the sheet never jumps. */
+.take-sheet {
+  display: grid;
+  gap: var(--space-sm);
+}
+.take-sheet-meta {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--font-body-sm);
+}
+.take-sheet-text {
+  height: min(40vh, 280px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: var(--gap);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  color: var(--ink);
+  font-size: var(--font-body-sm);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+.take-sheet-text.loading { color: var(--muted); }
+.take-sheet-error {
+  margin: 0;
+  color: var(--danger-text);
+  font-size: var(--font-body-sm);
+}
+
+/* A destructive row in a settings card: plain danger text at 44px, never a
+   filled button (Settings › Storage › Delete all saved takes). */
+.danger-row {
+  display: flex;
   align-items: center;
-  justify-content: center;
   gap: var(--space-sm);
   width: 100%;
-  min-height: 48px;
+  min-height: var(--hit-min);
+  margin-top: var(--space-sm);
+  padding: 0;
+  border: 0;
+  border-top: 1px solid var(--line-muted);
+  background: transparent;
+  color: var(--danger-text);
+  font: inherit;
   font-size: var(--font-label);
-  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
 }
-.take-menu-btn .icon { width: var(--icon-inline); height: var(--icon-inline); }
+.danger-row .icon { width: var(--icon-inline); height: var(--icon-inline); }
 .load-more-btn {
   width: 100%;
   margin-top: 10px;

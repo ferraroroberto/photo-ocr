@@ -297,24 +297,17 @@
     <section id="paneHistory" class="pane" role="tabpanel" aria-labelledby="tabHistory" aria-label="History" hidden>
       <div class="card home-head">
         <span class="home-title"><svg class="icon" aria-hidden="true"><use href="#i-history"></use></svg> History</span>
-        <span id="historyCount" class="status" title="Loaded / total saved takes">0</span>
+        <!-- Exceptions only: "N partly read" among the loaded takes. -->
+        <span id="historyHeadline" class="status" role="status"></span>
         <button type="button" class="icon-button home-toggle theme-toggle" title="Toggle theme" aria-label="Toggle dark mode"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
         <button type="button" class="icon-button home-toggle home-settings" title="Settings" aria-label="Settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg></button>
       </div>
+      <!-- Search first (when the server has it on), then the takes under date
+           overlines. The list reloads whenever the tab opens. -->
       <section class="card history-card">
-        <!-- Refresh / clean as icon buttons; the title and the loaded/total
-             count live in the pane's header row above. -->
-        <div class="card-head history-tools">
-          <div class="card-head-actions">
-            <button id="refreshHistory" type="button" class="icon-button"
-                    title="Refresh" aria-label="Refresh history"><svg class="icon" aria-hidden="true"><use href="#i-refresh-cw"></use></svg></button>
-            <button id="cleanAll" type="button" class="icon-button"
-                    title="Clean — delete all saved takes" aria-label="Delete all saved takes"><svg class="icon" aria-hidden="true"><use href="#i-trash-2"></use></svg></button>
-          </div>
-        </div>
-        <input id="historySearch" type="search" class="input-native history-search" placeholder="Search extracted text…" autocomplete="off" hidden>
+        <input id="historySearch" type="search" class="input-native history-search" placeholder="Search extracted text…" aria-label="Search saved takes" autocomplete="off" hidden>
         <ul id="historyList" class="history-list action-rows"></ul>
-        <button id="loadMoreHistory" type="button" class="ghost-btn load-more-btn" hidden><svg class="icon" aria-hidden="true"><use href="#i-chevron-down"></use></svg> Load more</button>
+        <button id="loadMoreHistory" type="button" class="ghost-btn load-more-btn" hidden><svg class="icon" aria-hidden="true"><use href="#i-chevron-down"></use></svg> <span id="loadMoreLabel">Load more</span></button>
       </section>
     </section>
 
@@ -377,6 +370,9 @@
           <input id="maxPhotos" type="number" min="1" max="100" class="input-native">
         </label>
         <button id="saveSettings" type="button" class="shaded-btn" disabled><svg class="icon" aria-hidden="true"><use href="#i-save"></use></svg> Save defaults</button>
+        <!-- Moved here from History (#196); step 5 makes it the Storage
+             group's last row. Through the confirm sheet. -->
+        <button id="cleanAll" type="button" class="danger-row"><svg class="icon" aria-hidden="true"><use href="#i-trash-2"></use></svg> Delete all saved takes</button>
       </section>
     </section>
 
@@ -388,25 +384,6 @@
 
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
   </main>
-
-  <!-- A History row's overflow menu: the actions that are not the row's tap
-       (Copy). Retry missing (only on a partly read take), Redo, then the
-       destructive Delete last, after a divider, behind the confirm sheet
-       (sheet.js). One shared native dialog on the vendored modal shell; it
-       remembers which take opened it. -->
-  <dialog id="takeMenu" class="detail-dialog take-menu" aria-labelledby="takeMenuTitle">
-    <div class="detail-card">
-      <div class="detail-header">
-        <h2 id="takeMenuTitle">Take</h2>
-        <button type="button" class="icon-button detail-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
-      </div>
-      <p id="takeMenuWhen" class="muted take-menu-when"></p>
-      <button id="takeRetry" type="button" class="button-ghost take-menu-btn" hidden><svg class="icon" aria-hidden="true"><use href="#i-refresh-cw"></use></svg> Retry missing photos</button>
-      <button id="takeRedo" type="button" class="button-ghost take-menu-btn"><svg class="icon" aria-hidden="true"><use href="#i-redo-2"></use></svg> Redo extraction</button>
-      <hr>
-      <button id="takeDelete" type="button" class="button-tint danger take-menu-btn"><svg class="icon" aria-hidden="true"><use href="#i-trash-2"></use></svg> Delete take</button>
-    </div>
-  </dialog>
 
   <div id="loginOverlay" class="login-overlay" hidden>
     <form id="loginForm" class="login-card" autocomplete="off">
