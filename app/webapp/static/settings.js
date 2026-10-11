@@ -6,6 +6,7 @@
 
 import { state, els, MODEL_KEY, PROMPT_KEY, modelLabel } from './state.js';
 import { jsonApi } from './api.js';
+import { buildReadoutText } from './_vendored/page-foot/page-foot.js';
 
 export function refreshPromptPreview() {
   const prompt = (state.prompts || []).find(function (p) { return p.id === state.promptId; });
@@ -92,11 +93,7 @@ export async function loadVersion() {
     const res = await fetch('/api/version');
     if (!res.ok) throw new Error(String(res.status));
     const v = await res.json();
-    const when = String(v.built_at || '')
-      .replace('T', ' ')
-      .replace(/(\+00:00|Z)$/, ' UTC');
-    els.buildReadout.textContent =
-      ('Build: ' + (v.git_sha || '?') + ' · ' + when).trim();
+    els.buildReadout.textContent = buildReadoutText(v.git_sha || '?', v.built_at || '');
   } catch (_) {
     // Non-critical — leave the footer quiet rather than alarming.
     els.buildReadout.textContent = '';

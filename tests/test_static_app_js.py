@@ -7,6 +7,7 @@ between files."""
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -65,10 +66,26 @@ def test_extract_syncs_visible_photo_order(js_source: str) -> None:
 
 
 def test_history_renders_source_badge(js_source: str) -> None:
-    # Externally-sourced takes (app-launcher, api, …) get a History badge;
-    # the unmarked default is the manual PWA take ("webapp").
-    assert "source-badge" in js_source
+    # Externally-sourced takes (app-launcher, api, …) get a neutral status
+    # chip in History; the unmarked default is the manual PWA take ("webapp").
+    assert "dataset.tone = 'neutral'" in js_source
     assert "'webapp'" in js_source
+
+
+def test_one_status_chip_class() -> None:
+    # design.md "status chip": one class with a data-tone, never a chip style
+    # per surface. The two one-offs it replaced must not come back.
+    styles = (STATIC_DIR / "styles.css").read_text(encoding="utf-8")
+    assert '.chip[data-tone="attention"]' in styles
+    assert "warn-chip" not in styles
+    assert "source-badge" not in styles
+
+
+def test_no_native_dialogs(js_source: str) -> None:
+    # design.md: confirm, rename and detail use the vendored dialog (the
+    # confirm sheet in sheet.js), never the browser's own pop-ups.
+    assert not re.search(r"\b(confirm|alert|prompt)\(", js_source)
+    assert "confirmSheet(" in js_source
 
 
 def test_toast_is_the_vendored_neutral_one(js_source: str) -> None:

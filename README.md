@@ -252,7 +252,8 @@ photo-ocr/
 │   │   └── static/              PWA: index.html, ES-module JS, styles.css, icons
 │   │       └── _vendored/       fleet components (nav · home-head · icons · card ·
 │   │                            button · toast · empty-state · base · range-tab · text-size ·
-│   │                            action-row · modal · switch · icon-button · select-native),
+│   │                            action-row · modal · switch · icon-button · select-native ·
+│   │                            segmented · page-foot),
 │   │                            copied verbatim from project-scaffolding
 │   └── tray/                    system-tray launcher
 ├── config/

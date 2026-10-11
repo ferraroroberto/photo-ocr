@@ -44,6 +44,9 @@
   <link rel="stylesheet" href="/static/_vendored/range-tab/range-tab.css">
   <link rel="stylesheet" href="/static/_vendored/action-row/action-row.css">
   <link rel="stylesheet" href="/static/_vendored/modal/modal.css">
+  <link rel="stylesheet" href="/static/sheet.css">
+  <link rel="stylesheet" href="/static/_vendored/segmented/segmented.css">
+  <link rel="stylesheet" href="/static/_vendored/page-foot/page-foot.css">
   <link rel="stylesheet" href="/static/_vendored/switch/switch.css">
   <link rel="stylesheet" href="/static/_vendored/text-size/text-size.css">
   <title>Photo OCR</title>
@@ -330,23 +333,25 @@
       </section>
     </section>
 
-    <!-- Build identity: which build the PWA is running. Filled by main.js. -->
+    <!-- Build identity (vendored page-foot): which build the PWA is running,
+         under every tab. Filled by settings.js loadVersion(). -->
     <footer class="page-foot">
-      <p id="buildReadout" class="muted small" title="Which build of the webapp this device loaded — see issue #5"></p>
+      <p id="buildReadout"></p>
     </footer>
 
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
   </main>
 
   <dialog id="previewDialog" class="preview-dialog">
-    <button id="previewClose" type="button" class="preview-close" aria-label="Close preview"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
+    <button id="previewClose" type="button" class="icon-button preview-close" aria-label="Close preview"><svg class="icon" aria-hidden="true"><use href="#i-x"></use></svg></button>
     <img id="previewImg" class="preview-img" alt="Photo preview">
   </dialog>
 
   <!-- A History row's overflow menu: the actions that are not the row's tap
-       (Copy). Retry missing (only on a partly read take), Redo, then the destructive Delete last, after a divider. One
-       shared native dialog on the vendored modal shell; it remembers which
-       take opened it. -->
+       (Copy). Retry missing (only on a partly read take), Redo, then the
+       destructive Delete last, after a divider, behind the confirm sheet
+       (sheet.js). One shared native dialog on the vendored modal shell; it
+       remembers which take opened it. -->
   <dialog id="takeMenu" class="detail-dialog take-menu" aria-labelledby="takeMenuTitle">
     <div class="detail-card">
       <div class="detail-header">
