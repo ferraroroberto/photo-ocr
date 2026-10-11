@@ -132,7 +132,7 @@ export function showPhotosView(show) {
 
 // This take's model and style chips: the per-take choice. Settings holds the
 // default a new take starts from.
-function styleLabel(id) {
+export function styleLabel(id) {
   const prompt = (state.prompts || []).find(function (p) { return p.id === id; });
   return prompt ? prompt.label || prompt.id : String(id || '');
 }

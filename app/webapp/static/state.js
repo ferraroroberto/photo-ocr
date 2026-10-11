@@ -38,8 +38,6 @@
 'use strict';
 
 export const TOKEN_KEY = 'photo-ocr.token';
-export const PROMPT_KEY = 'photo-ocr.promptId';
-export const MODEL_KEY = 'photo-ocr.model';
 export const THEME_KEY = 'photo-ocr.theme';
 export const TAB_KEY = 'photo-ocr.tab';
 export const HISTORY_PAGE_SIZE = 10;
@@ -101,12 +99,15 @@ export const els = {
   takeError: document.getElementById('takeError'),
   saveToHistoryHost: document.getElementById('saveToHistoryHost'),
   saveToHistoryLabel: document.getElementById('saveToHistoryLabel'),
-  ocrModel: document.getElementById('ocrModel'),
-  ocrStyle: document.getElementById('ocrStyle'),
-  ocrPromptPreview: document.getElementById('ocrPromptPreview'),
-  retentionDays: document.getElementById('retentionDays'),
-  maxPhotos: document.getElementById('maxPhotos'),
-  saveSettings: document.getElementById('saveSettings'),
+  setModel: document.getElementById('setModel'),
+  setModelValue: document.getElementById('setModelValue'),
+  setStyle: document.getElementById('setStyle'),
+  setStyleValue: document.getElementById('setStyleValue'),
+  setPrompt: document.getElementById('setPrompt'),
+  setRetention: document.getElementById('setRetention'),
+  setRetentionValue: document.getElementById('setRetentionValue'),
+  setMaxPhotos: document.getElementById('setMaxPhotos'),
+  setMaxPhotosValue: document.getElementById('setMaxPhotosValue'),
   buildReadout: document.getElementById('buildReadout'),
   historyHeadline: document.getElementById('historyHeadline'),
   historyList: document.getElementById('historyList'),

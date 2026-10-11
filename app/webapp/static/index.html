@@ -41,7 +41,6 @@
   <link rel="stylesheet" href="/static/_vendored/home-head/home-head.css">
   <link rel="stylesheet" href="/static/_vendored/empty-state/empty-state.css">
   <link rel="stylesheet" href="/static/_vendored/nav/nav-tabs.css">
-  <link rel="stylesheet" href="/static/_vendored/range-tab/range-tab.css">
   <link rel="stylesheet" href="/static/_vendored/action-row/action-row.css">
   <link rel="stylesheet" href="/static/_vendored/modal/modal.css">
   <link rel="stylesheet" href="/static/sheet.css">
@@ -160,6 +159,15 @@
     </symbol>
     <symbol id="i-moon" viewBox="0 0 24 24" fill="none">
       <path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401" />
+    </symbol>
+    <symbol id="i-type" viewBox="0 0 24 24" fill="none">
+      <polyline points="4 7 4 4 20 4 20 7" />
+      <line x1="9" x2="15" y1="20" y2="20" />
+      <line x1="12" x2="12" y1="4" y2="20" />
+    </symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24" fill="none">
+      <path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" />
+      <circle cx="12" cy="12" r="3" />
     </symbol>
     <symbol id="i-plus" viewBox="0 0 24 24" fill="none">
       <path d="M5 12h14" />
@@ -319,60 +327,62 @@
         <button type="button" class="icon-button home-toggle theme-toggle" title="Toggle theme" aria-label="Toggle dark mode"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
         <button type="button" class="icon-button home-toggle home-settings" title="Settings" aria-label="Settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg></button>
       </div>
-      <section class="card">
-        <div class="card-head">
-          <h2 class="card-title"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg> Display</h2>
-        </div>
-        <div class="row">
-          <span>Text size</span>
-          <nav class="range-tabs" id="textSizeControl" aria-label="Text size">
-            <button type="button" class="range-tab" data-textsize="small">Small</button>
-            <button type="button" class="range-tab" data-textsize="default">Default</button>
-            <button type="button" class="range-tab" data-textsize="large">Large</button>
-          </nav>
+      <!-- Inset groups under overline headers (design.md settings group):
+           each row saves to the server as it changes, with a toast. A row
+           opens its sheet; Text size, changed often, stays inline. -->
+      <h2 class="settings-overline">Display</h2>
+      <section class="card settings-group">
+        <div class="settings-row">
+          <svg class="icon" aria-hidden="true"><use href="#i-type"></use></svg>
+          <span class="settings-label" id="textSizeLabel">Text size</span>
+          <div class="segmented settings-segmented" id="textSizeControl" role="group" aria-label="Text size">
+            <button type="button" class="segmented-item" data-textsize="small" aria-pressed="false">Small</button>
+            <button type="button" class="segmented-item" data-textsize="default" aria-pressed="false">Default</button>
+            <button type="button" class="segmented-item" data-textsize="large" aria-pressed="false">Large</button>
+          </div>
         </div>
       </section>
 
-      <section class="card">
-        <div class="card-head">
-          <h2 class="card-title"><svg class="icon" aria-hidden="true"><use href="#i-scan-text"></use></svg> OCR</h2>
-        </div>
-        <label class="row">
-          <span>Model</span>
-          <select id="ocrModel" class="select-native"></select>
-        </label>
-        <label class="row">
-          <span>Style</span>
-          <select id="ocrStyle" class="select-native"></select>
-        </label>
+      <h2 class="settings-overline">Reading</h2>
+      <section class="card settings-group">
+        <button id="setModel" type="button" class="settings-row settings-link" aria-haspopup="dialog">
+          <svg class="icon" aria-hidden="true"><use href="#i-scan-text"></use></svg>
+          <span class="settings-label">Default model</span>
+          <span id="setModelValue" class="settings-value"></span>
+          <svg class="icon settings-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+        </button>
+        <button id="setStyle" type="button" class="settings-row settings-link" aria-haspopup="dialog">
+          <svg class="icon" aria-hidden="true"><use href="#i-file-text"></use></svg>
+          <span class="settings-label">Style</span>
+          <span id="setStyleValue" class="settings-value"></span>
+          <svg class="icon settings-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+        </button>
+        <button id="setPrompt" type="button" class="settings-row settings-link" aria-haspopup="dialog">
+          <svg class="icon" aria-hidden="true"><use href="#i-eye"></use></svg>
+          <span class="settings-label">Prompt</span>
+          <span class="settings-value">View</span>
+          <svg class="icon settings-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+        </button>
       </section>
 
-      <section class="card">
-        <div class="card-head">
-          <h2 class="card-title"><svg class="icon" aria-hidden="true"><use href="#i-file-text"></use></svg> Prompt preview</h2>
-        </div>
-        <label class="stacked">
-          <span class="muted small">Prompt sent to the model (read-only preview)</span>
-          <textarea id="ocrPromptPreview" class="text-out prompt-preview" rows="6" readonly></textarea>
-        </label>
-      </section>
-
-      <section class="card">
-        <div class="card-head">
-          <h2 class="card-title"><svg class="icon" aria-hidden="true"><use href="#i-save"></use></svg> Storage</h2>
-        </div>
-        <label class="row">
-          <span>Auto-clean older than (days)</span>
-          <input id="retentionDays" type="number" min="1" max="365" class="input-native">
-        </label>
-        <label class="row">
-          <span>Max photos per take</span>
-          <input id="maxPhotos" type="number" min="1" max="100" class="input-native">
-        </label>
-        <button id="saveSettings" type="button" class="shaded-btn" disabled><svg class="icon" aria-hidden="true"><use href="#i-save"></use></svg> Save defaults</button>
-        <!-- Moved here from History (#196); step 5 makes it the Storage
-             group's last row. Through the confirm sheet. -->
-        <button id="cleanAll" type="button" class="danger-row"><svg class="icon" aria-hidden="true"><use href="#i-trash-2"></use></svg> Delete all saved takes</button>
+      <h2 class="settings-overline">Storage</h2>
+      <section class="card settings-group">
+        <button id="setRetention" type="button" class="settings-row settings-link" aria-haspopup="dialog">
+          <svg class="icon" aria-hidden="true"><use href="#i-history"></use></svg>
+          <span class="settings-label">Keep takes for</span>
+          <span id="setRetentionValue" class="settings-value"></span>
+          <svg class="icon settings-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+        </button>
+        <button id="setMaxPhotos" type="button" class="settings-row settings-link" aria-haspopup="dialog">
+          <svg class="icon" aria-hidden="true"><use href="#i-image"></use></svg>
+          <span class="settings-label">Max photos per take</span>
+          <span id="setMaxPhotosValue" class="settings-value"></span>
+          <svg class="icon settings-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
+        </button>
+        <button id="cleanAll" type="button" class="settings-row settings-danger" aria-haspopup="dialog">
+          <svg class="icon" aria-hidden="true"><use href="#i-trash-2"></use></svg>
+          <span class="settings-label">Delete all saved takes…</span>
+        </button>
       </section>
     </section>
 

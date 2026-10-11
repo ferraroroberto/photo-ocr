@@ -12,8 +12,6 @@ import {
   toast,
   tokenFromUrl,
   writeToken,
-  MODEL_KEY,
-  PROMPT_KEY,
   THEME_KEY,
   TAB_KEY,
   HISTORY_PAGE_SIZE,
@@ -37,12 +35,7 @@ import {
   onSearchInput,
   refreshHistoryView,
 } from './sessions.js';
-import {
-  fetchConfig,
-  refreshPromptPreview,
-  loadVersion,
-  updateSaveDirty,
-} from './settings.js';
+import { fetchConfig, initSettings, loadVersion } from './settings.js';
 import { icon } from './_vendored/icons/icons.js';
 import { initNavTabs } from './_vendored/nav/nav-tabs.js';
 import { bindTextSize } from './_vendored/text-size/text-size.js';
@@ -219,49 +212,12 @@ els.saveToHistoryHost.appendChild(saveSwitch);
 // a button can double-fire its click on WebKit, flipping the switch back.
 els.saveToHistoryLabel.addEventListener('click', function () { saveSwitch.click(); });
 
-// The Settings selects set this device's default, and the take in progress
-// follows it (as before the Capture chips existed).
-els.ocrModel.addEventListener('change', function () {
-  state.model = els.ocrModel.value;
-  localStorage.setItem(MODEL_KEY, state.model);
-  renderTakeOptions();
-  updateSaveDirty();
-});
-els.ocrStyle.addEventListener('change', function () {
-  state.promptId = els.ocrStyle.value;
-  localStorage.setItem(PROMPT_KEY, state.promptId);
-  renderTakeOptions();
-  refreshPromptPreview();
-  updateSaveDirty();
-});
-els.retentionDays.addEventListener('input', updateSaveDirty);
-els.maxPhotos.addEventListener('input', updateSaveDirty);
 els.extracted.addEventListener('input', function () {
   state.extracted = els.extracted.value;
   els.copyExtracted.disabled = !state.extracted;
 });
 
-els.saveSettings.addEventListener('click', async function () {
-  const patch = {
-    ocr_model_default: els.ocrModel.value,
-    ocr_prompt_default: els.ocrStyle.value,
-    history_retention_days: Math.max(1, parseInt(els.retentionDays.value, 10) || 30),
-    max_photos_per_session: Math.max(1, parseInt(els.maxPhotos.value, 10) || 50),
-  };
-  try {
-    const body = await jsonApi('/api/config', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(patch),
-    });
-    state.config = Object.assign({}, state.config, body.config || {});
-    updateSaveDirty();
-    toast('Defaults saved.');
-  } catch (exc) {
-    toast('Save failed: ' + (exc.message || exc), 'error');
-  }
-});
-
+initSettings();
 els.cleanAll.addEventListener('click', cleanAllHistory);
 els.loadMoreHistory.addEventListener('click', function () {
   loadHistory(state.historyOffset + HISTORY_PAGE_SIZE);
