@@ -117,7 +117,7 @@
   --deficit: #da3633;       /* the vendored error toast: white text holds 4.5:1 */
   --attention: #d29922;
   --attention-text: #e3b341; /* 6.84:1 on its tint */
-  --input-bg: var(--bg);
+  --input-bg: var(--line-muted);
   --close-bg: transparent;
   /* Depth on a near-black canvas comes from surface lightness, not shadow. */
   --shadow: 0 8px 24px rgba(1, 4, 9, 0.6);

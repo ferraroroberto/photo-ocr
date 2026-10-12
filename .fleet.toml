@@ -18,13 +18,13 @@ base = { src = "app/webapp/static/_vendored/base", sha = "91bf2dc77e2845d072d349
 text-size = { src = "app/webapp/static/_vendored/text-size", sha = "91bf2dc77e2845d072d34944eb61bd461bf08041", dest = "app/webapp/static/_vendored/text-size" }
 action-row = { src = "app/webapp/static/_vendored/action-row", sha = "aa820f1215151087588433f290cd2ba55b34658d", dest = "app/webapp/static/_vendored/action-row" }
 modal = { src = "app/webapp/static/_vendored/modal", sha = "aa820f1215151087588433f290cd2ba55b34658d", dest = "app/webapp/static/_vendored/modal" }
-button = { src = "app/webapp/static/_vendored/button", sha = "f70569640ebaf251ab0ed5f5daadd6055953a8c9", dest = "app/webapp/static/_vendored/button" }
+button = { src = "app/webapp/static/_vendored/button", sha = "69351311c9c4d6500c79f45ddd3c4441b1e90fa4", dest = "app/webapp/static/_vendored/button" }
 select-native = { src = "app/webapp/static/_vendored/select-native", sha = "7e1433c70cac1bdcdbd160e874d3f486ba9e2a08", dest = "app/webapp/static/_vendored/select-native" }
 toast = { src = "app/webapp/static/_vendored/toast", sha = "f23a32ea8d24cf5291df482f988dee334617409c", dest = "app/webapp/static/_vendored/toast" }
 switch = { src = "app/webapp/static/_vendored/switch", sha = "7e1433c70cac1bdcdbd160e874d3f486ba9e2a08", dest = "app/webapp/static/_vendored/switch" }
 icon-button = { src = "app/webapp/static/_vendored/icon-button", sha = "aa820f1215151087588433f290cd2ba55b34658d", dest = "app/webapp/static/_vendored/icon-button" }
 card = { src = "app/webapp/static/_vendored/card", sha = "f70569640ebaf251ab0ed5f5daadd6055953a8c9", dest = "app/webapp/static/_vendored/card" }
-empty-state = { src = "app/webapp/static/_vendored/empty-state", sha = "f70569640ebaf251ab0ed5f5daadd6055953a8c9", dest = "app/webapp/static/_vendored/empty-state" }
+empty-state = { src = "app/webapp/static/_vendored/empty-state", sha = "69351311c9c4d6500c79f45ddd3c4441b1e90fa4", dest = "app/webapp/static/_vendored/empty-state" }
 segmented = { src = "app/webapp/static/_vendored/segmented", sha = "92d16e00cd47561de647cda12faea7fcdb6f081b", dest = "app/webapp/static/_vendored/segmented" }
 page-foot = { src = "app/webapp/static/_vendored/page-foot", sha = "92d16e00cd47561de647cda12faea7fcdb6f081b", dest = "app/webapp/static/_vendored/page-foot" }
 
