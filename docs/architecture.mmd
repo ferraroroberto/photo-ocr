@@ -37,7 +37,7 @@ flowchart TB
     MANAGER["manager.py\nWebappManager — adopt-or-spawn uvicorn, status/start/stop"]
     MIDDLEWARE["middleware.py\nBearerTokenMiddleware — loopback bypass, token/password gate"]
     ROUTERS["routers/\nmisc · config · auth · sessions · search · _helpers"]
-    STATIC["static/ — PWA\nindex.html · main.js · capture.js · extract.js · poll.js\nsessions.js · quality.js · settings.js · state.js · api.js · styles.css\nsheet.js + sheet.css — the one sheet (and confirm) on the vendored modal\n_vendored/ — fleet components (nav · home-head · toast · icons · card ·\nempty-state · base · button · icon-button · modal · switch · text-size ·\naction-row · select-native · segmented · page-foot)\ncopied verbatim from project-scaffolding"]
+    STATIC["static/ — PWA\nindex.html · main.js · capture.js · extract.js · poll.js\nsessions.js · quality.js · settings.js · state.js · api.js · styles.css\nsheet.js + sheet.css — the one sheet (and confirm) on the vendored modal\n_vendored/ — fleet components (nav · home-head · toast · icons · card ·\nempty-state · base · button · icon-button · modal · switch · text-size ·\naction-row · select-native · segmented · page-foot · usage-log)\ncopied verbatim from project-scaffolding"]
   end
   CLICMDS -->|webapp_cmd| SERVER
   TRAYPY --> MANAGER --> SERVER
@@ -58,6 +58,7 @@ flowchart TB
     EXTRACTJOB["extract_job.py — chunked extraction job engine:\nlocking, progress state machine, archive writes, search index"]
     CLOUDRUNNER["cloudflared_runner.py — spawn/monitor named tunnel"]
     STATICVER["static_versioning.py — cache-busting query param"]
+    USAGELOG["usage_log.py — vendored local-only view/tap log (SQLite in the runtime-data dir)"]
   end
   ROUTERS --> APPCONFIG
   ROUTERS --> WEBCONFIG
@@ -74,6 +75,7 @@ flowchart TB
   EXTRACTJOB --> ARCHIVE
   EXTRACTJOB --> ARCHIVEIDX
   SERVER --> STATICVER
+  SERVER --> USAGELOG
   CLICMDS -->|extract_cmd| OCRCLIENT
   TRAYPY --> CLOUDRUNNER
   TRAYPY --> WEBCONFIG

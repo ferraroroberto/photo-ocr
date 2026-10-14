@@ -308,6 +308,7 @@ export function renderThumbnails() {
     // sheet; its photo and the chips below are decoration for it.
     const pick = document.createElement('button');
     pick.className = 'thumb-select';
+    pick.dataset.track = 'capture.photo';
     pick.type = 'button';
     pick.dataset.clientId = photo.clientId;
     pick.setAttribute('aria-haspopup', 'dialog');
@@ -349,6 +350,7 @@ export function renderThumbnails() {
   const add = document.createElement('button');
   add.type = 'button';
   add.className = 'thumb-add-btn';
+  add.dataset.track = 'capture.add';
   add.disabled = full;
   add.setAttribute('aria-label', full ? 'Add photos (max ' + maxPhotos() + ' reached)' : 'Add photos');
   add.innerHTML = icon('plus');

@@ -11,6 +11,7 @@ import {
   els,
   toast,
   tokenFromUrl,
+  readToken,
   writeToken,
   THEME_KEY,
   TAB_KEY,
@@ -38,6 +39,7 @@ import {
 import { fetchConfig, initSettings, loadVersion } from './settings.js';
 import { icon } from './_vendored/icons/icons.js';
 import { initNavTabs } from './_vendored/nav/nav-tabs.js';
+import { initUsageLog } from './_vendored/usage-log/usage-log.js';
 import { bindTextSize } from './_vendored/text-size/text-size.js';
 import { switchEl, setSwitch } from './_vendored/switch/switch.js';
 
@@ -67,6 +69,18 @@ for (const toggle of els.themeToggles) toggle.addEventListener('click', toggleTh
 // stamps html[data-textsize]; this wires the Settings control to it.
 bindTextSize(document.getElementById('textSizeControl'), 'photo-ocr');
 
+// ----------------------------------------------------------------- usage log
+// Vendored local-only log of which views and controls get used (see
+// _vendored/usage-log/README.md): posts to this app's own /api/usage/events and
+// nowhere else. The bearer header rides along so a phone on the tunnel passes
+// the auth gate; it is read per send, so a token set at boot is picked up.
+const usage = initUsageLog({
+  headers: function () {
+    const token = readToken();
+    return token ? { Authorization: 'Bearer ' + token } : {};
+  },
+});
+
 // --------------------------------------------------------------- bottom tabs
 // Vendored fleet nav (see _vendored/nav/README.md): discovers the tabs
 // from the markup, persists the active one so the installed PWA reopens where
@@ -79,6 +93,7 @@ initNavTabs({
   storageKey: TAB_KEY,
   onChange: function (tab) {
     els.settingsPane.hidden = true;
+    usage.trackView(tab);
     if (tab === 'history' && state.config) refreshHistoryView();
   },
 });
@@ -97,6 +112,7 @@ function openSettings() {
     tab.setAttribute('aria-selected', 'false');
   });
   nav.dataset.activeTab = 'settings';
+  usage.trackView('settings');
   const scroller = document.querySelector('.app');
   if (scroller) scroller.scrollTop = 0;
   window.scrollTo(0, 0);

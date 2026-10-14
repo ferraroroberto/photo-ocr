@@ -27,6 +27,8 @@ card = { src = "app/webapp/static/_vendored/card", sha = "f70569640ebaf251ab0ed5
 empty-state = { src = "app/webapp/static/_vendored/empty-state", sha = "69351311c9c4d6500c79f45ddd3c4441b1e90fa4", dest = "app/webapp/static/_vendored/empty-state" }
 segmented = { src = "app/webapp/static/_vendored/segmented", sha = "f52eb75625cbfd8dcef8a71731390a47b795508d", dest = "app/webapp/static/_vendored/segmented" }
 page-foot = { src = "app/webapp/static/_vendored/page-foot", sha = "92d16e00cd47561de647cda12faea7fcdb6f081b", dest = "app/webapp/static/_vendored/page-foot" }
+usage-log = { src = "app/webapp/static/_vendored/usage-log", sha = "f52eb75625cbfd8dcef8a71731390a47b795508d", dest = "app/webapp/static/_vendored/usage-log" }
+usage_log = { src = "src/usage_log.py", sha = "f52eb75625cbfd8dcef8a71731390a47b795508d", dest = "src/usage_log.py" }
 
 # /perf-review (fleet-config skills/perf-review): "ready" is the empty take's
 # primary start, "Choose photos", visible on the Capture tab (the phone's

@@ -42,6 +42,7 @@ import signal
 import socket
 import subprocess
 import sys
+import tempfile
 import time
 import urllib3
 from pathlib import Path
@@ -137,7 +138,14 @@ def _spawn(cmd: List[str], log: IO[str]) -> subprocess.Popen:
         cwd=str(_REPO_ROOT),
         stdout=log,
         stderr=subprocess.STDOUT,
-        env={**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"},
+        env={
+            **os.environ,
+            "PYTHONIOENCODING": "utf-8",
+            "PYTHONUTF8": "1",
+            # The disposable server logs usage events like the real one; keep
+            # them out of the developer's real runtime-data directory.
+            "PHOTO_OCR_DATA_DIR": tempfile.mkdtemp(prefix="photo-ocr-e2e-data-"),
+        },
     )
     if sys.platform == "win32":
         # New process group so CTRL_BREAK reaches it for a clean stop;

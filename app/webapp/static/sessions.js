@@ -166,6 +166,7 @@ function makeSessionRow(take, titleText, isSnippet) {
   const main = document.createElement('button');
   main.type = 'button';
   main.className = 'action-row-main';
+  main.dataset.track = 'history.row';
   main.title = 'Copy this take';
   main.addEventListener('click', function () { copyHistoryEntry(take); });
 
@@ -190,6 +191,7 @@ function makeSessionRow(take, titleText, isSnippet) {
   const more = document.createElement('button');
   more.type = 'button';
   more.className = 'icon-button action-row-kebab';
+  more.dataset.track = 'history.row-more';
   more.setAttribute('aria-label', 'More actions');
   more.setAttribute('aria-haspopup', 'dialog');
   more.innerHTML = icon('ellipsis-vertical');
