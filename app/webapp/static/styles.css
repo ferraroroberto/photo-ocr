@@ -22,6 +22,7 @@
   --accent-fill: #0969da;   /* solid primary fill (button-primary) */
   --toggle-knob: var(--accent-fg); /* switch.thumbColor: white on the accent or grey track */
   --accent-text: #0550ae;   /* accent text on an accent-soft tint (fleet-config#963) */
+  --success: #1a7f37;       /* read by the vendored action-row avatar badge (no avatar here yet) */
   --danger: #cf222e;
   --danger-text: #a40e26;   /* danger text on its own tint (fleet-config#963) */
   /* The vendored toast tints an error with a 75% mix of this over the glass
@@ -112,6 +113,7 @@
   --accent-fill: #1f6feb;   /* one step below accent so white text holds AA */
   --toggle-knob: var(--accent-fg);
   --accent-text: #58a6ff;
+  --success: #3fb950;
   --danger: #f85149;
   --danger-text: #ff7b72;
   --deficit: #da3633;       /* the vendored error toast: white text holds 4.5:1 */

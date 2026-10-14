@@ -36,6 +36,19 @@ def _isolated_webapp_config(tmp_path_factory, monkeypatch) -> None:
     monkeypatch.setattr(webapp_config, "DEFAULT_CONFIG_PATH", isolated)
 
 
+@pytest.fixture(autouse=True)
+def _isolated_runtime_data(tmp_path_factory, monkeypatch) -> None:
+    """Point the app's runtime-data directory at a throwaway one.
+
+    ``create_app()`` mounts the usage log over ``runtime_db_path("photo-ocr",
+    ...)``; without this an API test that posts an event would write to the
+    developer's real usage database.
+    """
+    monkeypatch.setenv(
+        "PHOTO_OCR_DATA_DIR", str(tmp_path_factory.mktemp("runtime_data"))
+    )
+
+
 @pytest.fixture
 def client(tmp_path: Path):
     app = create_app()

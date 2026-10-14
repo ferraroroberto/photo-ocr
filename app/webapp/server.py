@@ -22,6 +22,8 @@ Routes (split across ``app/webapp/routers/``):
     GET    /api/sessions/{id}/text            → full extracted text       (sessions)
     GET    /api/sessions                      → list (newest first)       (sessions)
     GET    /api/search                         → FTS5 archive search       (search)
+    POST   /api/usage/events                   → local usage log           (usage_log)
+    GET    /api/usage/summary                  → usage log rollup          (usage_log)
     DELETE /api/sessions                      → cleanup all               (sessions)
     DELETE /api/sessions/{id}                 → delete one                (sessions)
     DELETE /api/sessions/older-than/{days}    → cleanup old               (sessions)
@@ -55,6 +57,8 @@ from src.app_config import load_app_config
 from src.archive import SessionArchive
 from src.extract_job import settle_interrupted_extracts
 from src.ocr_client import OcrClient
+from src.runtime_data import runtime_db_path
+from src.usage_log import usage_router
 from src.webapp_config import WebappConfig, load_webapp_config
 
 logger = logging.getLogger(__name__)
@@ -208,6 +212,12 @@ def create_app() -> FastAPI:
     app.include_router(auth.router)
     app.include_router(sessions.router)
     app.include_router(search.router)
+    # Local-only view/tap log (vendored). The bearer middleware above already
+    # gates /api/usage/* (loopback bypass, token otherwise), so no extra
+    # dependency is needed; the DB lives in the runtime-data root, not the repo.
+    app.include_router(
+        usage_router(runtime_db_path("photo-ocr", "usage.sqlite3", create=True))
+    )
 
     return app
 

@@ -205,8 +205,8 @@
              reading take, uploads, Not saved to History. Empty when normal.
              Filled by capture.js renderHeadline(). -->
         <span id="captureHeadline" class="status" role="status"></span>
-        <button type="button" class="icon-button home-toggle theme-toggle" title="Toggle theme" aria-label="Toggle dark mode"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
-        <button type="button" class="icon-button home-toggle home-settings" title="Settings" aria-label="Settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg></button>
+        <button type="button" class="icon-button home-toggle theme-toggle" data-track="head.theme" title="Toggle theme" aria-label="Toggle dark mode"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
+        <button type="button" class="icon-button home-toggle home-settings" data-track="head.settings" title="Settings" aria-label="Settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg></button>
       </div>
       <section class="card capture-zone">
         <!-- Empty take: the vendored empty-state block with the two starts.
@@ -218,10 +218,10 @@
           <svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-scan-text"></use></svg>
           <p class="empty-state-message">Add photos of a page, a screen or a document</p>
           <div class="take-starts">
-            <label class="button-primary take-start choose-photos-btn" for="galleryInput" role="button" tabindex="0">
+            <label class="button-primary take-start choose-photos-btn" data-track="capture.choose" for="galleryInput" role="button" tabindex="0">
               <svg class="icon" aria-hidden="true"><use href="#i-image"></use></svg> Choose photos
             </label>
-            <label class="button-tint take-start camera-btn" for="cameraInput" role="button" tabindex="0">
+            <label class="button-tint take-start camera-btn" data-track="capture.camera" for="cameraInput" role="button" tabindex="0">
               <svg class="icon" aria-hidden="true"><use href="#i-camera"></use></svg> Camera
             </label>
           </div>
@@ -231,7 +231,7 @@
              tile adds more), the take-options line, then Extract. With a
              result, a row leads back to the text. -->
         <div id="takeBuild" class="take-build" hidden>
-          <button id="showText" type="button" class="take-link" hidden>
+          <button id="showText" type="button" data-track="capture.show-text" class="take-link" hidden>
             <svg class="icon" aria-hidden="true"><use href="#i-file-text"></use></svg>
             <span class="take-link-label">Show the text</span>
             <svg class="icon take-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
@@ -244,8 +244,8 @@
                is the session's `incognito`). -->
           <div class="take-options">
             <span class="take-chips">
-              <button id="takeModel" type="button" class="chip take-chip" data-tone="neutral" aria-haspopup="dialog"></button>
-              <button id="takeStyle" type="button" class="chip take-chip" data-tone="neutral" aria-haspopup="dialog"></button>
+              <button id="takeModel" type="button" data-track="capture.model" class="chip take-chip" data-tone="neutral" aria-haspopup="dialog"></button>
+              <button id="takeStyle" type="button" data-track="capture.style" class="chip take-chip" data-tone="neutral" aria-haspopup="dialog"></button>
             </span>
             <span class="take-save">
               <span id="saveToHistoryLabel">Save to history</span>
@@ -254,10 +254,10 @@
           </div>
 
           <div class="extract-row">
-            <button id="extractBtn" type="button" class="button-primary extract-btn">
+            <button id="extractBtn" type="button" data-track="capture.extract" class="button-primary extract-btn">
               <svg class="icon" aria-hidden="true"><use href="#i-scan-text"></use></svg> <span class="extract-label">Extract text</span>
             </button>
-            <button id="takeMenuBtn" type="button" class="icon-button take-more" title="More for this take" aria-label="More for this take" aria-haspopup="dialog"><svg class="icon" aria-hidden="true"><use href="#i-ellipsis-vertical"></use></svg></button>
+            <button id="takeMenuBtn" type="button" data-track="capture.more" class="icon-button take-more" title="More for this take" aria-label="More for this take" aria-haspopup="dialog"><svg class="icon" aria-hidden="true"><use href="#i-ellipsis-vertical"></use></svg></button>
           </div>
         </div>
 
@@ -265,7 +265,7 @@
              the text (editable; edits are what Copy copies), Copy text as the
              primary, New take, and Retry missing on a partly read take. -->
         <div id="takeResult" class="take-result" hidden>
-          <button id="showPhotos" type="button" class="take-link">
+          <button id="showPhotos" type="button" data-track="result.show-photos" class="take-link">
             <svg class="icon" aria-hidden="true"><use href="#i-image"></use></svg>
             <span id="showPhotosLabel" class="take-link-label"></span>
             <svg class="icon take-link-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
@@ -273,14 +273,14 @@
           <p id="resultMeta" class="result-meta"></p>
           <p id="resultEmpty" class="result-empty" hidden>No readable text detected in these photos.</p>
           <textarea id="extracted" class="text-out editable" rows="8" aria-label="Extracted text"></textarea>
-          <button id="copyExtracted" type="button" class="button-primary result-copy">
+          <button id="copyExtracted" type="button" data-track="result.copy" class="button-primary result-copy">
             <svg class="icon" aria-hidden="true"><use href="#i-copy"></use></svg> Copy text
           </button>
           <div class="result-actions">
-            <button id="newTake" type="button" class="button-ghost">
+            <button id="newTake" type="button" data-track="result.new-take" class="button-ghost">
               <svg class="icon" aria-hidden="true"><use href="#i-plus"></use></svg> New take
             </button>
-            <button id="retryMissing" type="button" class="button-tint" hidden title="Re-read only the photos that could not be read">
+            <button id="retryMissing" type="button" data-track="result.retry-missing" class="button-tint" hidden title="Re-read only the photos that could not be read">
               <svg class="icon" aria-hidden="true"><use href="#i-refresh-cw"></use></svg> <span id="retryMissingLabel">Retry missing</span>
             </button>
           </div>
@@ -307,15 +307,15 @@
         <span class="home-title"><svg class="icon" aria-hidden="true"><use href="#i-history"></use></svg> History</span>
         <!-- Exceptions only: "N partly read" among the loaded takes. -->
         <span id="historyHeadline" class="status" role="status"></span>
-        <button type="button" class="icon-button home-toggle theme-toggle" title="Toggle theme" aria-label="Toggle dark mode"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
-        <button type="button" class="icon-button home-toggle home-settings" title="Settings" aria-label="Settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg></button>
+        <button type="button" class="icon-button home-toggle theme-toggle" data-track="head.theme" title="Toggle theme" aria-label="Toggle dark mode"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
+        <button type="button" class="icon-button home-toggle home-settings" data-track="head.settings" title="Settings" aria-label="Settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg></button>
       </div>
       <!-- Search first (when the server has it on), then the takes under date
            overlines. The list reloads whenever the tab opens. -->
       <section class="card history-card">
-        <input id="historySearch" type="search" class="input-native history-search" placeholder="Search extracted text…" aria-label="Search saved takes" autocomplete="off" hidden>
+        <input id="historySearch" type="search" data-track="history.search" class="input-native history-search" placeholder="Search extracted text…" aria-label="Search saved takes" autocomplete="off" hidden>
         <ul id="historyList" class="history-list action-rows"></ul>
-        <button id="loadMoreHistory" type="button" class="ghost-btn load-more-btn" hidden><svg class="icon" aria-hidden="true"><use href="#i-chevron-down"></use></svg> <span id="loadMoreLabel">Load more</span></button>
+        <button id="loadMoreHistory" type="button" data-track="history.load-more" class="ghost-btn load-more-btn" hidden><svg class="icon" aria-hidden="true"><use href="#i-chevron-down"></use></svg> <span id="loadMoreLabel">Load more</span></button>
       </section>
     </section>
 
@@ -324,8 +324,8 @@
     <section id="paneSettings" class="pane" aria-label="Settings" hidden>
       <div class="card home-head">
         <span class="home-title"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg> Settings</span>
-        <button type="button" class="icon-button home-toggle theme-toggle" title="Toggle theme" aria-label="Toggle dark mode"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
-        <button type="button" class="icon-button home-toggle home-settings" title="Settings" aria-label="Settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg></button>
+        <button type="button" class="icon-button home-toggle theme-toggle" data-track="head.theme" title="Toggle theme" aria-label="Toggle dark mode"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
+        <button type="button" class="icon-button home-toggle home-settings" data-track="head.settings" title="Settings" aria-label="Settings"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg></button>
       </div>
       <!-- Inset groups under overline headers (design.md settings group):
            each row saves to the server as it changes, with a toast. A row
@@ -336,28 +336,28 @@
           <svg class="icon" aria-hidden="true"><use href="#i-type"></use></svg>
           <span class="settings-label" id="textSizeLabel">Text size</span>
           <div class="segmented settings-segmented" id="textSizeControl" role="group" aria-label="Text size">
-            <button type="button" class="segmented-item" data-textsize="small" aria-pressed="false">Small</button>
-            <button type="button" class="segmented-item" data-textsize="default" aria-pressed="false">Default</button>
-            <button type="button" class="segmented-item" data-textsize="large" aria-pressed="false">Large</button>
+            <button type="button" class="segmented-item" data-textsize="small" data-track="settings.text-small" aria-pressed="false">Small</button>
+            <button type="button" class="segmented-item" data-textsize="default" data-track="settings.text-default" aria-pressed="false">Default</button>
+            <button type="button" class="segmented-item" data-textsize="large" data-track="settings.text-large" aria-pressed="false">Large</button>
           </div>
         </div>
       </section>
 
       <h2 class="settings-overline">Reading</h2>
       <section class="card settings-group">
-        <button id="setModel" type="button" class="settings-row settings-link" aria-haspopup="dialog">
+        <button id="setModel" type="button" data-track="settings.model" class="settings-row settings-link" aria-haspopup="dialog">
           <svg class="icon" aria-hidden="true"><use href="#i-scan-text"></use></svg>
           <span class="settings-label">Default model</span>
           <span id="setModelValue" class="settings-value"></span>
           <svg class="icon settings-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
         </button>
-        <button id="setStyle" type="button" class="settings-row settings-link" aria-haspopup="dialog">
+        <button id="setStyle" type="button" data-track="settings.style" class="settings-row settings-link" aria-haspopup="dialog">
           <svg class="icon" aria-hidden="true"><use href="#i-file-text"></use></svg>
           <span class="settings-label">Style</span>
           <span id="setStyleValue" class="settings-value"></span>
           <svg class="icon settings-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
         </button>
-        <button id="setPrompt" type="button" class="settings-row settings-link" aria-haspopup="dialog">
+        <button id="setPrompt" type="button" data-track="settings.prompt" class="settings-row settings-link" aria-haspopup="dialog">
           <svg class="icon" aria-hidden="true"><use href="#i-eye"></use></svg>
           <span class="settings-label">Prompt</span>
           <span class="settings-value">View</span>
@@ -367,19 +367,19 @@
 
       <h2 class="settings-overline">Storage</h2>
       <section class="card settings-group">
-        <button id="setRetention" type="button" class="settings-row settings-link" aria-haspopup="dialog">
+        <button id="setRetention" type="button" data-track="settings.retention" class="settings-row settings-link" aria-haspopup="dialog">
           <svg class="icon" aria-hidden="true"><use href="#i-history"></use></svg>
           <span class="settings-label">Keep takes for</span>
           <span id="setRetentionValue" class="settings-value"></span>
           <svg class="icon settings-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
         </button>
-        <button id="setMaxPhotos" type="button" class="settings-row settings-link" aria-haspopup="dialog">
+        <button id="setMaxPhotos" type="button" data-track="settings.max-photos" class="settings-row settings-link" aria-haspopup="dialog">
           <svg class="icon" aria-hidden="true"><use href="#i-image"></use></svg>
           <span class="settings-label">Max photos per take</span>
           <span id="setMaxPhotosValue" class="settings-value"></span>
           <svg class="icon settings-chevron" aria-hidden="true"><use href="#i-chevron-right"></use></svg>
         </button>
-        <button id="cleanAll" type="button" class="settings-row settings-danger" aria-haspopup="dialog">
+        <button id="cleanAll" type="button" data-track="settings.clean-all" class="settings-row settings-danger" aria-haspopup="dialog">
           <svg class="icon" aria-hidden="true"><use href="#i-trash-2"></use></svg>
           <span class="settings-label">Delete all saved takes…</span>
         </button>
