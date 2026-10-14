@@ -30,6 +30,6 @@ Mobile-first photo OCR — capture/upload N photos of a document, screen, or pag
 
 ## CI expectations
 - Workflow `.github/workflows/ci.yml`, job `gate`, on every PR and on pushes to `main`. **Advisory, not required** (no branch protection) — the local gate is the contract. The job runs `scripts/verify-before-ship.ps1` on a clean `windows-2025` runner (fresh `.venv`, `playwright install chromium webkit`, `config/*.sample.*` seeded), so CI and the dev box share one definition of green.
-- Typical green: **~6 min** (estimate until the first runs on `main` are measured). Investigate at **>12 min**; treat as wedged at **>15 min**.
-- Flaky leg: the WebKit/iPhone e2e projection can wedge on the hosted runner. `timeout-minutes: 15` caps a wedge. A wedge is a flake, not the diff.
+- Typical green: **~2.5 min** (first PR run: 2m13s). Investigate at **>5 min**; treat as wedged at **>10 min**.
+- Flaky leg: the WebKit/iPhone e2e projection can wedge on the hosted runner. `timeout-minutes: 10` caps a wedge. A wedge is a flake, not the diff.
 - CI's only signal beyond the local gate is the clean machine (uncommitted file, dev-box-only dependency, state-dependent test) and the hosted-runner timing of the e2e suite. Its e2e surface = `app/webapp/`, `src/`, `tests/e2e/`, `scripts/verify-before-ship.ps1`, `scripts/classify_e2e.py`, `requirements*.txt`, `.github/workflows/ci.yml`. A diff touching **none** of these (docs, markdown, desktop `assets/`) gains nothing from CI.
