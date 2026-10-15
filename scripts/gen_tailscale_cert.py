@@ -117,36 +117,44 @@ def _provision(hostname: str) -> None:
     print(f"[OK] key.pem  -> {key_path}")
 
 
-def _check_and_renew() -> None:
+def _check_and_renew() -> bool:
     """Renew the cert if it is a Tailscale cert expiring within RENEW_WITHIN_DAYS days.
-    Always exits cleanly — startup must not be blocked by cert errors."""
+
+    Never raises — a renewal hiccup must not block webapp startup — but
+    returns ``False`` on a skipped or failed renewal so ``--check`` can exit
+    non-zero and the caller (``app/webapp/manager.py``) can log it, instead
+    of the failure going silent until the cert expires.
+    """
     cert_path = CERT_DIR / "cert.pem"
     if not cert_path.exists():
-        return
+        return True
 
     hostname = _tailscale_hostname_from_cert(cert_path)
     if hostname is None:
-        return  # self-signed / non-tailnet cert; leave it alone
+        return True  # self-signed / non-tailnet cert; leave it alone
 
     if not _expiring_within(cert_path, RENEW_WITHIN_DAYS):
-        return
+        return True
 
     print(f"[INFO] Tailscale cert for {hostname} expires within {RENEW_WITHIN_DAYS} days — renewing.")
     if shutil.which("tailscale") is None:
         print("[WARN] tailscale not found on PATH; skipping cert renewal.")
-        return
+        return False
     try:
         _provision(hostname)
         print("[OK] Tailscale cert renewed.")
+        return True
     except SystemExit as exc:
         print(f"[WARN] Cert renewal failed: {exc}")
+        return False
 
 
 def main() -> None:
     args = sys.argv[1:]
 
     if args and args[0] == "--check":
-        _check_and_renew()
+        if not _check_and_renew():
+            sys.exit(1)
         return
 
     if shutil.which("tailscale") is None:

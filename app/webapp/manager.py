@@ -32,7 +32,7 @@ import requests
 from app.tray.single_instance import cross_process_lock
 from app.webapp.event_loop import LOOP_FACTORY
 from src.cloudflared_runner import stop_process
-from src.no_window import NO_WINDOW
+from src.no_window import NEW_GROUP_NO_WINDOW, NO_WINDOW
 
 logger = logging.getLogger(__name__)
 
@@ -89,13 +89,14 @@ def _renew_tailscale_cert() -> None:
     Mirrors the ``webapp.bat`` ``--check`` hook so the tray-owned boot path also
     self-heals a cert expiring within 30 days. No-op when the cert is missing or
     is not a ``.ts.net`` cert; never raises, so a renewal hiccup can't block the
-    webapp from starting.
+    webapp from starting — a failed renewal is logged instead, so it is
+    diagnosable from logs rather than silent until the cert expires.
     """
     script = PROJECT_ROOT / "scripts" / "gen_tailscale_cert.py"
     if not script.exists():
         return
     try:
-        subprocess.run(
+        result = subprocess.run(
             [sys.executable, str(script), "--check"],
             cwd=str(PROJECT_ROOT),
             capture_output=True,
@@ -103,6 +104,13 @@ def _renew_tailscale_cert() -> None:
             timeout=60,
             creationflags=NO_WINDOW,
         )
+        output = (result.stdout or result.stderr or "").strip()
+        if result.returncode != 0:
+            logger.warning(
+                f"⚠️  Tailscale cert renew check exited {result.returncode}: {output}"
+            )
+        elif "[WARN]" in output:
+            logger.warning(f"⚠️  Tailscale cert renew check: {output}")
     except (OSError, subprocess.SubprocessError) as exc:
         logger.warning(f"⚠️  Tailscale cert renew check failed: {exc}")
 
@@ -216,11 +224,8 @@ class WebappManager:
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                     env=env,
+                    creationflags=NEW_GROUP_NO_WINDOW,
                 )
-                if sys.platform == "win32":
-                    popen_kwargs["creationflags"] = (
-                        subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
-                    )
                 self._proc = subprocess.Popen(cmd, **popen_kwargs)
             except FileNotFoundError as exc:
                 raise RuntimeError(f"❌ python launcher not found: {exc}") from exc

@@ -37,6 +37,7 @@ if str(PROJECT_ROOT) not in sys.path:
 # Local imports (root on sys.path per the bootstrap above)
 from app.webapp.event_loop import LOOP_FACTORY  # noqa: E402
 from src import cloudflared_runner  # noqa: E402
+from src.no_window import NEW_GROUP_NO_WINDOW  # noqa: E402
 
 logger = logging.getLogger("run_named_tunnel")
 DEFAULT_CONFIG = PROJECT_ROOT / "webapp" / "cloudflared.yml"
@@ -81,11 +82,7 @@ def _spawn_uvicorn(port: int) -> subprocess.Popen:
     if cert.exists() and key.exists():
         cmd.extend(["--ssl-keyfile", str(key), "--ssl-certfile", str(cert)])
     logger.info(f"🚀 Starting uvicorn: {' '.join(cmd)}")
-    kw: dict = dict(cwd=str(PROJECT_ROOT))
-    if sys.platform == "win32":
-        kw["creationflags"] = (
-            subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
-        )
+    kw: dict = dict(cwd=str(PROJECT_ROOT), creationflags=NEW_GROUP_NO_WINDOW)
     return subprocess.Popen(cmd, **kw)
 
 
