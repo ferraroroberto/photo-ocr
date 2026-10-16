@@ -28,12 +28,14 @@ class WebappCommand(BaseCommand):
         import uvicorn
 
         from app.webapp.event_loop import LOOP_FACTORY
-        from app.webapp.manager import cert_paths
-        from src.webapp_config import load_webapp_config
+        from app.webapp.manager import cert_paths, load_config
 
-        cfg = load_webapp_config()
-        host = args.host or cfg.host
-        port = args.port or cfg.port
+        # Bind address/port have one home — config/config.json's `webapp`
+        # section, the same one the tray reads (app/tray/tray.py) — so a
+        # port change is one edit instead of two config files disagreeing.
+        mgr_cfg = load_config(self.config.webapp)
+        host = args.host or mgr_cfg.host
+        port = args.port or mgr_cfg.port
 
         certs = cert_paths()
         kwargs = {

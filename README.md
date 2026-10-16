@@ -359,7 +359,7 @@ photo-ocr/
 }
 ```
 
-The `webapp` section is optional (all three keys default as shown). **This is the bind config for the recommended tray/manager path** (`tray.bat` → `app/webapp/manager.py`). To change the port the tray listens on, set `webapp.port` here.
+The `webapp` section is optional (all three keys default as shown). **This is the one home for the bind address and port** — both the tray/manager path (`tray.bat` → `app/webapp/manager.py`) and the headless `launcher.py webapp` CLI read it. To change the port either launch path listens on, set `webapp.port` here.
 
 | Key | Default | Notes |
 |---|---|---|
@@ -380,8 +380,6 @@ Created on the first Settings change. Schema lives in
 | `ocr_models_available` | gemini × 3, claude × 3 | Drives the picker. |
 | `ocr_prompt_default` | `verbatim-merge` | One of the entries in `config/ocr_prompts.json`. |
 | `llm_hub_url` | `http://127.0.0.1:8000` | Local-llm-hub address. |
-| `host` | `0.0.0.0` | Bind address — **`launcher.py webapp` CLI only**. Ignored by the tray; use `config/config.json`'s `webapp.host` for that. |
-| `port` | `8444` | Port — **`launcher.py webapp` CLI only**. Ignored by the tray; use `config/config.json`'s `webapp.port` for that. |
 | `history_retention_days` | `30` | Sessions older than this are pruned on startup. |
 | `max_photos_per_session` | `50` | Hard cap on photos per take. |
 | `max_photo_dimension_px` | `2048` | Long-edge resize before sending to the hub. |

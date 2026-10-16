@@ -270,17 +270,30 @@ class WebappManager:
             detail="stopped",
         )
 
-    def _build_command(self) -> List[str]:
-        py = sys.executable
+    def _build_command(
+        self,
+        *,
+        host: Optional[str] = None,
+        port: Optional[int] = None,
+        python: Optional[str] = None,
+    ) -> List[str]:
+        """Build the uvicorn argv for this webapp.
+
+        ``host``/``port``/``python`` default to ``self.config`` and
+        ``sys.executable`` — override them for a caller that needs a
+        different bind or interpreter (``scripts/run_named_tunnel.py``'s
+        headless/no-tray boot) without re-deriving the rest of the argv or
+        the cert lookup.
+        """
         cmd: List[str] = [
-            py,
+            python if python is not None else sys.executable,
             "-m",
             "uvicorn",
             "app.webapp.server:app",
             "--host",
-            self.config.host,
+            host if host is not None else self.config.host,
             "--port",
-            str(self.config.port),
+            str(port if port is not None else self.config.port),
             "--log-level",
             "warning",
             "--loop",
