@@ -35,7 +35,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 # Local imports (root on sys.path per the bootstrap above)
-from app.webapp.event_loop import LOOP_FACTORY  # noqa: E402
+from app.webapp.manager import WebappManager  # noqa: E402
 from src import cloudflared_runner  # noqa: E402
 from src.no_window import NEW_GROUP_NO_WINDOW  # noqa: E402
 
@@ -63,24 +63,14 @@ def _find_python() -> Path:
 
 
 def _spawn_uvicorn(port: int) -> subprocess.Popen:
-    cert = PROJECT_ROOT / "webapp" / "certificates" / "cert.pem"
-    key = PROJECT_ROOT / "webapp" / "certificates" / "key.pem"
-    cmd = [
-        str(_find_python()),
-        "-m",
-        "uvicorn",
-        "app.webapp.server:app",
-        "--host",
-        "127.0.0.1",
-        "--port",
-        str(port),
-        "--log-level",
-        "warning",
-        "--loop",
-        LOOP_FACTORY,
-    ]
-    if cert.exists() and key.exists():
-        cmd.extend(["--ssl-keyfile", str(key), "--ssl-certfile", str(cert)])
+    # Reuse WebappManager's argv builder (and its cert_paths() lookup)
+    # instead of hand-rolling a second uvicorn command — this script, the
+    # tray-owned manager, and webapp.bat had drifted into three places that
+    # each had to be updated for a loop-factory/cert/flag change.
+    manager = WebappManager()
+    cmd = manager._build_command(
+        host="127.0.0.1", port=port, python=str(_find_python())
+    )
     logger.info(f"🚀 Starting uvicorn: {' '.join(cmd)}")
     kw: dict = dict(cwd=str(PROJECT_ROOT), creationflags=NEW_GROUP_NO_WINDOW)
     return subprocess.Popen(cmd, **kw)

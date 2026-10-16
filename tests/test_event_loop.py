@@ -60,6 +60,7 @@ def test_webapp_cmd_passes_loop_factory(monkeypatch):
     import argparse
 
     from app.cli.commands.webapp_cmd import WebappCommand
+    from src import AppConfig
 
     captured = {}
 
@@ -70,12 +71,9 @@ def test_webapp_cmd_passes_loop_factory(monkeypatch):
     monkeypatch.setattr(
         "app.webapp.manager.cert_paths", lambda *a, **k: None
     )
-    monkeypatch.setattr(
-        "src.webapp_config.load_webapp_config",
-        lambda: type("Cfg", (), {"host": "127.0.0.1", "port": 18444})(),
-    )
 
-    WebappCommand(config=None).execute(argparse.Namespace(host=None, port=None))
+    config = AppConfig(webapp={"host": "127.0.0.1", "port": 18444})
+    WebappCommand(config=config).execute(argparse.Namespace(host=None, port=None))
     assert captured.get("loop") == LOOP_FACTORY
 
 
@@ -94,13 +92,29 @@ def test_webapp_bat_wires_loop_factory():
     assert "--loop" in src
 
 
-def test_run_named_tunnel_wires_loop_factory():
+def test_run_named_tunnel_wires_loop_factory(monkeypatch):
     """scripts/run_named_tunnel.py backs webapp_tunnel_named.bat (headless/
     no-tray use) — the one uvicorn entrypoint the proactor-loop fix
-    (commit 5750f6c) didn't originally reach."""
-    src = (_REPO_ROOT / "scripts" / "run_named_tunnel.py").read_text(encoding="utf-8")
-    assert "from app.webapp.event_loop import LOOP_FACTORY" in src
-    assert '"--loop",\n        LOOP_FACTORY,' in src
+    (commit 5750f6c) didn't originally reach. It now reuses
+    WebappManager._build_command (covered by
+    test_manager_build_command_passes_loop_factory above) instead of a
+    second hand-rolled argv, so pin that it actually gets wired through."""
+    from scripts import run_named_tunnel
+
+    captured = {}
+
+    class FakePopen:
+        def __init__(self, cmd, **kwargs):
+            captured["cmd"] = cmd
+
+    monkeypatch.setattr(run_named_tunnel.subprocess, "Popen", FakePopen)
+    run_named_tunnel._spawn_uvicorn(18444)
+
+    cmd = captured["cmd"]
+    assert "--loop" in cmd
+    assert cmd[cmd.index("--loop") + 1] == LOOP_FACTORY
+    assert cmd[cmd.index("--host") + 1] == "127.0.0.1"
+    assert cmd[cmd.index("--port") + 1] == "18444"
 
 
 async def _noop_handler(reader, writer):

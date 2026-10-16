@@ -4,6 +4,11 @@ Lives separately from `app_config.py` because these settings are
 authored from the web UI ("Save defaults" button) and persist across
 runs. The CLI also reads this file so both surfaces share one source
 of truth.
+
+Bind address and port are *not* here — they live only in
+`config/config.json`'s `webapp` section (`app.webapp.manager.load_config`),
+read by both the tray and `launcher.py webapp`, so a port change is one
+edit instead of two config files that can disagree.
 """
 
 from __future__ import annotations
@@ -31,8 +36,6 @@ SAMPLE_CONFIG_PATH = (
 
 DEFAULT_OCR_PROMPT_ID = "verbatim-merge"
 DEFAULT_LLM_HUB_URL = "http://127.0.0.1:8000"
-DEFAULT_HOST = "0.0.0.0"
-DEFAULT_PORT = 8444
 DEFAULT_RETENTION_DAYS = 30
 DEFAULT_MAX_PHOTOS = 50
 DEFAULT_MAX_DIM_PX = 2048
@@ -81,8 +84,6 @@ class WebappConfig:
     )
     ocr_prompt_default: str = DEFAULT_OCR_PROMPT_ID
     llm_hub_url: str = DEFAULT_LLM_HUB_URL
-    host: str = DEFAULT_HOST
-    port: int = DEFAULT_PORT
     history_retention_days: int = DEFAULT_RETENTION_DAYS
     max_photos_per_session: int = DEFAULT_MAX_PHOTOS
     max_photo_dimension_px: int = DEFAULT_MAX_DIM_PX
@@ -153,8 +154,6 @@ def load_webapp_config(path: Optional[Path] = None) -> WebappConfig:
             raw.get("ocr_prompt_default", DEFAULT_OCR_PROMPT_ID)
         ),
         llm_hub_url=str(raw.get("llm_hub_url", DEFAULT_LLM_HUB_URL)),
-        host=str(raw.get("host", DEFAULT_HOST)),
-        port=int(raw.get("port", DEFAULT_PORT)),
         history_retention_days=int(
             raw.get("history_retention_days", DEFAULT_RETENTION_DAYS)
         ),
@@ -237,8 +236,6 @@ def _validate(cfg: WebappConfig) -> None:
         )
     if cfg.history_retention_days < 1:
         raise ValueError("history_retention_days must be >= 1")
-    if not (1 <= cfg.port <= 65535):
-        raise ValueError(f"port out of range: {cfg.port}")
     if cfg.max_photos_per_session < 1 or cfg.max_photos_per_session > 200:
         raise ValueError("max_photos_per_session must be between 1 and 200")
     if cfg.max_photo_dimension_px < 256 or cfg.max_photo_dimension_px > 8192:

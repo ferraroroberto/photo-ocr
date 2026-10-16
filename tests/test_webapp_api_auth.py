@@ -27,8 +27,6 @@ def _set_token(app, *, token: str = "", password: str = "") -> None:
         ocr_models_available=cfg.ocr_models_available,
         ocr_prompt_default=cfg.ocr_prompt_default,
         llm_hub_url=cfg.llm_hub_url,
-        host=cfg.host,
-        port=cfg.port,
         history_retention_days=cfg.history_retention_days,
         max_photos_per_session=cfg.max_photos_per_session,
         max_photo_dimension_px=cfg.max_photo_dimension_px,
