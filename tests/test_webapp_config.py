@@ -173,3 +173,124 @@ def test_single_shot_cap_below_one_is_still_rejected(tmp_path: Path) -> None:
     )
     with pytest.raises(ValueError):
         load_webapp_config(path)
+
+
+# --- load_webapp_config characterization (#213) ----------------------------
+# Pins the loader's per-field behaviour so it can be restructured without
+# changing what any key does.
+
+_SAMPLE_MODELS = ["m_a", "m_b"]
+
+
+def _write(tmp_path: Path, raw: dict) -> Path:
+    path = tmp_path / "webapp_config.json"
+    path.write_text(json.dumps(raw), encoding="utf-8")
+    return path
+
+
+def test_load_empty_config_equals_dataclass_defaults(tmp_path: Path) -> None:
+    assert load_webapp_config(_write(tmp_path, {})) == WebappConfig()
+
+
+def test_load_full_config_reads_every_field(tmp_path: Path) -> None:
+    raw = {
+        "ocr_model_default": "m_b",
+        "ocr_models_available": _SAMPLE_MODELS,
+        "ocr_prompt_default": "other-prompt",
+        "llm_hub_url": "http://hub.example:9",
+        "history_retention_days": 7,
+        "max_photos_per_session": 12,
+        "max_photo_dimension_px": 1024,
+        "extract_chunk_size": 3,
+        "extract_request_timeout_s": 60.5,
+        "extract_run_budget_s": 120,
+        "extract_concurrency": 2,
+        "extract_fallback_model": "m_a",
+        "single_shot_max_photos": 4,
+        "search_enabled": False,
+        "quality_gate_enabled": False,
+        "auth_token": "tok",
+        "auth_password": "pw",
+    }
+    cfg = load_webapp_config(_write(tmp_path, raw))
+    assert {f.name: getattr(cfg, f.name) for f in fields(WebappConfig)} == raw
+    assert isinstance(cfg.extract_run_budget_s, float)
+
+
+def test_load_ignores_unknown_keys(tmp_path: Path) -> None:
+    cfg = load_webapp_config(_write(tmp_path, {"_comment": "x", "nope": 1}))
+    assert cfg == WebappConfig()
+
+
+def test_load_coerces_values_by_field_type(tmp_path: Path) -> None:
+    cfg = load_webapp_config(
+        _write(
+            tmp_path,
+            {
+                "history_retention_days": "12",
+                "extract_request_timeout_s": "45",
+                "extract_run_budget_s": "90",
+                "search_enabled": 0,
+                "quality_gate_enabled": "false",
+                "llm_hub_url": 5,
+            },
+        )
+    )
+    assert cfg.history_retention_days == 12
+    assert cfg.extract_request_timeout_s == 45.0
+    assert isinstance(cfg.extract_request_timeout_s, float)
+    assert cfg.search_enabled is False
+    # bool("false") is True: truthiness, not parsing.
+    assert cfg.quality_gate_enabled is True
+    assert cfg.llm_hub_url == "5"
+
+
+@pytest.mark.parametrize(
+    ("key", "value", "exc"),
+    [
+        ("history_retention_days", "abc", ValueError),
+        ("max_photos_per_session", None, TypeError),
+        ("extract_request_timeout_s", "slow", ValueError),
+        ("extract_concurrency", [1], TypeError),
+    ],
+)
+def test_load_wrong_typed_numbers_raise(
+    tmp_path: Path, key: str, value: object, exc: type
+) -> None:
+    with pytest.raises(exc):
+        load_webapp_config(_write(tmp_path, {key: value}))
+
+
+def test_load_empty_model_keys_fall_back_to_sample_file(tmp_path: Path) -> None:
+    from src.webapp_config import _sample_ocr_defaults
+
+    sample_default, sample_available = _sample_ocr_defaults()
+    assert sample_default and sample_available
+    for blank in ({}, {"ocr_model_default": None, "ocr_models_available": None},
+                  {"ocr_model_default": "", "ocr_models_available": []}):
+        cfg = load_webapp_config(_write(tmp_path, blank))
+        assert cfg.ocr_model_default == sample_default
+        assert cfg.ocr_models_available == sample_available
+
+
+def test_load_models_list_is_copied_not_aliased(tmp_path: Path) -> None:
+    cfg = load_webapp_config(
+        _write(
+            tmp_path,
+            {"ocr_model_default": "m_a", "ocr_models_available": _SAMPLE_MODELS},
+        )
+    )
+    assert cfg.ocr_models_available == _SAMPLE_MODELS
+    assert cfg.ocr_models_available is not _SAMPLE_MODELS
+
+
+def test_load_null_fallback_model_means_empty(tmp_path: Path) -> None:
+    cfg = load_webapp_config(_write(tmp_path, {"extract_fallback_model": None}))
+    assert cfg.extract_fallback_model == ""
+    assert cfg.extract_policy().fallback_model is None
+
+
+def test_load_unreadable_json_returns_defaults(tmp_path: Path) -> None:
+    path = tmp_path / "webapp_config.json"
+    path.write_text("{not json", encoding="utf-8")
+    assert load_webapp_config(path) == WebappConfig()
