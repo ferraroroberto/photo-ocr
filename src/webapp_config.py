@@ -17,9 +17,9 @@ from __future__ import annotations
 import json
 import logging
 import os
-from dataclasses import asdict, dataclass, field, replace
+from dataclasses import asdict, dataclass, field, fields, replace
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, get_origin, get_type_hints
 from urllib.parse import urlencode, urlparse, urlunparse
 
 # Local imports
@@ -34,24 +34,10 @@ SAMPLE_CONFIG_PATH = (
     Path(__file__).resolve().parent.parent / "config" / "webapp_config.sample.json"
 )
 
-DEFAULT_OCR_PROMPT_ID = "verbatim-merge"
-DEFAULT_LLM_HUB_URL = "http://127.0.0.1:8000"
-DEFAULT_RETENTION_DAYS = 30
-DEFAULT_MAX_PHOTOS = 50
-DEFAULT_MAX_DIM_PX = 2048
-DEFAULT_EXTRACT_CHUNK_SIZE = 1
-# Per-request hub timeout, whole-run budget, parallel hub calls and the
-# optional retry model for one extraction (see src/ocr_client.py).
-DEFAULT_EXTRACT_REQUEST_TIMEOUT_S = 420.0
-DEFAULT_EXTRACT_RUN_BUDGET_S = 900.0
-DEFAULT_EXTRACT_CONCURRENCY = 4
-# Cap on photos accepted by the synchronous single-shot POST /api/extract
-# endpoint. A screenshot is 1–2 images; keep this small so a one-call
-# consumer can't block on a 50-photo hub round-trip. Larger takes use the
-# async create → photos → extract → poll session flow instead.
-DEFAULT_SINGLE_SHOT_MAX_PHOTOS = 8
-DEFAULT_SEARCH_ENABLED = True
-DEFAULT_QUALITY_GATE_ENABLED = True
+# Keys whose null/empty value means "use the default" rather than "coerce it".
+_BLANK_MEANS_DEFAULT = frozenset(
+    {"ocr_model_default", "ocr_models_available", "extract_fallback_model"}
+)
 
 
 def _sample_ocr_defaults() -> tuple[str, List[str]]:
@@ -82,26 +68,30 @@ class WebappConfig:
     ocr_models_available: List[str] = field(
         default_factory=lambda: _sample_ocr_defaults()[1]
     )
-    ocr_prompt_default: str = DEFAULT_OCR_PROMPT_ID
-    llm_hub_url: str = DEFAULT_LLM_HUB_URL
-    history_retention_days: int = DEFAULT_RETENTION_DAYS
-    max_photos_per_session: int = DEFAULT_MAX_PHOTOS
-    max_photo_dimension_px: int = DEFAULT_MAX_DIM_PX
-    extract_chunk_size: int = DEFAULT_EXTRACT_CHUNK_SIZE
-    extract_request_timeout_s: float = DEFAULT_EXTRACT_REQUEST_TIMEOUT_S
-    extract_run_budget_s: float = DEFAULT_EXTRACT_RUN_BUDGET_S
-    extract_concurrency: int = DEFAULT_EXTRACT_CONCURRENCY
+    ocr_prompt_default: str = "verbatim-merge"
+    llm_hub_url: str = "http://127.0.0.1:8000"
+    history_retention_days: int = 30
+    max_photos_per_session: int = 50
+    max_photo_dimension_px: int = 2048
+    extract_chunk_size: int = 1
+    # Per-request hub timeout, whole-run budget, parallel hub calls and the
+    # optional retry model for one extraction (see src/ocr_client.py).
+    extract_request_timeout_s: float = 420.0
+    extract_run_budget_s: float = 900.0
+    extract_concurrency: int = 4
     # Model a failed unit retries on. Empty = retry on the same model.
     extract_fallback_model: str = ""
-    # Max photos a single synchronous /api/extract call accepts (see
-    # DEFAULT_SINGLE_SHOT_MAX_PHOTOS). Bigger takes use the async flow.
-    single_shot_max_photos: int = DEFAULT_SINGLE_SHOT_MAX_PHOTOS
+    # Cap on photos accepted by the synchronous single-shot POST /api/extract
+    # endpoint. A screenshot is 1–2 images; keep this small so a one-call
+    # consumer can't block on a 50-photo hub round-trip. Larger takes use the
+    # async create → photos → extract → poll session flow instead.
+    single_shot_max_photos: int = 8
     # Feature flag: full-text search over the session archive (FTS5).
     # Off → no index file, /api/search short-circuits, search UI hides.
-    search_enabled: bool = DEFAULT_SEARCH_ENABLED
+    search_enabled: bool = True
     # Feature flag: on-device pre-flight image quality gate. Off →
     # the PWA skips client-side blur/glare scoring entirely.
-    quality_gate_enabled: bool = DEFAULT_QUALITY_GATE_ENABLED
+    quality_gate_enabled: bool = True
     # Bearer token enforced when the request did NOT come from a
     # loopback IP. Empty string disables enforcement entirely.
     auth_token: str = ""
@@ -148,54 +138,17 @@ def load_webapp_config(path: Optional[Path] = None) -> WebappConfig:
         )
         return WebappConfig()
 
-    sample_default, sample_available = _sample_ocr_defaults()
-    cfg = WebappConfig(
-        ocr_model_default=str(
-            raw.get("ocr_model_default") or sample_default
-        ),
-        ocr_models_available=list(
-            raw.get("ocr_models_available") or sample_available
-        ),
-        ocr_prompt_default=str(
-            raw.get("ocr_prompt_default", DEFAULT_OCR_PROMPT_ID)
-        ),
-        llm_hub_url=str(raw.get("llm_hub_url", DEFAULT_LLM_HUB_URL)),
-        history_retention_days=int(
-            raw.get("history_retention_days", DEFAULT_RETENTION_DAYS)
-        ),
-        max_photos_per_session=int(
-            raw.get("max_photos_per_session", DEFAULT_MAX_PHOTOS)
-        ),
-        max_photo_dimension_px=int(
-            raw.get("max_photo_dimension_px", DEFAULT_MAX_DIM_PX)
-        ),
-        extract_chunk_size=int(
-            raw.get("extract_chunk_size", DEFAULT_EXTRACT_CHUNK_SIZE)
-        ),
-        extract_request_timeout_s=float(
-            raw.get(
-                "extract_request_timeout_s", DEFAULT_EXTRACT_REQUEST_TIMEOUT_S
-            )
-        ),
-        extract_run_budget_s=float(
-            raw.get("extract_run_budget_s", DEFAULT_EXTRACT_RUN_BUDGET_S)
-        ),
-        extract_concurrency=int(
-            raw.get("extract_concurrency", DEFAULT_EXTRACT_CONCURRENCY)
-        ),
-        extract_fallback_model=str(raw.get("extract_fallback_model") or ""),
-        single_shot_max_photos=int(
-            raw.get("single_shot_max_photos", DEFAULT_SINGLE_SHOT_MAX_PHOTOS)
-        ),
-        search_enabled=bool(
-            raw.get("search_enabled", DEFAULT_SEARCH_ENABLED)
-        ),
-        quality_gate_enabled=bool(
-            raw.get("quality_gate_enabled", DEFAULT_QUALITY_GATE_ENABLED)
-        ),
-        auth_token=str(raw.get("auth_token", "")),
-        auth_password=str(raw.get("auth_password", "")),
-    )
+    # Each present key is coerced by its field's type; an absent key keeps the
+    # dataclass default. Keys in _BLANK_MEANS_DEFAULT also treat null/empty as
+    # absent (for the model keys that default is the sample-file one).
+    hints = get_type_hints(WebappConfig)
+    values = {}
+    for f in fields(WebappConfig):
+        value = raw.get(f.name)
+        if f.name not in raw or (f.name in _BLANK_MEANS_DEFAULT and not value):
+            continue
+        values[f.name] = (get_origin(hints[f.name]) or hints[f.name])(value)
+    cfg = WebappConfig(**values)
     _validate(cfg)
     return cfg
 
