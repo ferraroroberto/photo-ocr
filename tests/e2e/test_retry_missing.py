@@ -133,3 +133,66 @@ def test_retry_missing_appears_only_when_photos_are_missing_and_fills_the_gap(
                 )
             except requests.RequestException:
                 pass
+
+
+def test_retry_missing_is_hidden_once_the_strip_is_reordered(
+    authed_page: Page, base_url: str
+) -> None:
+    """A reorder renumbers the files, so the unread name would point at another
+    photo; the server refuses the retry (409) and the card stops offering it
+    (#208). Extract again re-reads the take and brings it back."""
+    before = _session_ids(base_url)
+
+    def handle_extract(route: Route) -> None:
+        route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(_status("queued", "", [])),
+        )
+
+    def handle_status(route: Route) -> None:
+        route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(_status("succeeded", _PARTIAL, ["02.jpg"])),
+        )
+
+    try:
+        authed_page.route("**/api/sessions/*/extract", handle_extract)
+        authed_page.route("**/api/sessions/*/extract/status", handle_status)
+        authed_page.goto(f"{base_url}/", wait_until="domcontentloaded")
+        authed_page.wait_for_selector("#extractBtn", state="attached", timeout=5_000)
+
+        photo = {"name": "p.jpg", "mimeType": "image/jpeg", "buffer": _jpeg_bytes()}
+        authed_page.set_input_files("#galleryInput", files=[photo, photo])
+        expect(authed_page.locator("#thumbStrip li.thumb.ready")).to_have_count(
+            2, timeout=10_000
+        )
+        authed_page.locator("#extractBtn").click()
+
+        retry = authed_page.locator("#retryMissing")
+        expect(retry).to_be_visible(timeout=5_000)
+
+        # Move photo 2 left, then come back to the result.
+        authed_page.locator("#showPhotos").click()
+        authed_page.locator("#thumbStrip .thumb-select").nth(1).click()
+        sheet = authed_page.locator("dialog.photo-sheet-dialog")
+        sheet.get_by_role("button", name="Move left").click()
+        authed_page.keyboard.press("Escape")
+        authed_page.locator("#showText").click()
+
+        expect(authed_page.locator("#extracted")).to_have_value(_PARTIAL)
+        expect(retry).to_be_hidden()
+
+        # Extract again re-reads the take, so the unread name is current again.
+        authed_page.locator("#showPhotos").click()
+        authed_page.locator("#extractBtn").click()
+        expect(retry).to_be_visible(timeout=5_000)
+    finally:
+        for sid in _session_ids(base_url) - before:
+            try:
+                requests.delete(
+                    f"{base_url}/api/sessions/{sid}", verify=False, timeout=5
+                )
+            except requests.RequestException:
+                pass

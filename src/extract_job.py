@@ -28,6 +28,9 @@ logger = logging.getLogger(__name__)
 _PROGRESS_KEY = "extract_progress"
 _NON_TERMINAL_PHASES = frozenset({"queued", "running", "merging"})
 
+# Why a retry is refused once the take's photos moved on from the read.
+STALE_RETRY_DETAIL = "photos changed since the read; use Redo"
+
 
 def progress_meta(session: Session) -> Dict[str, Any]:
     raw = session.meta.extra.get(_PROGRESS_KEY)
@@ -258,6 +261,13 @@ def execute_retry_missing_job(app: Any, session_id: str) -> None:
         def _settle(**fields: Any) -> None:
             current = archive.get(session_id) or session
             set_extract_progress(current, **fields)
+
+        # The route checked before queueing; photos can change while it waits
+        # for the lock, and the archived names map onto the current files.
+        if not extract_is_current(session):
+            logger.info(f"ℹ️  Retry refused for {session_id}: photos changed since the read")
+            _settle(phase="succeeded", retry_error=STALE_RETRY_DETAIL)
+            return
 
         payloads = session.read_ocr_payloads()
         if payloads is None:

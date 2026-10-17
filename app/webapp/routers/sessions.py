@@ -16,6 +16,7 @@ from fastapi.responses import FileResponse
 from app.webapp.routers._helpers import maybe_json
 from src.archive import PhotoMeta, Session, SessionArchive
 from src.extract_job import (
+    STALE_RETRY_DETAIL,
     execute_extract_job,
     execute_retry_missing_job,
     extract_is_current,
@@ -403,6 +404,10 @@ async def retry_missing_photos(
         raise HTTPException(
             status_code=409, detail="an extraction is already running for this take"
         )
+    if not extract_is_current(session):
+        # The archived per-photo names map onto the *current* files, which a
+        # reorder or removal renumbered: retrying would re-read the wrong photo.
+        raise HTTPException(status_code=409, detail=STALE_RETRY_DETAIL)
     if not status["missing_photos"]:
         raise HTTPException(status_code=400, detail="nothing to retry: no photo is missing")
 
