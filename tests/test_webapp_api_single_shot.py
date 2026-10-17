@@ -171,3 +171,29 @@ def test_single_shot_incognito_excluded_from_history(client: TestClient, jpeg_by
     assert body["incognito"] is True
     listed = client.get("/api/sessions").json()["sessions"]
     assert all(s["session_id"] != body["session_id"] for s in listed)
+
+
+def test_saving_a_small_max_photos_succeeds_and_caps_single_shot(
+    client: TestClient, jpeg_bytes: bytes
+) -> None:
+    """Settings › Max photos per take 1-7 used to be refused because the hidden
+    single_shot_max_photos (8) had to fit under it; the cap is now the smaller
+    of the two at use time (#208)."""
+    saved = client.post("/api/config", json={"max_photos_per_session": 5})
+    assert saved.status_code == 200, saved.text
+    cfg = client.app.state.webapp_config
+    assert cfg.max_photos_per_session == 5
+    assert cfg.single_shot_max_photos == 8  # the hidden setting is untouched
+
+    def upload(n: int):
+        return client.post(
+            "/api/extract",
+            files=[("files", (f"{i}.jpg", jpeg_bytes, "image/jpeg")) for i in range(n)],
+        )
+
+    over = upload(6)
+    assert over.status_code == 413
+    assert "5 photos" in over.json()["detail"]
+    # Within the cap the call is not refused for its size (no hub here, so it
+    # fails later, not with a 413).
+    assert upload(5).status_code != 413

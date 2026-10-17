@@ -467,7 +467,7 @@ async def extract_single_shot(
     (defaults to ``"api"``; a consumer should pass e.g. ``"app-launcher"``).
 
     Errors: ``400`` empty upload, ``413`` more than ``single_shot_max_photos``
-    images (use the async flow for big takes), ``400`` unknown model,
+    (or ``max_photos_per_session`` when smaller) images (use the async flow for big takes), ``400`` unknown model,
     ``502`` when no photo could be read. A partly read take is a ``200``
     whose ``missing_photos`` names the unread photos (marked in ``text``).
     """
@@ -475,12 +475,13 @@ async def extract_single_shot(
     archive: SessionArchive = request.app.state.archive
     if not files:
         raise HTTPException(status_code=400, detail="no files in upload")
-    if len(files) > cfg.single_shot_max_photos:
+    single_shot_cap = cfg.effective_single_shot_max_photos
+    if len(files) > single_shot_cap:
         raise HTTPException(
             status_code=413,
             detail=(
                 f"single-shot /api/extract accepts at most "
-                f"{cfg.single_shot_max_photos} photos; got {len(files)}. "
+                f"{single_shot_cap} photos; got {len(files)}. "
                 f"Use the async session flow (POST /api/sessions → "
                 f"/photos → /extract → poll status) for larger takes."
             ),

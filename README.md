@@ -388,7 +388,7 @@ Created on the first Settings change. Schema lives in
 | `extract_run_budget_s` | `900` | Wall-clock budget for a whole extraction, retries included; photos still unread when it runs out are reported missing. |
 | `extract_concurrency` | `4` | Hub requests in flight at once (1–16). Serialized hub backends (Gemini) always run one at a time. |
 | `extract_fallback_model` | `""` | Model a failed photo retries on once. Empty = retry on the same model. |
-| `single_shot_max_photos` | `8` | Max images the synchronous `POST /api/extract` consumable endpoint accepts (see [Consumable API](#consumable-api-vendor-the-ocr-into-other-apps)). Bigger takes use the async session flow. |
+| `single_shot_max_photos` | `8` | Max images the synchronous `POST /api/extract` consumable endpoint accepts (see [Consumable API](#consumable-api-vendor-the-ocr-into-other-apps)). Bigger takes use the async session flow. The cap in force is the smaller of this and `max_photos_per_session`. |
 | `search_enabled` | `true` | Full-text search over the session archive (SQLite FTS5). `false` hides the search box and writes no index. |
 | `quality_gate_enabled` | `true` | On-device pre-flight image quality gate. `false` skips client-side blur/glare/exposure scoring entirely. |
 | `auth_token` | `""` | Empty = auth gate **off**. Set via `scripts/gen_token.py`. |

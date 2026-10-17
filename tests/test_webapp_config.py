@@ -134,3 +134,42 @@ def test_save_writes_every_field_and_round_trips(tmp_path: Path) -> None:
         f.name for f in fields(WebappConfig)
     }
     assert load_webapp_config(path) == cfg
+
+
+def test_single_shot_cap_follows_the_smaller_max_photos() -> None:
+    cfg = WebappConfig(max_photos_per_session=5, single_shot_max_photos=8)
+    assert cfg.effective_single_shot_max_photos == 5
+    cfg = WebappConfig(max_photos_per_session=50, single_shot_max_photos=8)
+    assert cfg.effective_single_shot_max_photos == 8
+
+
+def test_small_max_photos_is_not_rejected_by_the_hidden_single_shot_cap(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "webapp_config.json"
+    path.write_text(
+        json.dumps(
+            {
+                "ocr_model_default": "gemini_flash",
+                "ocr_models_available": ["gemini_flash"],
+                "max_photos_per_session": 3,
+                "single_shot_max_photos": 8,
+            }
+        )
+    )
+    assert load_webapp_config(path).effective_single_shot_max_photos == 3
+
+
+def test_single_shot_cap_below_one_is_still_rejected(tmp_path: Path) -> None:
+    path = tmp_path / "webapp_config.json"
+    path.write_text(
+        json.dumps(
+            {
+                "ocr_model_default": "gemini_flash",
+                "ocr_models_available": ["gemini_flash"],
+                "single_shot_max_photos": 0,
+            }
+        )
+    )
+    with pytest.raises(ValueError):
+        load_webapp_config(path)
