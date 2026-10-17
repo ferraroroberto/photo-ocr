@@ -30,6 +30,15 @@ page-foot = { src = "app/webapp/static/_vendored/page-foot", sha = "92d16e00cd47
 usage-log = { src = "app/webapp/static/_vendored/usage-log", sha = "f52eb75625cbfd8dcef8a71731390a47b795508d", dest = "app/webapp/static/_vendored/usage-log" }
 usage_log = { src = "src/usage_log.py", sha = "f52eb75625cbfd8dcef8a71731390a47b795508d", dest = "src/usage_log.py" }
 
+# /design-sync verdicts the repo accepts (skills/_lib/design_lint/accepted.py).
+# `detail` pins the exact lint message, so a second off-scale row raises the
+# finding again.
+[[design.accepted]]
+check  = "row-height-scale"
+detail = "row/action-rail heights outside the 44px, 52px, 60px scale: 48pxx1"
+reason = "toolbar row sized to the 48px buttons at styles.css:542"
+record = "https://github.com/ferraroroberto/photo-ocr/issues/214"
+
 # /perf-review (fleet-config skills/perf-review): "ready" is the empty take's
 # primary start, "Choose photos", visible on the Capture tab (the phone's
 # landing view), not first contentful paint. Capture has no card that waits
