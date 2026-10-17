@@ -135,7 +135,7 @@ Optional JSON body `{ "model": "...", "prompt_id": "..." }`. Starts a **backgrou
 
 For a partly read take (`missing_photos` non-empty). Re-runs just the units holding an unread photo — same model and prompt as the take — splices their text in and re-collates in sequence order; units that already read keep their archived text. Async like `/extract`: returns the status payload, poll `/extract/status`. When nothing new could be read the text is left untouched, `phase` is `succeeded` again and the status payload's `retry_error` says why (`null` otherwise).
 
-Add `?wait=true` to run it to completion and get the single-shot shape (`session_id`, `text`, `missing_photos`, …) — this is the call a single-shot consumer makes with the `session_id` from `POST /api/extract`. Errors: `404` unknown session, `400` no photo is missing, `409` an extraction is already running, `502` (with `?wait=true`) nothing new could be read (the detail is the hub error, or "use Redo" for a take archived before per-photo entries were kept).
+Add `?wait=true` to run it to completion and get the single-shot shape (`session_id`, `text`, `missing_photos`, …) — this is the call a single-shot consumer makes with the `session_id` from `POST /api/extract`. Errors: `404` unknown session, `400` no photo is missing, `409` an extraction is already running, or the take's photos were reordered, removed or added to since the read ("photos changed since the read; use Redo" — the archived photo names would map onto different files), `502` (with `?wait=true`) nothing new could be read (the detail is the hub error, or "use Redo" for a take archived before per-photo entries were kept).
 
 ### `GET /api/sessions/{id}/text` — read the text
 
@@ -240,7 +240,7 @@ print(c.get(f"/api/sessions/{sid}/text").json()["extracted"])
 | `401` | remote caller, token gate on, token missing/wrong | loopback never sees this |
 | `404` | unknown `session_id` | |
 | `413` | single-shot over `single_shot_max_photos`, or a session over `max_photos_per_session` | use / split via the async flow |
-| `409` | `/retry-missing` called while an extraction is already running | retry after the current extraction finishes |
+| `409` | `/retry-missing` called while an extraction is already running, or after the take's photos changed since the read | retry after the current extraction finishes; or use `/redo` when the photos changed |
 | `502` | hub unreachable, or the model exhausted its token budget while reasoning | single-shot only; the async path reports the same failure via `phase: "failed"` + `error`; also returned by `/retry-missing?wait=true` when nothing new could be read |
 | `500` | session vanished mid-extract (should not happen) | |
 
@@ -252,6 +252,7 @@ The **async** `/extract` path never returns a hub error as a non-200 — it acce
 
 Breaking changes to the contract are recorded here. Pin a build via `GET /api/version` (`git_sha`) if you need certainty.
 
+- **2026-10-17** — `POST /api/sessions/{id}/retry-missing` now answers `409` ("photos changed since the read; use Redo") when the take's photos were reordered, removed or added to since the read, instead of re-reading whichever photo now carries the unread name and reporting success (issue #208; behavior change, no shape change).
 - **2026-10-07** — Audit fixes (issue #172; behavior changes, no shape changes). `POST /api/sessions/{id}/extract` no longer answers `reused: true` for a take whose photos changed since it was read: it re-reads (photos added, removed or reordered after the read). A take whose extraction was interrupted — a webapp restart, or a job that crashed — no longer stays `queued`/`running` forever: on boot (or when the job dies) it settles to `failed` with `error` set, or, when it already had text (a redo or retry died), back to `succeeded` with the text intact and `retry_error` saying why.
 
 - **2026-10-06** — Partial-result semantics (issues #168, #169; additive, but changes prior behavior for existing consumers — a chunk that previously failed the whole call now returns a `200`). A photo that no hub request could read no longer fails the take: `text` (single-shot) / `extracted` (async) carries a `[missing: photo N (NN.jpg) could not be read]` marker line in place of that photo's text, and the single-shot response plus the async status payload both gained `missing_photos` (names of the unread photos). Added `POST /api/sessions/{id}/retry-missing` to re-read just the missing photos of a partly read take (`?wait=true` for the single-shot shape); its status payload also gained `retry_error`. Added `409` (an extraction already running) to the Error reference. See [`/retry-missing`](#post-apisessionsidretry-missing-re-read-only-the-unread-photos).

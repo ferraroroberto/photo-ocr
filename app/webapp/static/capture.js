@@ -123,6 +123,11 @@ export function renderView() {
   els.showPhotos.hidden = !haveAny;
   els.showPhotosLabel.textContent = plural(state.photos.length, 'photo');
   els.extractLabel.textContent = hasResult ? 'Extract again' : 'Extract text';
+  // The one action for a partly read take; the server refuses it once the
+  // photos moved on from the read, so it is not offered then.
+  els.retryMissing.hidden = !(
+    state.sessionId && state.missingPhotos.length && !state.photosChanged
+  );
 }
 
 export function showPhotosView(show) {
@@ -384,6 +389,7 @@ export function handleFilePick(files) {
     return;
   }
   const list = Array.from(files).slice(0, spaceLeft);
+  state.photosChanged = true;
   list.forEach(function (file) {
     if (!file || !file.type || !file.type.startsWith('image/')) {
       toast('Skipped non-image: ' + (file ? file.name : '?'), 'error');
@@ -482,6 +488,7 @@ async function removePhoto(photo) {
     try { URL.revokeObjectURL(photo.previewUrl); } catch (_) {}
   }
   state.photos.splice(idx, 1);
+  state.photosChanged = true;
   renderThumbnails();
   if (photo.status === 'ready' && state.sessionId && photo.seq != null) {
     await deleteServerPhoto(state.sessionId, photo.seq);
@@ -508,6 +515,7 @@ function movePhoto(fromIdx, toIdx) {
   if (toIdx < 0 || toIdx >= state.photos.length) return;
   const [moved] = state.photos.splice(fromIdx, 1);
   state.photos.splice(toIdx, 0, moved);
+  state.photosChanged = true;
   renderThumbnails();
   if (
     !state.sessionId ||

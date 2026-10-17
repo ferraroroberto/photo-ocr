@@ -150,3 +150,42 @@ def test_retry_missing_nothing_missing_is_400(
 
 def test_retry_missing_unknown_session_is_404(client: TestClient) -> None:
     assert client.post("/api/sessions/nope/retry-missing").status_code == 404
+
+
+def test_retry_missing_after_reorder_is_409_and_reads_nothing(
+    client: TestClient,
+) -> None:
+    """A reorder renumbers the files, so the archived per-photo names would map
+    onto different photos; the retry must refuse instead of splicing the wrong
+    photo's text into the gap (#208)."""
+    sid, hub = _partial_session(client)
+    hub.failing = set()
+    r = client.post(f"/api/sessions/{sid}/photos/reorder", json={"order": [1, 3, 2]})
+    assert r.status_code == 200
+    before = client.get(f"/api/sessions/{sid}/extract/status").json()
+
+    with patch.object(client.app.state.ocr_client._session, "post", side_effect=hub):
+        r = client.post(f"/api/sessions/{sid}/retry-missing")
+        waited = client.post(
+            f"/api/sessions/{sid}/retry-missing", params={"wait": "true"}
+        )
+
+    for resp in (r, waited):
+        assert resp.status_code == 409
+        assert "photos changed since the read" in resp.json()["detail"]
+        assert "Redo" in resp.json()["detail"]
+    assert hub.calls == []
+    after = client.get(f"/api/sessions/{sid}/extract/status").json()
+    assert after["missing_photos"] == before["missing_photos"] == ["02.jpg"]
+    assert after["extracted"] == before["extracted"]
+    assert after["phase"] == "succeeded"
+
+
+def test_retry_missing_after_removal_is_409(client: TestClient) -> None:
+    sid, hub = _partial_session(client)
+    hub.failing = set()
+    assert client.delete(f"/api/sessions/{sid}/photos/3").status_code == 200
+    with patch.object(client.app.state.ocr_client._session, "post", side_effect=hub):
+        r = client.post(f"/api/sessions/{sid}/retry-missing")
+    assert r.status_code == 409
+    assert hub.calls == []

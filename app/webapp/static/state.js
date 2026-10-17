@@ -14,6 +14,10 @@
  *                           ("N photos ›") instead of the text
  *   state.missingPhotos   — filenames the current text could not read
  *                           (drives the Retry missing action)
+ *   state.photosChanged   — boolean: the strip was reordered, trimmed or added
+ *                           to since the text was read, so the unread names no
+ *                           longer point at the same photos (hides Retry
+ *                           missing; Extract again / Redo re-read the take)
  *   state.model           — this take's model alias (the Capture chip;
  *                           a reset take starts from the Settings default)
  *   state.promptId        — this take's prompt id (same)
@@ -50,6 +54,7 @@ export const state = {
   result: null,
   showPhotos: false,
   missingPhotos: [],
+  photosChanged: false,
   model: null,
   promptId: null,
   prompts: [],

@@ -46,11 +46,8 @@ export function renderExtracted() {
     els.extracted.hidden = empty;
     els.copyExtracted.hidden = empty;
   }
-  // The one action for a partly read take, naming how many; absent when
-  // nothing is missing.
-  const missing = state.missingPhotos.length;
-  els.retryMissing.hidden = !(state.sessionId && missing);
-  els.retryMissingLabel.textContent = 'Retry ' + missing + ' unread';
+  // The Retry action's label names how many; renderView decides if it shows.
+  els.retryMissingLabel.textContent = 'Retry ' + state.missingPhotos.length + ' unread';
   renderView();
   renderHeadline();
 }
@@ -76,6 +73,7 @@ function renderExtractStatus(body, startedAt) {
   if (body.phase === 'succeeded') {
     state.extracted = body.extracted || '';
     state.missingPhotos = body.missing_photos || [];
+    state.photosChanged = false;
     state.result = takeResult(body, startedAt);
     state.showPhotos = false;
     renderExtracted();
@@ -232,6 +230,7 @@ export function adoptTake(sessionId, body) {
   state.sessionId = sessionId;
   state.extracted = body.extracted || '';
   state.missingPhotos = body.missing_photos || [];
+  state.photosChanged = false;
   state.result = takeResult(body, 0);
   state.showPhotos = false;
   renderThumbnails();
@@ -247,6 +246,7 @@ export function resetTake() {
   state.sessionIdPromise = null;
   state.extracted = '';
   state.missingPhotos = [];
+  state.photosChanged = false;
   state.result = null;
   state.showPhotos = false;
   if (state.config) {
