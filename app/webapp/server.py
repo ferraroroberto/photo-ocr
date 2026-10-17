@@ -1,35 +1,11 @@
 """FastAPI webapp — mobile-first photo OCR.
 
-Routes (split across ``app/webapp/routers/``):
-
-    GET    /                                  → static/index.html       (misc)
-    GET    /static/{file}                     → CSS / JS / icons         (static mount)
-    GET    /healthz                           → liveness probe           (misc)
-    GET    /api/version                       → build identity           (misc)
-
-    GET    /api/config                        → config + prompts + models(config)
-    POST   /api/config                        → patch + persist          (config)
-    GET    /api/status                        → llm_hub reachability     (config)
-    POST   /api/login                         → password → bearer token  (auth)
-
-    POST   /api/sessions                      → create new session       (sessions)
-    POST   /api/sessions/{id}/photos          → multipart upload, 1..N    (sessions)
-    DELETE /api/sessions/{id}/photos/{seq}    → drop a photo              (sessions)
-    POST   /api/sessions/{id}/extract         → start OCR job             (sessions)
-    GET    /api/sessions/{id}/extract/status  → poll OCR progress         (sessions)
-    POST   /api/sessions/{id}/redo            → start OCR re-run          (sessions)
-    GET    /api/sessions/{id}/photo/{seq}     → serve a stored photo      (sessions)
-    GET    /api/sessions/{id}/text            → full extracted text       (sessions)
-    GET    /api/sessions                      → list (newest first)       (sessions)
-    GET    /api/search                         → FTS5 archive search       (search)
-    POST   /api/usage/events                   → local usage log           (usage_log)
-    GET    /api/usage/summary                  → usage log rollup          (usage_log)
-    DELETE /api/sessions                      → cleanup all               (sessions)
-    DELETE /api/sessions/{id}                 → delete one                (sessions)
-    DELETE /api/sessions/older-than/{days}    → cleanup old               (sessions)
+Routes live in ``app/webapp/routers/``; the maintained route contract is
+``docs/consuming-the-session-api.md``.
 
 The lifespan hook prunes sessions older than the configured retention
-window on every boot.
+window, settles extract jobs interrupted by a restart, and reconciles the
+search index on every boot.
 """
 
 from __future__ import annotations

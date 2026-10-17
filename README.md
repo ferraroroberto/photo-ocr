@@ -113,8 +113,9 @@ setup.bat
 
 This creates `.venv\` and installs `requirements.txt`. The PWA icons under
 `app/webapp/static/` are pre-generated and committed — run
-`scripts\gen_icons.py` by hand only to regenerate them (needs a sibling
-`project-scaffolding` checkout; see that script's docstring).
+`scripts\gen_icons.py` by hand only to regenerate them (needs
+`requirements-dev.txt` installed and a sibling `project-scaffolding`
+checkout; see that script's docstring).
 
 ---
 
