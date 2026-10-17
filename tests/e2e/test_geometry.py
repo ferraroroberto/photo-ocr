@@ -12,7 +12,7 @@ import io
 import json
 
 import pytest
-from playwright.sync_api import Page, Route, expect
+from playwright.sync_api import Locator, Page, Route, expect
 
 from tests.e2e._geometry import (
     MATRIX,
@@ -20,6 +20,7 @@ from tests.e2e._geometry import (
     assert_min_target,
     assert_no_horizontal_overflow,
     assert_no_overlap,
+    effective_rects,
     matrix_id,
 )
 
@@ -38,6 +39,40 @@ _PHONE_MAX_PX = 430
 
 def _canvas(page: Page) -> str:
     return page.evaluate("getComputedStyle(document.body).backgroundColor")
+
+
+def _open_tab(page: Page, tab: str) -> None:
+    """Click *tab*; for History, wait until its reload has rebuilt the list.
+
+    Opening History re-fetches and rebuilds `#historyList` (`innerHTML = ''`),
+    so a measurement racing that rebuild reads the old, detached button as 0x0
+    (#225). Waiting for the old first row to detach makes the rebuild, which
+    is synchronous from there, land before the check.
+    """
+    if tab != "#tabHistory":
+        page.locator(tab).click()
+        return
+    old = page.locator("#historyList > li").first.element_handle()
+    page.locator(tab).click()
+    page.wait_for_function("el => !el.isConnected", arg=old, timeout=5_000)
+
+
+def _assert_rendered_min_target(locator: Locator) -> None:
+    """The 44px floor, with "not rendered" told apart from "too small".
+
+    `visible=true` only matches laid-out boxes, so a 0x0 measurement means the
+    element collapsed or detached between query and measure: say so rather
+    than report it as an undersized target.
+    """
+    for index, target in enumerate(effective_rects(locator)):
+        vis = target.visual
+        if vis.width == 0 and vis.height == 0:
+            raise AssertionError(
+                f"target #{index} of {locator}: not rendered at measurement "
+                "(0x0 visual box; detached or collapsed after the visible "
+                "query), not an undersized target"
+            )
+    assert_min_target(locator)
 
 
 def _add_ready_photo(page: Page) -> None:
@@ -76,6 +111,9 @@ def test_primary_controls_fit_every_viewport_and_theme(
     )
     page.goto(f"{base_url}/", wait_until="domcontentloaded")
     page.wait_for_selector("#extractBtn", state="attached", timeout=5_000)
+    # Boot's own History load has rendered (config loaded), so from here every
+    # History click triggers exactly one rebuild for _open_tab to wait out.
+    page.wait_for_selector("#historyList .empty-state-action", state="attached", timeout=5_000)
     canvas: dict[str, str] = {}
     for leg in MATRIX:
         width, theme = leg
@@ -87,14 +125,14 @@ def test_primary_controls_fit_every_viewport_and_theme(
             ("#tabCapture", _CAPTURE_TARGETS),
             ("#tabHistory", _HISTORY_TARGETS),
         ):
-            page.locator(tab).click()
+            _open_tab(page, tab)
             where = f"{matrix_id(leg)} {tab}"
             if width <= _PHONE_MAX_PX:
                 targets = _NAV_TABS + targets
             try:
                 assert_no_horizontal_overflow(page)
                 for sel in targets:
-                    assert_min_target(page.locator(sel).locator("visible=true"))
+                    _assert_rendered_min_target(page.locator(sel).locator("visible=true"))
                 assert_no_overlap(
                     [page.locator(sel).locator("visible=true") for sel in targets]
                 )
@@ -110,7 +148,7 @@ def test_primary_controls_fit_every_viewport_and_theme(
     try:
         assert_no_horizontal_overflow(page)
         for sel in _TAKE_TARGETS:
-            assert_min_target(page.locator(sel).locator("visible=true"))
+            _assert_rendered_min_target(page.locator(sel).locator("visible=true"))
         assert_no_overlap([page.locator(sel).locator("visible=true") for sel in _TAKE_TARGETS])
     except AssertionError as exc:
         raise AssertionError(f"{matrix_id(MATRIX[0])} take: {exc}") from exc
