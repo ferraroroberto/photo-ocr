@@ -110,6 +110,12 @@ class WebappConfig:
     # bootstrap without copy-pasting a tokenised URL.
     auth_password: str = ""
 
+    @property
+    def effective_single_shot_max_photos(self) -> int:
+        """The single-shot cap in force: never above the take's own max, so a
+        small Max photos per take lowers it instead of failing the save."""
+        return min(self.single_shot_max_photos, self.max_photos_per_session)
+
     def extract_policy(self) -> ExtractPolicy:
         """The OCR client's timeout/parallelism/retry policy from these settings."""
         return ExtractPolicy(
@@ -261,10 +267,5 @@ def _validate(cfg: WebappConfig) -> None:
             f"extract_fallback_model {cfg.extract_fallback_model!r} not in "
             f"ocr_models_available {cfg.ocr_models_available!r}"
         )
-    if (
-        cfg.single_shot_max_photos < 1
-        or cfg.single_shot_max_photos > cfg.max_photos_per_session
-    ):
-        raise ValueError(
-            "single_shot_max_photos must be between 1 and max_photos_per_session"
-        )
+    if cfg.single_shot_max_photos < 1:
+        raise ValueError("single_shot_max_photos must be >= 1")

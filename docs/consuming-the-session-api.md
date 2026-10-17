@@ -102,7 +102,7 @@ Empty `text` is a **valid 200** — the prompt asks the model to emit nothing wh
 
 **Client timeout.** Photos are read one per hub request, up to `extract_concurrency` at a time, each retried once on failure; the whole call is capped by `extract_run_budget_s` (default 900 s). A typical 1–8 photo call on the default model takes 10–30 s, but set your read timeout above the run budget (e.g. 960 s) or a slow hub turns a partial 200 into a client-side timeout.
 
-> The single-shot cap (`single_shot_max_photos` in `config/webapp_config.json`) keeps a synchronous call bounded — a screenshot is 1–2 images. For a 50-photo document, use the async session flow so you can show progress instead of holding one long request.
+> The single-shot cap (`single_shot_max_photos` in `config/webapp_config.json`) keeps a synchronous call bounded — a screenshot is 1–2 images. A smaller `max_photos_per_session` lowers it further (the cap in force is the smaller of the two). For a 50-photo document, use the async session flow so you can show progress instead of holding one long request.
 
 ### `POST /api/sessions` — create (async flow)
 
