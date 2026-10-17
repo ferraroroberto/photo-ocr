@@ -11,20 +11,11 @@
 requests>=2.31
 PyYAML>=6.0
 
-# Process introspection (port-owner lookup in /api/status)
-psutil>=5.9
-
 # Image handling: Pillow for everything, pillow-heif for HEIC/HEIF from
 # iOS uploads. HEIC support is best-effort — see image_utils.py for
 # the graceful-degrade path when pillow-heif isn't installed.
 Pillow>=10.0
 pillow-heif>=0.16
-
-# Icon generation — dev-only: scripts/gen_icons.py calls project-scaffolding's
-# shared brand_gen.py, which rasterizes the vendored Lucide master SVG with
-# resvg-py (prebuilt wheel, no system deps). Generated assets are committed;
-# the runtime webapp never imports this.
-resvg-py>=0.3.0
 
 # Webapp (mobile-first FastAPI UI on :8444)
 fastapi>=0.110

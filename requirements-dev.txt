@@ -10,3 +10,9 @@ httpx>=0.27
 # Playwright browser-E2E smoke tests (tests/e2e). After install:
 #   .venv\Scripts\python.exe -m playwright install chromium
 pytest-playwright>=0.5
+
+# Icon generation: scripts/gen_icons.py calls project-scaffolding's shared
+# brand_gen.py, which rasterizes the vendored Lucide master SVG with resvg-py
+# (prebuilt wheel, no system deps). Generated assets are committed; the
+# runtime webapp never imports this.
+resvg-py>=0.3.0
