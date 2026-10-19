@@ -9,6 +9,7 @@ description = "Mobile OCR — photos → clean text. Reusable capture surface."
 
 [vendored]
 geometry = { src = "tests/e2e/_geometry.py", sha = "f70569640ebaf251ab0ed5f5daadd6055953a8c9", dest = "tests/e2e/_geometry.py" }
+surface_capture = { src = "tests/e2e/_surface.py", sha = "5c4d3a7947dae8b3b4a028bf636c0f052ea3b1f7", dest = "tests/e2e/_surface.py" }
 e2e_live_guard = { src = "tests/e2e/_e2e_live_guard.py", sha = "727dfe8b9e4e625993c0e0286836e510015411cc", dest = "tests/e2e/_e2e_live_guard.py" }
 runtime_data = { src = "src/runtime_data.py", sha = "346765f7c14af0ec61e960333c055974e4e9e1db", dest = "src/runtime_data.py" }
 classify_e2e = { src = "scripts/classify_e2e.py", sha = "bede95f00aee0b17d5007246a29fa881a71f24f4", dest = "scripts/classify_e2e.py" }
@@ -46,6 +47,18 @@ record = "https://github.com/ferraroroberto/photo-ocr/issues/214"
 # so the affordance the user needs to start a take is the honest ready signal.
 [perf.review]
 ready_selector = ".choose-photos-btn"
+
+# /design-review's e2e capture (tests/e2e/_surface.py) flips light/dark in place on an open
+# surface; this app stamps html[data-theme] at load from photo-ocr.theme (else the OS
+# scheme), so the hook has to set that key too or its dark shots stay light.
+[design.review]
+theme_storage_key = "photo-ocr.theme"
+
+# `measure --e2e` and `--synthetic` walk this throwaway webapp (empty History, temp
+# data dir), never the live tray on :8444 (scripts/design_review_synthetic.py).
+[design.review.synthetic]
+command = ["scripts/design_review_synthetic.py"]
+startup_timeout_s = 60
 
 # Diff-proportionate e2e routing (project-scaffolding docs/e2e-routing.md).
 # `scripts/classify_e2e.py` maps this branch's changed files to a tier; rules

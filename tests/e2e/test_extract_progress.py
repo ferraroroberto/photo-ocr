@@ -30,6 +30,8 @@ import pytest
 import requests
 from playwright.sync_api import Page, Route, expect
 
+from tests.e2e._surface import surface
+
 pytestmark = pytest.mark.smoke
 
 # Gap between two extract/status polls — must match sleep(1000) in
@@ -164,10 +166,12 @@ def test_photo_upload_then_extract_progress(
         model_chip.click()
         picker = authed_page.locator("dialog.sheet")
         expect(picker.locator("[aria-current='true']")).to_have_text("Gemini Flash")
+        surface(authed_page, "capture.model-picker")
         picker.get_by_role("button", name="Claude Opus").click()
         expect(picker).to_have_count(0)
         expect(model_chip).to_contain_text("Claude Opus")
         authed_page.locator("#takeStyle").click()
+        surface(authed_page, "capture.style-picker")
         authed_page.locator("dialog.sheet").get_by_role("button", name="Invented style").click()
         expect(authed_page.locator("#takeStyle")).to_contain_text("Invented style")
 
@@ -193,6 +197,7 @@ def test_photo_upload_then_extract_progress(
         expect(headline).to_contain_text("Reading")
         expect(result).to_be_hidden()
         assert extract_bodies == [{"model": "claude_opus", "prompt_id": "invented-style"}], extract_bodies
+        surface(authed_page, "capture.extracting")
         # The SPA waits POLL_INTERVAL_MS between status polls; fast-forward
         # its clock instead of sleeping the real second twice.
         authed_page.clock.run_for(_POLL_INTERVAL_MS)
@@ -213,6 +218,7 @@ def test_photo_upload_then_extract_progress(
         expect(headline).not_to_contain_text("Reading")
         copy = authed_page.locator("#copyExtracted")
         expect(copy).to_have_class(re.compile(r"\bbutton-primary\b"))
+        surface(authed_page, "capture.result")
         copy.click()
         expect(copy).to_contain_text("Copied")
         assert authed_page.evaluate("window.__copied") == "done text"
