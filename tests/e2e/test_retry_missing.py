@@ -18,6 +18,8 @@ import pytest
 import requests
 from playwright.sync_api import Page, Route, expect
 
+from tests.e2e._surface import surface
+
 pytestmark = pytest.mark.smoke
 
 _PARTIAL = "page 1\n[missing: photo 2 (02.jpg) could not be read]\npage 3"
@@ -118,6 +120,7 @@ def test_retry_missing_appears_only_when_photos_are_missing_and_fills_the_gap(
         expect(retry).to_have_text("Retry 1 unread")
         expect(retry).to_have_class(re.compile(r"\bbutton-tint\b"))
         expect(authed_page.locator("#captureHeadline")).to_contain_text("1 photo unread")
+        surface(authed_page, "capture.result-partial")
 
         retry.click()
 

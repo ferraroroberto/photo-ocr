@@ -15,6 +15,7 @@ import re
 import pytest
 from playwright.sync_api import Page, expect
 
+from tests.e2e._surface import surface
 from tests.e2e.conftest import is_unpainted
 
 pytestmark = pytest.mark.smoke
@@ -73,6 +74,7 @@ def test_boot_renders_spa(authed_page: Page, base_url: str) -> None:
     expect(authed_page.get_by_role("switch", name="Save to history")).to_be_hidden()
     expect(authed_page.locator("#takeResult")).to_be_hidden()
     expect(authed_page.locator("#captureHeadline")).to_have_text("")
+    surface(authed_page, "capture.empty")
 
     # The login overlay markup is wired so showLogin() can reveal it. We
     # exercise the DOM directly rather than triggering a real 401: the
@@ -89,6 +91,7 @@ def test_boot_renders_spa(authed_page: Page, base_url: str) -> None:
     expect(pw).to_be_editable()
     pw.fill("dummy")
     expect(pw).to_have_value("dummy")
+    surface(authed_page, "login.overlay")
 
 
 def test_settings_groups_save_as_they_change(
@@ -162,12 +165,14 @@ def test_settings_groups_save_as_they_change(
 
     # Three groups under overlines; no card titles, no Save button.
     expect(pane.locator(".settings-overline")).to_have_text(["Display", "Reading", "Storage"])
+    surface(authed_page, "settings.pane")
     expect(pane.locator(".card-title, #saveSettings, #ocrPromptPreview")).to_have_count(0)
     expect(pane.locator(".settings-group").last.locator(".settings-row").last).to_have_id("cleanAll")
 
     # Default model: a picker sheet; the pick saves at once, with a toast,
     # and survives a reload (the store is what GET /api/config serves).
     authed_page.locator("#setModel").click()
+    surface(authed_page, "settings.model-sheet")
     authed_page.locator("dialog.sheet").get_by_role("button", name="Claude Opus").click()
     expect(authed_page.locator("#setModelValue")).to_have_text("Claude Opus")
     expect(authed_page.locator("#toast")).to_contain_text("Default model: Claude Opus")
@@ -179,6 +184,12 @@ def test_settings_groups_save_as_they_change(
     expect(authed_page.locator("#toast")).to_contain_text("Save failed")
     expect(authed_page.locator("#setModelValue")).to_have_text("Claude Opus")
 
+    # Style: the same picker for the default style.
+    authed_page.locator("#setStyle").click()
+    surface(authed_page, "settings.style-sheet")
+    authed_page.keyboard.press("Escape")
+    expect(authed_page.locator("dialog.sheet")).to_have_count(0)
+
     # Keep takes for: 45 days is not a preset, so it shows as-is and no
     # segment is raised until one is picked.
     expect(authed_page.locator("#setRetentionValue")).to_have_text("45 days")
@@ -186,6 +197,7 @@ def test_settings_groups_save_as_they_change(
     sheet = authed_page.locator("dialog.sheet")
     expect(sheet).to_contain_text("Now 45 days")
     expect(sheet.locator(".segmented-item[aria-pressed='true']")).to_have_count(0)
+    surface(authed_page, "settings.retention-sheet")
     sheet.get_by_role("button", name="90 days").click()
     expect(sheet.locator(".segmented-item[aria-pressed='true']")).to_have_text("90 days")
     expect(authed_page.locator("#setRetentionValue")).to_have_text("90 days")
@@ -199,6 +211,7 @@ def test_settings_groups_save_as_they_change(
     field.fill("500")
     field.press("Enter")
     expect(authed_page.locator(".settings-sheet-error")).to_be_visible()
+    surface(authed_page, "settings.max-photos-error")
     expect(field).to_have_value("50")
     field.fill("20")
     field.press("Enter")
@@ -211,6 +224,7 @@ def test_settings_groups_save_as_they_change(
     prompt = authed_page.locator("dialog.prompt-sheet-dialog .prompt-sheet-text")
     expect(prompt).to_be_visible()
     expect(prompt).not_to_have_text("")
+    surface(authed_page, "settings.prompt-sheet")
     authed_page.keyboard.press("Escape")
 
     # Reload: everything came back from the server, nothing from the device;
@@ -324,6 +338,7 @@ def test_save_to_history_switch_sets_incognito(
     switch.click()
     expect(switch).to_have_attribute("aria-checked", "false")
     expect(headline).to_contain_text("Not saved to History")
+    surface(authed_page, "capture.take-not-saved")
     # The row's text toggles it too.
     label = authed_page.locator("#saveToHistoryLabel")
     label.click()

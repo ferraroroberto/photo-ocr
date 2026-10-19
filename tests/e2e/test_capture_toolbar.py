@@ -21,6 +21,8 @@ import os
 import pytest
 from playwright.sync_api import Page, Route, expect
 
+from tests.e2e._surface import surface
+
 pytestmark = pytest.mark.smoke
 
 _HIT_MIN = 44
@@ -144,6 +146,16 @@ def test_photo_sheet_holds_every_photo_action(authed_page: Page, base_url: str) 
     thumbs = authed_page.locator("#thumbStrip li.thumb.ready")
     expect(thumbs).to_have_count(3, timeout=10_000)
     expect(authed_page.locator("#thumbStrip li.thumb.warned")).to_have_count(1)
+    surface(authed_page, "capture.take-photos")
+
+    # The strip's + tile and the take's ⋯ each open one small sheet.
+    authed_page.locator(".thumb-add-btn").click()
+    surface(authed_page, "capture.add-sheet")
+    authed_page.keyboard.press("Escape")
+    authed_page.locator("#takeMenuBtn").click()
+    surface(authed_page, "capture.take-more-sheet")
+    authed_page.keyboard.press("Escape")
+    expect(authed_page.locator("dialog")).to_have_count(0)
 
     # A tile is one 44px+ button that opens its photo's sheet.
     tiles = authed_page.locator("#thumbStrip .thumb-select")
@@ -162,6 +174,7 @@ def test_photo_sheet_holds_every_photo_action(authed_page: Page, base_url: str) 
     # Not warned: Retake / Keep are not offered; Remove is, last.
     expect(sheet.get_by_role("button", name="Retake")).to_have_count(0)
     expect(sheet.locator(".sheet-action").last).to_have_text("Remove photo")
+    surface(authed_page, "capture.photo-sheet")
     # The × is the vendored modal close (34px + its ::before band to 44).
     _assert_hit_targets(authed_page, [f"{_SHEET} button:not(.detail-close)"])
 
@@ -182,6 +195,7 @@ def test_photo_sheet_holds_every_photo_action(authed_page: Page, base_url: str) 
     tiles.nth(0).click()
     expect(sheet.locator(".photo-sheet-warning")).to_contain_text("Blurry")
     expect(sheet.get_by_role("button", name="Retake")).to_be_visible()
+    surface(authed_page, "capture.photo-sheet-warned")
     sheet.get_by_role("button", name="Keep it").click()
     expect(sheet).to_have_count(0)
     expect(authed_page.locator("#thumbStrip li.thumb.warned")).to_have_count(0)

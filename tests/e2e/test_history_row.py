@@ -17,6 +17,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from playwright.sync_api import Page, Route, expect
 
+from tests.e2e._surface import surface
 from tests.e2e.conftest import is_unpainted
 
 pytestmark = pytest.mark.smoke
@@ -170,6 +171,7 @@ def test_history_rows_take_sheet_and_deletes(authed_page: Page, base_url: str) -
     expect(second.locator(".chip[data-tone='neutral']")).to_have_text("app-launcher")
     expect(old.locator(".chip[data-tone='danger']")).to_have_text("Failed")
     expect(old.locator(".action-row-title")).to_have_text("invented failure")
+    surface(page, "history.list")
     expect(first.locator(".action-row-meta")).to_contain_text("1 photo · Gemini Flash")
     # One tap target plus one kebab, the kebab a 44px unpainted icon button.
     expect(first.locator("button")).to_have_count(2)
@@ -195,12 +197,14 @@ def test_history_rows_take_sheet_and_deletes(authed_page: Page, base_url: str) -
     expect(sheet.locator(".sheet-action").last).to_have_text("Delete take")
     expect(sheet.locator(".sheet-action").last).to_have_attribute("data-tone", "danger")
     assert is_unpainted(sheet.locator(".detail-close"))
+    surface(page, "history.take-sheet")
 
     # Redo with… opens a model picker marking the take's own model and posts
     # the picked one; the list refreshes after.
     sheet.get_by_role("button", name="Redo with…").click()
     picker = page.locator("dialog.sheet")
     expect(picker.locator("[aria-current='true']")).to_have_text("Gemini Flash")
+    surface(page, "history.redo-picker")
     calls_before = list_calls["n"]
     picker.get_by_role("button", name="Claude Opus").click()
     expect(page.locator("#toast")).to_contain_text("Redo done")
@@ -228,6 +232,7 @@ def test_history_rows_take_sheet_and_deletes(authed_page: Page, base_url: str) -
     # No matches offers clearing the search, which restores the list.
     page.locator("#historySearch").fill("zzz")
     expect(page.locator("#historyList")).to_contain_text("No matches")
+    surface(page, "history.no-matches")
     page.get_by_role("button", name="Clear search").click()
     expect(page.locator("#historySearch")).to_have_value("")
     expect(rows).to_have_count(3)
@@ -238,6 +243,7 @@ def test_history_rows_take_sheet_and_deletes(authed_page: Page, base_url: str) -
     sheet.get_by_role("button", name="Delete take").click()
     confirm = page.locator("dialog.confirm-sheet")
     expect(confirm.locator("h2")).to_have_text("Delete this take?")
+    surface(page, "history.confirm-delete")
     page.keyboard.press("Escape")
     expect(confirm).to_have_count(0)
     assert deletes == []
@@ -251,6 +257,7 @@ def test_history_rows_take_sheet_and_deletes(authed_page: Page, base_url: str) -
     page.locator("#paneHistory .home-settings").click()
     page.locator("#cleanAll").click()
     expect(confirm.locator("h2")).to_have_text("Delete all saved takes?")
+    surface(page, "history.confirm-delete-all")
     confirm.get_by_role("button", name="Cancel").click()
     expect(confirm).to_have_count(0)
     page.locator("#cleanAll").click()
@@ -264,6 +271,7 @@ def test_history_rows_take_sheet_and_deletes(authed_page: Page, base_url: str) -
     empty = page.locator("#historyList .empty-state")
     expect(empty).to_contain_text("No saved takes")
     expect(empty).to_contain_text("30 days")
+    surface(page, "history.empty")
     empty.get_by_role("button", name="Capture a take").click()
     expect(page.locator("#paneCapture")).to_be_visible()
     assert native == []
