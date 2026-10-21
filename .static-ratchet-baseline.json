@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "tools": {"jscpd": "5.4.0", "ruff": "0.17.1"},
+  "entries": [
+    {"key": "unused:F401:app/cli/commands/webapp_cmd.py:pathlib.Path", "files": ["app/cli/commands/webapp_cmd.py"]},
+    {"key": "unused:F401:app/cli/commands/webapp_cmd.py:sys", "files": ["app/cli/commands/webapp_cmd.py"]},
+    {"key": "unused:F401:app/tray/tray.py:app.webapp.manager.WebappManagerConfig", "files": ["app/tray/tray.py"]},
+    {"key": "unused:F401:tests/e2e/test_geometry.py:playwright.sync_api.Route", "files": ["tests/e2e/test_geometry.py"]},
+    {"key": "unused:F401:tests/test_image_utils.py:io", "files": ["tests/test_image_utils.py"]},
+    {"key": "unused:F401:tests/test_ocr_prompts.py:src.ocr_prompts.OcrPrompt", "files": ["tests/test_ocr_prompts.py"]},
+    {"key": "unused:F401:tests/test_webapp_api_basics.py:unittest.mock.patch", "files": ["tests/test_webapp_api_basics.py"]}
+  ]
+}

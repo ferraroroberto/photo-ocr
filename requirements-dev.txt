@@ -16,3 +16,8 @@ pytest-playwright>=0.5
 # (prebuilt wheel, no system deps). Generated assets are committed; the
 # runtime webapp never imports this.
 resvg-py>=0.3.0
+
+# Static-analysis ratchet (scripts/static_ratchet.py): unused imports/variables
+# come from `python -m ruff` in the venv that runs the gate; a missing ruff is a
+# NOT CONFIRMED gate failure, never a pass. Duplicate blocks need Node (npx).
+ruff>=0.17.1
