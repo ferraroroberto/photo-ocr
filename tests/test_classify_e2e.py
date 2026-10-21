@@ -40,6 +40,7 @@ def route(paths, config):
         "README.md",
         "CLAUDE.md",
         "LICENSE",
+        ".static-ratchet-baseline.json",
         "assets/tray/photo-ocr.ico",
         "assets/stream-deck/photo-ocr-144.png",
     ],
