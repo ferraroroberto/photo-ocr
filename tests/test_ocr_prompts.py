@@ -7,7 +7,6 @@ from pathlib import Path
 
 from src.ocr_prompts import (
     DEFAULT_PROMPT_ID,
-    OcrPrompt,
     apply_language_hint,
     get_prompt,
     load_ocr_prompts,

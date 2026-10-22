@@ -37,7 +37,6 @@ from app.tray.single_instance import SingleInstance
 from app.tray.watchdog import HealthWatchdog
 from app.webapp.manager import (
     WebappManager,
-    WebappManagerConfig,
     cert_paths,
     load_config,
 )

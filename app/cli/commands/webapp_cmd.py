@@ -5,8 +5,6 @@ from __future__ import annotations
 # Standard library imports
 import argparse
 import logging
-import sys
-from pathlib import Path
 
 from .base import BaseCommand
 

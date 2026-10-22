@@ -12,7 +12,7 @@ import io
 import json
 
 import pytest
-from playwright.sync_api import Locator, Page, Route, expect
+from playwright.sync_api import Locator, Page, expect
 
 from tests.e2e._geometry import (
     MATRIX,
