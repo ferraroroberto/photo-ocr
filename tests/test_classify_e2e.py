@@ -41,6 +41,7 @@ def route(paths, config):
         "CLAUDE.md",
         "LICENSE",
         ".static-ratchet-baseline.json",
+        ".docs-ratchet-baseline.json",
         "assets/tray/photo-ocr.ico",
         "assets/stream-deck/photo-ocr-144.png",
     ],

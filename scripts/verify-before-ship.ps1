@@ -47,6 +47,15 @@ try {
     & $python -m scripts.static_ratchet_gate
     if ($LASTEXITCODE -ne 0) { Fail "static ratchet failed (new finding, or a detector could not run)." }
 
+    # Docs ratchet: fails when the root README grows or a README/docs page gains an
+    # issue reference, dated heading or changelog heading beyond
+    # .docs-ratchet-baseline.json. The wrapper maps every non-zero exit, exit 3 (a doc
+    # could not be read) included, to a failure -- never a skip. It counts the whole
+    # tree, so it is not path-routed.
+    Write-Host "==> docs ratchet..." -ForegroundColor Cyan
+    & $python -m scripts.docs_ratchet_gate
+    if ($LASTEXITCODE -ne 0) { Fail "docs ratchet failed (README grew, a new history marker, or a doc could not be read)." }
+
     Write-Host "==> pytest (non-e2e)..." -ForegroundColor Cyan
     & $python -m pytest -q --ignore=tests/e2e
     if ($LASTEXITCODE -ne 0) { Fail "non-e2e pytest suite failed." }

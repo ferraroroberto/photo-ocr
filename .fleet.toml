@@ -31,6 +31,7 @@ page-foot = { src = "app/webapp/static/_vendored/page-foot", sha = "92d16e00cd47
 usage-log = { src = "app/webapp/static/_vendored/usage-log", sha = "f52eb75625cbfd8dcef8a71731390a47b795508d", dest = "app/webapp/static/_vendored/usage-log" }
 usage_log = { src = "src/usage_log.py", sha = "a457e41cd3004d8b9493408498eb9e3d51cdc9c3", dest = "src/usage_log.py" }
 static_ratchet = { src = "scripts/static_ratchet.py", sha = "2f1e2f7c81b9a91a062271881fc87830104808ae", dest = "scripts/static_ratchet.py" }
+docs_ratchet = { src = "scripts/docs_ratchet.py", sha = "fdb750461997c4a13eacea8091f115ff12bba564", dest = "scripts/docs_ratchet.py" }
 
 # [static_ratchet] -- the scaffold's baseline-and-ratchet static analysis. The gate
 # (scripts/verify-before-ship.ps1) runs scripts/static_ratchet_gate.py, which wraps
@@ -44,6 +45,19 @@ static_ratchet = { src = "scripts/static_ratchet.py", sha = "2f1e2f7c81b9a91a062
 enabled  = true
 baseline = ".static-ratchet-baseline.json"
 exclude  = ["**/_vendored/**"]
+
+# [docs_ratchet] -- the scaffold's baseline-and-ratchet on docs hygiene. The gate
+# (scripts/verify-before-ship.ps1) runs scripts/docs_ratchet_gate.py, which wraps
+# scripts/docs_ratchet.py: it fails when the root README.md grows past 40 KiB or
+# past its baselined size, or when README.md or docs/**/*.md gains a history marker
+# (an issue reference, a dated heading, a changelog heading) beyond
+# .docs-ratchet-baseline.json. Docs state the present-tense why; history lives in
+# git, PRs and issues. A doc that cannot be read exits 3, which fails the gate.
+# No exclude: docs/ holds no generated or dated report folder. Procedure +
+# limits: project-scaffolding docs/docs-ratchet.md.
+[docs_ratchet]
+enabled  = true
+baseline = ".docs-ratchet-baseline.json"
 
 # /design-sync verdicts the repo accepts (skills/_lib/design_lint/accepted.py).
 # `detail` pins the exact lint message, so a second off-scale row raises the
@@ -109,6 +123,12 @@ label = "license"
 tier = "none"
 path = ".static-ratchet-baseline.json"
 label = "static-ratchet-baseline"
+
+# Likewise data for scripts/docs_ratchet.py.
+[[e2e.rule]]
+tier = "none"
+path = ".docs-ratchet-baseline.json"
+label = "docs-ratchet-baseline"
 
 # Desktop tray / Stream Deck icons -- never served to the browser.
 [[e2e.rule]]
