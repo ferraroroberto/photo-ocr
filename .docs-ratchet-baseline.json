@@ -1,8 +1,4 @@
 {
   "version": 1,
-  "entries": [
-    {"key": "README.md", "markers": 5},
-    {"key": "docs/consuming-the-session-api.md", "markers": 10},
-    {"key": "docs/iphone-debugging.md", "markers": 9}
-  ]
+  "entries": []
 }
