@@ -231,6 +231,8 @@ Prints the extracted text to stdout. No archive, no session — quick one-off.
 
 ## Repo layout
 
+Where new code goes, and why each top-level folder exists: [`docs/layout.md`](docs/layout.md).
+
 ```
 photo-ocr/
 ├── launcher.py                  entry point — `python launcher.py <command>`
@@ -284,11 +286,12 @@ photo-ocr/
 │   ├── gen_token.py             generate/rotate the bearer token
 │   ├── set_password.py          set/clear the login password
 │   ├── run_named_tunnel.py      uvicorn + cloudflared
-│   ├── verify-before-ship.ps1   pre-ship gate: byte-compile + static ratchet + docs ratchet + pytest + e2e
+│   ├── verify-before-ship.ps1   pre-ship gate: byte-compile + static ratchet + docs ratchet + structure ratchet + pytest + e2e
 │   ├── static_ratchet.py        vendored baseline-and-ratchet detector (jscpd + ruff)
 │   ├── static_ratchet_gate.py   gate wrapper: only exit 0 passes, exit 3 = NOT CONFIRMED
 │   ├── docs_ratchet.py          vendored baseline-and-ratchet on README size + docs history markers
 │   ├── docs_ratchet_gate.py     gate wrapper: only exit 0 passes, exit 3 = NOT CONFIRMED
+│   ├── structure_ratchet.py     vendored baseline-and-ratchet on file/function/directory size, layering and root layout
 │   ├── run-e2e.ps1              e2e leg runner (used by the pre-ship gate)
 │   ├── design_review_synthetic.py  throwaway webapp for /design-review's synthetic and e2e runs
 │   └── classify_e2e.py          branch-diff → e2e tier (skip/static/full)
@@ -497,13 +500,15 @@ Without a tray, a bare run already boots its own disposable webapp on a free por
 
 ### Verifying changes before ship
 
-`scripts/verify-before-ship.ps1` is the single pre-ship gate. It byte-compiles `app`/`src`/`tests`, runs the static ratchet and the docs ratchet, runs the non-e2e pytest suite, then runs the Playwright e2e suite (Chromium + WebKit/iPhone) against a **disposable webapp it boots itself on a free port** — so a forgotten tray can't let a regression slip through as a skipped suite.
+`scripts/verify-before-ship.ps1` is the single pre-ship gate. It byte-compiles `app`/`src`/`tests`, runs the static, docs and structure ratchets, runs the non-e2e pytest suite, then runs the Playwright e2e suite (Chromium + WebKit/iPhone) against a **disposable webapp it boots itself on a free port** — so a forgotten tray can't let a regression slip through as a skipped suite.
 
 The e2e leg is proportionate to the diff: `scripts/classify_e2e.py` classifies the branch's changed files against `origin/main` (rules in `.fleet.toml` `[e2e]`). A docs-only branch **skips** the leg and the gate prints the tier and reason; a static-image change runs only the smoke slice; anything under `app/webapp/`, `src/`, or any path no rule names runs the **full** suite. A classifier that errors, prints no tier, or returns an unknown one also runs the full suite, and says so — the gate never skips on doubt.
 
 The static ratchet (`scripts/static_ratchet_gate.py`, rules in `.fleet.toml` `[static_ratchet]`) records the repo's existing duplicate blocks and unused imports/variables in `.static-ratchet-baseline.json` and fails the gate on any new one, naming it, so the count can only go down. It needs **Node** (jscpd runs through `npx`; the first run needs network) and `ruff` (installed from `requirements-dev.txt`). A detector that cannot run fails the gate as NOT CONFIRMED rather than passing. `_vendored/` is excluded because vendor-verbatim copies are duplicates by design.
 
 The docs ratchet (`scripts/docs_ratchet_gate.py`, rules in `.fleet.toml` `[docs_ratchet]`) holds `README.md` under 40 KiB and keeps history out of the docs: it counts issue references, dated headings and changelog headings in `README.md` and `docs/**/*.md` and fails the gate, naming the file and line, when a count rises above `.docs-ratchet-baseline.json`. Docs state what is true now and why; the story of how they got there lives in git, PRs and issues. A doc it cannot read (not UTF-8, an unclosed fence) fails as NOT CONFIRMED rather than passing. Lower the baseline with `--update-baseline` in the PR that removes debt; adding entries needs `--allow-additions`.
+
+The structure ratchet (`scripts/structure_ratchet.py`, rules in `.fleet.toml` `[structure_ratchet]`) fails the gate when a file passes 1,000 lines, a Python or JS function 100 lines, a directory 40 modules, or a `src/` module imports `app/`, beyond `.structure-ratchet-baseline.json`, and when a tracked root folder falls outside the declared `shape` (`webapp-tray`) and `extra_roots`. The layout is never baselined; `docs/layout.md` gives each folder's purpose and the reason for the one declared exception. Exit 3 (a file could not be measured, or an unknown shape) fails as NOT CONFIRMED, never a pass.
 
 Each surface the suite opens (a tab, sheet, picker, empty or error state) is tagged `surface(page, "<tab>.<surface>")` from the vendored `tests/e2e/_surface.py`. The call is inert on every normal run; `/design-review photo-ocr --e2e` arms it against the throwaway webapp `scripts/design_review_synthetic.py` boots (never the live tray) to inventory those surfaces in light and dark for the design review. A new sheet or state a test opens takes one `surface(...)` call.
 

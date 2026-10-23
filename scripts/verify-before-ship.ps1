@@ -56,6 +56,17 @@ try {
     & $python -m scripts.docs_ratchet_gate
     if ($LASTEXITCODE -ne 0) { Fail "docs ratchet failed (README grew, a new history marker, or a doc could not be read)." }
 
+    # Structure ratchet: fails on a file, function or directory over its limit, a
+    # src/ module importing app/, or a root folder outside the declared shape, beyond
+    # .structure-ratchet-baseline.json. Exit 3 (a file could not be measured, or an
+    # unknown shape) is its own failure, never a pass or a skip. It reads the whole
+    # tree, so it is not path-routed.
+    Write-Host "==> structure ratchet..." -ForegroundColor Cyan
+    & $python "scripts/structure_ratchet.py"
+    $structureExit = $LASTEXITCODE
+    if ($structureExit -eq 3) { Fail "structure ratchet NOT CONFIRMED (a file could not be measured, or the shape is unknown)." }
+    if ($structureExit -ne 0) { Fail "structure ratchet failed (a new or grown offender, a root folder outside the shape, or a bad table or baseline)." }
+
     Write-Host "==> pytest (non-e2e)..." -ForegroundColor Cyan
     & $python -m pytest -q --ignore=tests/e2e
     if ($LASTEXITCODE -ne 0) { Fail "non-e2e pytest suite failed." }

@@ -6,6 +6,8 @@ layer       = "enabling"
 icon        = "📷"
 port        = ":8444"
 description = "Mobile OCR — photos → clean text. Reusable capture surface."
+shape       = "webapp-tray"
+extra_roots = ["webapp"]
 
 [vendored]
 geometry = { src = "tests/e2e/_geometry.py", sha = "f70569640ebaf251ab0ed5f5daadd6055953a8c9", dest = "tests/e2e/_geometry.py" }
@@ -32,6 +34,7 @@ usage-log = { src = "app/webapp/static/_vendored/usage-log", sha = "f52eb75625cb
 usage_log = { src = "src/usage_log.py", sha = "a457e41cd3004d8b9493408498eb9e3d51cdc9c3", dest = "src/usage_log.py" }
 static_ratchet = { src = "scripts/static_ratchet.py", sha = "0d41425ff2797c98d1d3eb7ecb7de0cdb7133456", dest = "scripts/static_ratchet.py" }
 docs_ratchet = { src = "scripts/docs_ratchet.py", sha = "0d41425ff2797c98d1d3eb7ecb7de0cdb7133456", dest = "scripts/docs_ratchet.py" }
+structure_ratchet = { src = "scripts/structure_ratchet.py", sha = "84d2b12ab416551762e4a615e4a706df91cea69f", dest = "scripts/structure_ratchet.py" }
 
 # [static_ratchet] -- the scaffold's baseline-and-ratchet static analysis. The gate
 # (scripts/verify-before-ship.ps1) runs scripts/static_ratchet_gate.py, which wraps
@@ -58,6 +61,18 @@ exclude  = ["**/_vendored/**"]
 [docs_ratchet]
 enabled  = true
 baseline = ".docs-ratchet-baseline.json"
+
+# [structure_ratchet] -- the scaffold's baseline-and-ratchet on repo structure. The gate
+# (scripts/verify-before-ship.ps1) runs scripts/structure_ratchet.py: it fails when a
+# file passes 1,000 lines, a Python/JS function 100 lines, a directory 40 modules, or a
+# src/ module imports app/, beyond .structure-ratchet-baseline.json, or when a tracked
+# root folder is outside the `shape` preset and `extra_roots` above (never baselined;
+# docs/layout.md says why each exception stays). Stdlib only. A file that cannot be
+# measured exits 3, which fails the gate. Vendored copies are excluded by the script
+# itself. Procedure + limits: project-scaffolding docs/structure-ratchet.md.
+[structure_ratchet]
+enabled  = true
+baseline = ".structure-ratchet-baseline.json"
 
 # /design-sync verdicts the repo accepts (skills/_lib/design_lint/accepted.py).
 # `detail` pins the exact lint message, so a second off-scale row raises the
@@ -129,6 +144,12 @@ label = "static-ratchet-baseline"
 tier = "none"
 path = ".docs-ratchet-baseline.json"
 label = "docs-ratchet-baseline"
+
+# Likewise data for scripts/structure_ratchet.py.
+[[e2e.rule]]
+tier = "none"
+path = ".structure-ratchet-baseline.json"
+label = "structure-ratchet-baseline"
 
 # Desktop tray / Stream Deck icons -- never served to the browser.
 [[e2e.rule]]
