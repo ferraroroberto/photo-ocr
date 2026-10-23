@@ -200,7 +200,7 @@ tunnel in the background so the public URL is up alongside the webapp.
   - **ℹ️ Status** — popup with hub + webapp state.
   - **🚪 Quit** — stops cloudflared (if running) and the webapp.
 
-**Self-heal (issue #110):** the initial webapp spawn at tray boot retries
+**Self-heal:** the initial webapp spawn at tray boot retries
 with backoff (5s / 15s / 30s) instead of giving up after one attempt, and a
 background health watchdog polls `/healthz` every 60s — a webapp that's
 crashed and stopped listening is auto-respawned; one that's listening but not
@@ -382,7 +382,7 @@ Created on the first Settings change. Schema lives in
 
 | Key | Default | Notes |
 |---|---|---|
-| `ocr_model_default` | `claude_opus` | Alias on the local-llm-hub. Fastest complete read of the #166 8-photo replay (29 s, vs 37 s on `claude_sonnet`; `gemini_flash`, which the hub runs one call at a time, read only 5 of 8 within the 900 s budget at 9–382 s per photo). |
+| `ocr_model_default` | `claude_opus` | Alias on the local-llm-hub. Fastest complete read in an 8-photo replay benchmark (29 s, vs 37 s on `claude_sonnet`; `gemini_flash`, which the hub runs one call at a time, read only 5 of 8 within the 900 s budget at 9–382 s per photo). |
 | `ocr_models_available` | gemini × 3, claude × 3 | Drives the picker. |
 | `ocr_prompt_default` | `verbatim-merge` | One of the entries in `config/ocr_prompts.json`. |
 | `llm_hub_url` | `http://127.0.0.1:8000` | Local-llm-hub address. |
@@ -473,7 +473,7 @@ The `smoke` marker is the slow live-tray bucket — see the Playwright section b
 
 ### Playwright browser smoke tests
 
-A `pytest-playwright` suite under `tests/e2e/` catches SPA boot regressions (JS errors, empty `<select>`s, broken settings toggle, missing login overlay) plus regression nets for past iPhone-only bugs (cache-busting, cert lifetime, photo upload) and the Capture photo sheet (move left/right, Retake/Keep on a quality-warned photo, Remove, all real 44px targets). Instance selection is guarded by the vendor-verbatim `tests/e2e/_e2e_live_guard.py` (project-scaffolding issue #191/#194, adopted fleet-wide byte-identical — issue #108): a bare `pytest tests/e2e` with the tray up **refuses to run** with a guard message rather than silently adopting it; with the tray down it boots its own disposable instance instead. Set `PHOTO_OCR_E2E_LIVE=1` (`scripts/run-e2e.ps1` does) to explicitly *adopt* the live tray on `https://127.0.0.1:8444` for read-only smoke checks — this repo never kills it to satisfy the opt-in (`tray.bat --restart` owns that).
+A `pytest-playwright` suite under `tests/e2e/` catches SPA boot regressions (JS errors, empty `<select>`s, broken settings toggle, missing login overlay) plus regression nets for past iPhone-only bugs (cache-busting, cert lifetime, photo upload) and the Capture photo sheet (move left/right, Retake/Keep on a quality-warned photo, Remove, all real 44px targets). Instance selection is guarded by the vendor-verbatim `tests/e2e/_e2e_live_guard.py` (adopted fleet-wide, byte-identical across every adopter): a bare `pytest tests/e2e` with the tray up **refuses to run** with a guard message rather than silently adopting it; with the tray down it boots its own disposable instance instead. Set `PHOTO_OCR_E2E_LIVE=1` (`scripts/run-e2e.ps1` does) to explicitly *adopt* the live tray on `https://127.0.0.1:8444` for read-only smoke checks — this repo never kills it to satisfy the opt-in (`tray.bat --restart` owns that).
 
 By default the suite runs in **two projections**: Chromium desktop and WebKit projected onto an iPhone 14 (viewport, user-agent, touch). WebKit is iOS Mobile Safari's engine family, so the second projection catches most "Safari is unhappy" regressions on Windows. Pin one engine with `--browser chromium` for a faster dev loop; a test tagged `@pytest.mark.desktop_only` skips the WebKit projection.
 
@@ -528,7 +528,7 @@ curl -sk -X POST "https://127.0.0.1:8444/api/extract?model=claude_opus" \
 
 Every externally-triggered extraction lands in History attributed to its caller (pass `?source=app-launcher`), so History stays the fleet's single source of truth for all OCR — searchable and recoverable, not just PWA takes.
 
-Full contract — single-shot **and** the async progress-polling flow, base-URL/TLS/auth, source attribution, error table, examples, and the stability changelog — is in **[`docs/consuming-the-session-api.md`](docs/consuming-the-session-api.md)**. First consumer: app-launcher's Coding-terminal "paste screenshot" button (`ferraroroberto/app-launcher#171`).
+Full contract — single-shot **and** the async progress-polling flow, base-URL/TLS/auth, source attribution, error table, examples, and the stability changelog — is in **[`docs/consuming-the-session-api.md`](docs/consuming-the-session-api.md)**. First consumer: app-launcher's Coding-terminal "paste screenshot" button.
 
 ---
 

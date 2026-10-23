@@ -1,12 +1,11 @@
 # Debugging real-iPhone Safari from the Windows PC
 
-**Issue:** [#8](https://github.com/ferraroroberto/photo-ocr/issues/8) — pre-ship gate, Part D.
+This is Part D of the pre-ship gate's phone-validation pipeline.
 
-The phone-validation pipeline — cache hygiene ([#5](https://github.com/ferraroroberto/photo-ocr/issues/5)),
-the modularized webapp ([#6](https://github.com/ferraroroberto/photo-ocr/issues/6)),
-the WebKit/iPhone Playwright projection + regression net ([#7](https://github.com/ferraroroberto/photo-ocr/issues/7)),
-and the pre-ship gate ([#8](https://github.com/ferraroroberto/photo-ocr/issues/8)) —
-catches the large majority of iPhone regressions on Windows before they ship.
+The phone-validation pipeline — cache hygiene, the modularized webapp, the
+WebKit/iPhone Playwright projection and regression net, and the pre-ship
+gate — catches the large majority of iPhone regressions on Windows before
+they ship.
 This document covers the residual ~15% that genuinely need a real iPhone, and
 makes that manual loop fast by giving the PC **DevTools visibility** into the
 live phone.
@@ -33,7 +32,7 @@ logic — exactly what Playwright's bundled WebKit on Windows cannot reproduce:
   doesn't ship.
 
 If the bug also reproduces in the WebKit projection, it belongs in the
-regression net (issue #7 pattern), not here.
+regression net, not here.
 
 ## A. DevTools against the live iPhone — `ios-webkit-debug-proxy`
 
@@ -91,7 +90,7 @@ When a phone-only bug turns up — reported or self-spotted — work the loop:
    - The Network waterfall.
    - The JS modules actually loaded — URL **and** the `?v=<hash>` fleet hash
      visible in the Network tab. A matching hash proves the phone is on the
-     new build (the cache-busting from issue #5/#6 worked); a stale hash means
+     new build (the cache-busting worked); a stale hash means
      the cache bust is the bug, not the symptom you were chasing.
    - The Settings panel's `Build:` line — it should match
      `git rev-parse --short HEAD` of the deployed PC build.
@@ -122,7 +121,7 @@ pre-release check, overkill for routine work.
 
 ## Summary
 
-The automated pipeline (issues #5–#8) is the daily contract. This document is
+The automated pipeline is the daily contract. This document is
 the fallback for the rare iOS-shell bug it structurally cannot catch — and its
 whole point is that `ios-webkit-debug-proxy` turns the "walk to the phone and
 guess" loop into a normal DevTools session at the PC.
