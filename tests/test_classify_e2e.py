@@ -42,6 +42,8 @@ def route(paths, config):
         "LICENSE",
         ".static-ratchet-baseline.json",
         ".docs-ratchet-baseline.json",
+        ".structure-ratchet-baseline.json",
+        ".conventions-ratchet-baseline.json",
         "assets/tray/photo-ocr.ico",
         "assets/stream-deck/photo-ocr-144.png",
     ],
