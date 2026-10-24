@@ -67,6 +67,16 @@ try {
     if ($structureExit -eq 3) { Fail "structure ratchet NOT CONFIRMED (a file could not be measured, or the shape is unknown)." }
     if ($structureExit -ne 0) { Fail "structure ratchet failed (a new or grown offender, a root folder outside the shape, or a bad table or baseline)." }
 
+    # Conventions ratchet: fails when a file's hit count for an enabled rule (no-window,
+    # logging-not-print, no-drive-path) rises above .conventions-ratchet-baseline.json.
+    # Exit 3 (git unusable, or a .py file that cannot be read or parsed) is its own
+    # failure, never a pass or a skip. It reads the whole tree, so it is not path-routed.
+    Write-Host "==> conventions ratchet..." -ForegroundColor Cyan
+    & $python "scripts/conventions_ratchet.py"
+    $conventionsExit = $LASTEXITCODE
+    if ($conventionsExit -eq 3) { Fail "conventions ratchet NOT CONFIRMED (git unusable, or a .py file could not be read or parsed)." }
+    if ($conventionsExit -ne 0) { Fail "conventions ratchet failed (a rule count rose, or a bad table or baseline)." }
+
     Write-Host "==> pytest (non-e2e)..." -ForegroundColor Cyan
     & $python -m pytest -q --ignore=tests/e2e
     if ($LASTEXITCODE -ne 0) { Fail "non-e2e pytest suite failed." }
