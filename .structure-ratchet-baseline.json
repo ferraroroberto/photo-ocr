@@ -1,10 +1,4 @@
 {
   "version": 1,
-  "entries": [
-    {"key": "fn:app/tray/tray.py:run_tray", "lines": 261},
-    {"key": "fn:src/extract_job.py:execute_extract_job", "lines": 106},
-    {"key": "fn:tests/e2e/test_extract_progress.py:test_photo_upload_then_extract_progress", "lines": 191},
-    {"key": "fn:tests/e2e/test_history_row.py:test_history_rows_take_sheet_and_deletes", "lines": 207},
-    {"key": "fn:tests/e2e/test_smoke.py:test_settings_groups_save_as_they_change", "lines": 179}
-  ]
+  "entries": []
 }

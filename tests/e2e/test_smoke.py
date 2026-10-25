@@ -10,6 +10,7 @@ for every feature.
 
 from __future__ import annotations
 
+import json
 import re
 
 import pytest
@@ -94,6 +95,125 @@ def test_boot_renders_spa(authed_page: Page, base_url: str) -> None:
     surface(authed_page, "login.overlay")
 
 
+class _ConfigStore:
+    """``/api/config`` served from memory: GET reads it, POST patches it, and
+    one POST can be made to fail. The checkout's real config is never written."""
+
+    def __init__(self) -> None:
+        self.store: dict = {}
+        self.posts: list[dict] = []
+        self.fail_next = False
+
+    def handle(self, route) -> None:
+        if route.request.method == "POST":
+            patch = json.loads(route.request.post_data or "{}")
+            self.posts.append(patch)
+            if self.fail_next:
+                self.fail_next = False
+                route.fulfill(status=500, content_type="application/json",
+                              body=json.dumps({"detail": "invented failure"}))
+                return
+            self.store.update(patch)
+            route.fulfill(status=200, content_type="application/json",
+                          body=json.dumps({"ok": True, "config": dict(self.store)}))
+            return
+        if not self.store:
+            body = route.fetch().json()
+            body["ocr_models_available"] = ["gemini_flash", "claude_opus"]
+            body["ocr_model_default"] = "gemini_flash"
+            body["history_retention_days"] = 45  # outside the presets
+            body["max_photos_per_session"] = 50
+            self.store.update(body)
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(self.store))
+
+
+def _open_settings_from_the_gear(page: Page):
+    # The Capture pane is the default tab; Settings starts hidden. The nav
+    # lists only the real destinations, and every pane (Settings included)
+    # opens with the home-head row: theme toggle, then the gear.
+    expect(page.locator("#paneSettings")).to_be_hidden()
+    expect(page.locator('.tabs .tab[data-tab="settings"]')).to_have_count(0)
+    expect(page.locator(".tabs .tab")).to_have_count(2)
+    for pane in ("#paneCapture", "#paneHistory", "#paneSettings"):
+        head = page.locator(f"{pane} > .card.home-head")
+        expect(head.locator(".theme-toggle")).to_have_count(1)
+        expect(head.locator(".home-settings")).to_have_count(1)
+        # .icon-button's (project-scaffolding#339): a glyph on nothing at rest
+        assert is_unpainted(head.locator(".home-toggle"))
+    page.locator("#paneCapture .home-settings").click()
+    pane = page.locator("#paneSettings")
+    expect(pane).to_be_visible()
+    expect(page.locator("#paneCapture")).to_be_hidden()
+    return pane
+
+
+def _pick_retention_preset(page: Page, posts: list[dict]) -> None:
+    # Keep takes for: 45 days is not a preset, so it shows as-is and no
+    # segment is raised until one is picked.
+    expect(page.locator("#setRetentionValue")).to_have_text("45 days")
+    page.locator("#setRetention").click()
+    sheet = page.locator("dialog.sheet")
+    expect(sheet).to_contain_text("Now 45 days")
+    expect(sheet.locator(".segmented-item[aria-pressed='true']")).to_have_count(0)
+    surface(page, "settings.retention-sheet")
+    sheet.get_by_role("button", name="90 days").click()
+    expect(sheet.locator(".segmented-item[aria-pressed='true']")).to_have_text("90 days")
+    expect(page.locator("#setRetentionValue")).to_have_text("90 days")
+    assert posts[-1] == {"history_retention_days": 90}, posts
+    page.keyboard.press("Escape")
+    expect(sheet).to_have_count(0)
+
+
+def _set_max_photos(page: Page, posts: list[dict]) -> None:
+    # Max photos: saves when the field is left, inside 1-100 only.
+    page.locator("#setMaxPhotos").click()
+    field = page.locator("#maxPhotosInput")
+    field.fill("500")
+    field.press("Enter")
+    expect(page.locator(".settings-sheet-error")).to_be_visible()
+    surface(page, "settings.max-photos-error")
+    expect(field).to_have_value("50")
+    field.fill("20")
+    field.press("Enter")
+    expect(page.locator("#setMaxPhotosValue")).to_have_text("20")
+    assert posts[-1] == {"max_photos_per_session": 20}, posts
+    page.keyboard.press("Escape")
+
+
+def _assert_type_scale(page: Page) -> None:
+    # Type scale (TYPE-01): row values sit on body-sm (14px), row labels on
+    # body (16px), never the 12px caption; every control inherits the page
+    # font (the vendored base layer).
+    sizes = page.evaluate(
+        "['#setModelValue', '#setModel .settings-label']"
+        ".map(q => getComputedStyle(document.querySelector(q)).fontSize)"
+    )
+    assert sizes == ["14px", "16px"], sizes
+    off = page.evaluate(
+        """() => {
+          const body = getComputedStyle(document.body).fontFamily;
+          return [...document.querySelectorAll('button, input, select, textarea')]
+            .filter(e => getComputedStyle(e).fontFamily !== body).length;
+        }"""
+    )
+    assert off == 0, off
+
+
+def _text_size_large_survives_reload(page: Page) -> None:
+    # Text size (A11Y-02): the zoom lock's escape, the vendored segmented
+    # control. Large scales the root font-size and survives a reload.
+    expect(page.get_by_role("group", name="Text size")).to_be_visible()
+    page.locator('#textSizeControl [data-textsize="large"]').click()
+    expect(page.locator('#textSizeControl [data-textsize="large"]')).to_have_attribute(
+        "aria-pressed", "true"
+    )
+    expect(page.locator("html")).to_have_attribute("data-textsize", "large")
+    root_px = page.evaluate("getComputedStyle(document.documentElement).fontSize")
+    assert root_px == "18px", f"Large should be 112.5% of 16px, got {root_px}"
+    page.reload(wait_until="domcontentloaded")
+    expect(page.locator("html")).to_have_attribute("data-textsize", "large")
+
+
 def test_settings_groups_save_as_they_change(
     authed_page: Page, base_url: str
 ) -> None:
@@ -106,35 +226,10 @@ def test_settings_groups_save_as_they_change(
 
     ``/api/config`` is served from an in-memory store here, so the test
     never writes the checkout's real config file."""
-    import json
+    config = _ConfigStore()
+    posts = config.posts
 
-    store: dict = {}
-    posts: list[dict] = []
-    fail = {"next": False}
-
-    def config(route) -> None:
-        if route.request.method == "POST":
-            patch = json.loads(route.request.post_data or "{}")
-            posts.append(patch)
-            if fail["next"]:
-                fail["next"] = False
-                route.fulfill(status=500, content_type="application/json",
-                              body=json.dumps({"detail": "invented failure"}))
-                return
-            store.update(patch)
-            route.fulfill(status=200, content_type="application/json",
-                          body=json.dumps({"ok": True, "config": dict(store)}))
-            return
-        if not store:
-            body = route.fetch().json()
-            body["ocr_models_available"] = ["gemini_flash", "claude_opus"]
-            body["ocr_model_default"] = "gemini_flash"
-            body["history_retention_days"] = 45  # outside the presets
-            body["max_photos_per_session"] = 50
-            store.update(body)
-        route.fulfill(status=200, content_type="application/json", body=json.dumps(store))
-
-    authed_page.route("**/api/config", config)
+    authed_page.route("**/api/config", config.handle)
     # A device value left by the old Settings must not shadow the server.
     authed_page.add_init_script(
         "localStorage.setItem('photo-ocr.model', 'claude_opus');"
@@ -146,22 +241,7 @@ def test_settings_groups_save_as_they_change(
         "[localStorage.getItem('photo-ocr.model'), localStorage.getItem('photo-ocr.promptId')]"
     ) == [None, None]
 
-    # The Capture pane is the default tab; Settings starts hidden. The nav
-    # lists only the real destinations, and every pane (Settings included)
-    # opens with the home-head row: theme toggle, then the gear.
-    expect(authed_page.locator("#paneSettings")).to_be_hidden()
-    expect(authed_page.locator('.tabs .tab[data-tab="settings"]')).to_have_count(0)
-    expect(authed_page.locator(".tabs .tab")).to_have_count(2)
-    for pane in ("#paneCapture", "#paneHistory", "#paneSettings"):
-        head = authed_page.locator(f"{pane} > .card.home-head")
-        expect(head.locator(".theme-toggle")).to_have_count(1)
-        expect(head.locator(".home-settings")).to_have_count(1)
-        # .icon-button's (project-scaffolding#339): a glyph on nothing at rest
-        assert is_unpainted(head.locator(".home-toggle"))
-    authed_page.locator("#paneCapture .home-settings").click()
-    pane = authed_page.locator("#paneSettings")
-    expect(pane).to_be_visible()
-    expect(authed_page.locator("#paneCapture")).to_be_hidden()
+    pane = _open_settings_from_the_gear(authed_page)
 
     # Three groups under overlines; no card titles, no Save button.
     expect(pane.locator(".settings-overline")).to_have_text(["Display", "Reading", "Storage"])
@@ -178,7 +258,7 @@ def test_settings_groups_save_as_they_change(
     expect(authed_page.locator("#toast")).to_contain_text("Default model: Claude Opus")
     assert posts[-1] == {"ocr_model_default": "claude_opus"}, posts
     # A failed save says so and keeps the row's old value.
-    fail["next"] = True
+    config.fail_next = True
     authed_page.locator("#setModel").click()
     authed_page.locator("dialog.sheet").get_by_role("button", name="Gemini Flash").click()
     expect(authed_page.locator("#toast")).to_contain_text("Save failed")
@@ -190,34 +270,9 @@ def test_settings_groups_save_as_they_change(
     authed_page.keyboard.press("Escape")
     expect(authed_page.locator("dialog.sheet")).to_have_count(0)
 
-    # Keep takes for: 45 days is not a preset, so it shows as-is and no
-    # segment is raised until one is picked.
-    expect(authed_page.locator("#setRetentionValue")).to_have_text("45 days")
-    authed_page.locator("#setRetention").click()
-    sheet = authed_page.locator("dialog.sheet")
-    expect(sheet).to_contain_text("Now 45 days")
-    expect(sheet.locator(".segmented-item[aria-pressed='true']")).to_have_count(0)
-    surface(authed_page, "settings.retention-sheet")
-    sheet.get_by_role("button", name="90 days").click()
-    expect(sheet.locator(".segmented-item[aria-pressed='true']")).to_have_text("90 days")
-    expect(authed_page.locator("#setRetentionValue")).to_have_text("90 days")
-    assert posts[-1] == {"history_retention_days": 90}, posts
-    authed_page.keyboard.press("Escape")
-    expect(sheet).to_have_count(0)
+    _pick_retention_preset(authed_page, posts)
 
-    # Max photos: saves when the field is left, inside 1-100 only.
-    authed_page.locator("#setMaxPhotos").click()
-    field = authed_page.locator("#maxPhotosInput")
-    field.fill("500")
-    field.press("Enter")
-    expect(authed_page.locator(".settings-sheet-error")).to_be_visible()
-    surface(authed_page, "settings.max-photos-error")
-    expect(field).to_have_value("50")
-    field.fill("20")
-    field.press("Enter")
-    expect(authed_page.locator("#setMaxPhotosValue")).to_have_text("20")
-    assert posts[-1] == {"max_photos_per_session": 20}, posts
-    authed_page.keyboard.press("Escape")
+    _set_max_photos(authed_page, posts)
 
     # The prompt opens read-only in a sheet.
     authed_page.locator("#setPrompt").click()
@@ -244,35 +299,9 @@ def test_settings_groups_save_as_they_change(
     authed_page.locator("#paneHistory .home-settings").click()
     expect(pane).to_be_visible()
 
-    # Type scale (TYPE-01): row values sit on body-sm (14px), row labels on
-    # body (16px), never the 12px caption; every control inherits the page
-    # font (the vendored base layer).
-    sizes = authed_page.evaluate(
-        "['#setModelValue', '#setModel .settings-label']"
-        ".map(q => getComputedStyle(document.querySelector(q)).fontSize)"
-    )
-    assert sizes == ["14px", "16px"], sizes
-    off = authed_page.evaluate(
-        """() => {
-          const body = getComputedStyle(document.body).fontFamily;
-          return [...document.querySelectorAll('button, input, select, textarea')]
-            .filter(e => getComputedStyle(e).fontFamily !== body).length;
-        }"""
-    )
-    assert off == 0, off
+    _assert_type_scale(authed_page)
 
-    # Text size (A11Y-02): the zoom lock's escape, the vendored segmented
-    # control. Large scales the root font-size and survives a reload.
-    expect(authed_page.get_by_role("group", name="Text size")).to_be_visible()
-    authed_page.locator('#textSizeControl [data-textsize="large"]').click()
-    expect(authed_page.locator('#textSizeControl [data-textsize="large"]')).to_have_attribute(
-        "aria-pressed", "true"
-    )
-    expect(authed_page.locator("html")).to_have_attribute("data-textsize", "large")
-    root_px = authed_page.evaluate("getComputedStyle(document.documentElement).fontSize")
-    assert root_px == "18px", f"Large should be 112.5% of 16px, got {root_px}"
-    authed_page.reload(wait_until="domcontentloaded")
-    expect(authed_page.locator("html")).to_have_attribute("data-textsize", "large")
+    _text_size_large_survives_reload(authed_page)
 
 
 def test_save_to_history_switch_sets_incognito(

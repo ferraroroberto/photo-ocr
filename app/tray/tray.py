@@ -171,37 +171,10 @@ def _notify(title: str, message: str) -> None:
         logger.debug(f"winotify failed: {exc}")
 
 
-def run_tray(app_config: AppConfig) -> int:
-    """Run the tray icon. Returns when the user picks Quit."""
-    try:
-        import pystray  # type: ignore
-        from pystray import Menu, MenuItem
-    except ImportError as exc:
-        logger.error(
-            f"❌ pystray not installed ({exc}); install via `pip install -r requirements.txt`"
-        )
-        return 1
-
-    # In-process single-instance guard: the tray.bat CIM
-    # pre-check can let two near-simultaneous launches through, so the guarantee
-    # must live in the process. Held for the tray's lifetime; the OS frees the
-    # named mutex on exit. `instance` is intentionally kept referenced (quit).
-    instance = SingleInstance(r"Global\photo-ocr-tray")
-    if not instance.acquired:
-        logger.info("ℹ️  Another photo-ocr tray is already running; exiting.")
-        return 0
-
-    mgr_cfg = load_config(app_config.webapp)
-    manager = WebappManager(mgr_cfg)
-
-    # Cloudflare named tunnel — spawned alongside uvicorn so a single
-    # launch (`tray.bat`) brings the public URL up too. Hostname is read
-    # from webapp/cloudflared.yml; missing config skips the tunnel.
-    tunnel_hostname = cloudflared_runner.read_tunnel_hostname(TUNNEL_CONFIG_PATH)
-    tunnel_state: dict = {"proc": None}
-
-    # Kick off the webapp on a background thread so the tray comes up
-    # quickly even if uvicorn takes a second to start.
+def _start_webapp_in_background(manager: WebappManager) -> dict:
+    """Start the webapp on a background thread so the tray comes up quickly
+    even if uvicorn takes a second to start. The returned dict's ``exc`` is
+    set when every attempt failed."""
     starter_error: dict = {"exc": None}
 
     def _on_start_attempt_failed(attempt: int, exc: Exception) -> None:
@@ -229,14 +202,17 @@ def run_tray(app_config: AppConfig) -> int:
             _notify("Photo OCR start failed", str(exc))
 
     threading.Thread(target=_start, daemon=True).start()
+    return starter_error
 
-    # Health watchdog: a probe covers both "crashed and not
-    # listening" (safe to auto-respawn) and "listening but not answering
-    # /healthz" (wedged — recovery stays manual via the tray menu until the
-    # failure mode is understood, as app-launcher does for that
-    # riskier case; auto-killing a stuck process could mask what's
-    # actually wrong).
-    watchdog_stop = threading.Event()
+
+def _start_health_watchdog(
+    manager: WebappManager, watchdog_stop: threading.Event
+) -> None:
+    """Health watchdog: a probe covers both "crashed and not listening" (safe
+    to auto-respawn) and "listening but not answering /healthz" (wedged —
+    recovery stays manual via the tray menu until the failure mode is
+    understood, as app-launcher does for that riskier case; auto-killing a
+    stuck process could mask what's actually wrong)."""
 
     def _on_webapp_wedge(count: int) -> None:
         if manager.is_port_in_use():
@@ -278,14 +254,26 @@ def run_tray(app_config: AppConfig) -> int:
     )
     threading.Thread(target=watchdog.run, args=(watchdog_stop,), daemon=True).start()
 
-    def _start_tunnel():
+
+class _Tunnel:
+    """Cloudflare named tunnel — spawned alongside uvicorn so a single launch
+    (`tray.bat`) brings the public URL up too. The hostname is read from
+    webapp/cloudflared.yml; a missing config skips the tunnel."""
+
+    def __init__(self) -> None:
+        self.hostname = cloudflared_runner.read_tunnel_hostname(TUNNEL_CONFIG_PATH)
+        self.proc = None
+
+    def start_in_background(self) -> None:
+        if self.hostname is not None:
+            threading.Thread(target=self._start, daemon=True).start()
+
+    def _start(self) -> None:
         """Spawn cloudflared and persist the public URL.
 
         Best-effort: a missing binary or failed launch is logged + toasted
         but doesn't take the tray down.
         """
-        if tunnel_hostname is None:
-            return
         try:
             proc = cloudflared_runner.spawn_cloudflared(
                 TUNNEL_CONFIG_PATH,
@@ -307,98 +295,128 @@ def run_tray(app_config: AppConfig) -> int:
             logger.warning(f"⚠️  cloudflared failed to launch: {exc}")
             _notify("Cloudflare tunnel", f"Failed to start: {exc}")
             return
-        tunnel_state["proc"] = proc
+        self.proc = proc
         logger.info(
-            f"🌍 Cloudflare tunnel started → https://{tunnel_hostname} "
+            f"🌍 Cloudflare tunnel started → https://{self.hostname} "
             f"(pid={proc.pid})"
         )
 
         # Persist the URL so the "Copy Cloudflare URL" menu item finds it.
         token = cloudflared_runner.read_auth_token()
-        url = cloudflared_runner.build_tunnel_url(tunnel_hostname, token)
+        url = cloudflared_runner.build_tunnel_url(self.hostname, token)
         cloudflared_runner.write_tunnel_url(TUNNEL_URL_FILE, url)
 
-    def _stop_tunnel():
-        proc = tunnel_state.get("proc")
-        tunnel_state["proc"] = None
+    def stop(self) -> None:
+        proc = self.proc
+        self.proc = None
         if proc is None:
             return
         cloudflared_runner.stop_process(proc, "cloudflared")
         cloudflared_runner.remove_tunnel_url(TUNNEL_URL_FILE)
 
-    if tunnel_hostname is not None:
-        threading.Thread(target=_start_tunnel, daemon=True).start()
 
-    def copy_local(icon, item):  # noqa: ARG001
-        webapp_cfg = load_webapp_config()
-        url = append_auth_token(manager.base_url, webapp_cfg.auth_token)
-        if _clipboard_copy(url):
-            _notify("Copied local URL", url)
-        else:
-            _notify("Local URL", url)
+def _notify_copied(url: str, copied_title: str, plain_title: str) -> None:
+    """Copy ``url`` and toast; when the clipboard is unavailable the toast
+    shows the URL itself."""
+    if _clipboard_copy(url):
+        _notify(copied_title, url)
+    else:
+        _notify(plain_title, url)
 
-    def copy_tailscale(icon, item):  # noqa: ARG001
-        host = _tailscale_hostname()
-        if not host:
-            _notify(
-                "Tailscale not available",
-                "Couldn't resolve a tailnet hostname (is `tailscale` installed and logged in?).",
-            )
-            return
-        scheme = "https" if cert_paths() else "http"
-        url = f"{scheme}://{host}:{manager.config.port}"
-        webapp_cfg = load_webapp_config()
-        url = append_auth_token(url, webapp_cfg.auth_token)
-        if _clipboard_copy(url):
-            _notify("Copied Tailscale URL", url)
-        else:
-            _notify("Tailscale URL", url)
 
-    def copy_tunnel(icon, item):  # noqa: ARG001
-        if not TUNNEL_URL_FILE.exists():
-            _notify(
-                "No tunnel URL yet",
-                "Run webapp_tunnel_named.bat to bring up the Cloudflare tunnel.",
-            )
-            return
-        try:
-            url = TUNNEL_URL_FILE.read_text(encoding="utf-8").strip()
-        except OSError as exc:
-            _notify("Tunnel URL read failed", str(exc))
-            return
-        if not url:
-            _notify("Tunnel URL is empty", str(TUNNEL_URL_FILE))
-            return
-        if _clipboard_copy(url):
-            _notify("Copied Cloudflare URL", url)
-        else:
-            _notify("Cloudflare URL", url)
+def _copy_local_url(manager: WebappManager) -> None:
+    url = append_auth_token(manager.base_url, load_webapp_config().auth_token)
+    _notify_copied(url, "Copied local URL", "Local URL")
 
-    def restart_webapp(icon, item):  # noqa: ARG001
-        def _do_restart():
-            try:
-                _notify("Photo OCR", "Restarting webapp…")
-                manager.restart(wait=True)
-                _notify("Photo OCR webapp restarted", manager.base_url)
-            except Exception as exc:  # noqa: BLE001
-                logger.error(f"❌ webapp restart failed: {exc}")
-                _notify("Restart failed", str(exc))
 
-        threading.Thread(target=_do_restart, daemon=True).start()
-
-    def show_status(icon, item):  # noqa: ARG001
-        s = manager.status()
+def _copy_tailscale_url(manager: WebappManager) -> None:
+    host = _tailscale_hostname()
+    if not host:
         _notify(
-            "Photo OCR status",
-            f"{s.detail} · {s.base_url}",
+            "Tailscale not available",
+            "Couldn't resolve a tailnet hostname (is `tailscale` installed and logged in?).",
         )
+        return
+    scheme = "https" if cert_paths() else "http"
+    url = f"{scheme}://{host}:{manager.config.port}"
+    url = append_auth_token(url, load_webapp_config().auth_token)
+    _notify_copied(url, "Copied Tailscale URL", "Tailscale URL")
+
+
+def _copy_tunnel_url() -> None:
+    if not TUNNEL_URL_FILE.exists():
+        _notify(
+            "No tunnel URL yet",
+            "Run webapp_tunnel_named.bat to bring up the Cloudflare tunnel.",
+        )
+        return
+    try:
+        url = TUNNEL_URL_FILE.read_text(encoding="utf-8").strip()
+    except OSError as exc:
+        _notify("Tunnel URL read failed", str(exc))
+        return
+    if not url:
+        _notify("Tunnel URL is empty", str(TUNNEL_URL_FILE))
+        return
+    _notify_copied(url, "Copied Cloudflare URL", "Cloudflare URL")
+
+
+def _restart_webapp_in_background(manager: WebappManager) -> None:
+    def _do_restart():
+        try:
+            _notify("Photo OCR", "Restarting webapp…")
+            manager.restart(wait=True)
+            _notify("Photo OCR webapp restarted", manager.base_url)
+        except Exception as exc:  # noqa: BLE001
+            logger.error(f"❌ webapp restart failed: {exc}")
+            _notify("Restart failed", str(exc))
+
+    threading.Thread(target=_do_restart, daemon=True).start()
+
+
+def _show_status(manager: WebappManager) -> None:
+    s = manager.status()
+    _notify(
+        "Photo OCR status",
+        f"{s.detail} · {s.base_url}",
+    )
+
+
+def run_tray(app_config: AppConfig) -> int:
+    """Run the tray icon. Returns when the user picks Quit."""
+    try:
+        import pystray  # type: ignore
+        from pystray import Menu, MenuItem
+    except ImportError as exc:
+        logger.error(
+            f"❌ pystray not installed ({exc}); install via `pip install -r requirements.txt`"
+        )
+        return 1
+
+    # In-process single-instance guard: the tray.bat CIM
+    # pre-check can let two near-simultaneous launches through, so the guarantee
+    # must live in the process. Held for the tray's lifetime; the OS frees the
+    # named mutex on exit. `instance` is intentionally kept referenced (quit).
+    instance = SingleInstance(r"Global\photo-ocr-tray")
+    if not instance.acquired:
+        logger.info("ℹ️  Another photo-ocr tray is already running; exiting.")
+        return 0
+
+    mgr_cfg = load_config(app_config.webapp)
+    manager = WebappManager(mgr_cfg)
+
+    tunnel = _Tunnel()
+    starter_error = _start_webapp_in_background(manager)
+    watchdog_stop = threading.Event()
+    _start_health_watchdog(manager, watchdog_stop)
+    tunnel.start_in_background()
 
     def quit_app(icon, item):  # noqa: ARG001
         logger.info("👋 Tray quit requested")
         watchdog_stop.set()
         # Stop cloudflared first so the public URL 5xx's immediately
         # while the webapp shutdown runs.
-        _stop_tunnel()
+        tunnel.stop()
         try:
             manager.stop()
         except Exception as exc:  # noqa: BLE001
@@ -406,18 +424,15 @@ def run_tray(app_config: AppConfig) -> int:
         instance.release()
         icon.stop()
 
-    def on_left_click(icon, item):  # noqa: ARG001
-        # Left-click on tray icon opens the webapp.
-        webbrowser.open(manager.base_url)
-
+    # Left-click on the tray icon opens the webapp.
     menu = Menu(
-        MenuItem("📷 Open photo OCR", on_left_click, default=True),
-        MenuItem("📋 Copy local URL", copy_local),
-        MenuItem("📋 Copy Tailscale URL", copy_tailscale),
-        MenuItem("📋 Copy Cloudflare URL", copy_tunnel),
+        MenuItem("📷 Open photo OCR", lambda icon, item: webbrowser.open(manager.base_url), default=True),
+        MenuItem("📋 Copy local URL", lambda icon, item: _copy_local_url(manager)),
+        MenuItem("📋 Copy Tailscale URL", lambda icon, item: _copy_tailscale_url(manager)),
+        MenuItem("📋 Copy Cloudflare URL", lambda icon, item: _copy_tunnel_url()),
         Menu.SEPARATOR,
-        MenuItem("🔄 Restart webapp", restart_webapp),
-        MenuItem("ℹ️ Status", show_status),
+        MenuItem("🔄 Restart webapp", lambda icon, item: _restart_webapp_in_background(manager)),
+        MenuItem("ℹ️ Status", lambda icon, item: _show_status(manager)),
         Menu.SEPARATOR,
         MenuItem("🚪 Quit", quit_app),
     )
