@@ -87,6 +87,17 @@ try {
     if ($commentExit -eq 3) { Fail "comment ratchet NOT CONFIRMED (git unusable, or a file could not be scanned)." }
     if ($commentExit -ne 0) { Fail "comment ratchet failed (an issue reference was added to a comment, or a bad table or baseline)." }
 
+    # Instruction ratchet: fails when a file's count for a lint-tier prompt-audit rule
+    # rises above .instruction-ratchet-baseline.json, or an instruction file passes its
+    # size cap. Exit 3 (git unusable, or a file that cannot be read) is its own failure,
+    # never a pass or a skip. A reader of CLAUDE.md depends on AGENTS.md, so it is not
+    # path-routed.
+    Write-Host "==> instruction ratchet..." -ForegroundColor Cyan
+    & $python "scripts/instruction_ratchet.py"
+    $instructionExit = $LASTEXITCODE
+    if ($instructionExit -eq 3) { Fail "instruction ratchet NOT CONFIRMED (git unusable, or an instruction file could not be read)." }
+    if ($instructionExit -ne 0) { Fail "instruction ratchet failed (a rule count rose, a file passed its size cap, or a bad table or baseline)." }
+
     Write-Host "==> pytest (non-e2e)..." -ForegroundColor Cyan
     & $python -m pytest -q --ignore=tests/e2e
     if ($LASTEXITCODE -ne 0) { Fail "non-e2e pytest suite failed." }
