@@ -15,7 +15,7 @@
 'use strict';
 
 // Tunable thresholds. Calibration against a real archive sample is
-// tracked as follow-up work; these are the issue #2 starting values.
+// tracked as follow-up work; these are the starting values.
 // Bump sharpnessMin up to catch more blur, down to catch less.
 export const THRESHOLDS = {
   sharpnessMin: 80,      // variance-of-Laplacian below this → "blurry"

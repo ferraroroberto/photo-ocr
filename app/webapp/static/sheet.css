@@ -4,7 +4,7 @@
  * capped short of the home indicator), the scroll lock and the × close; this
  * file only lays out what goes inside the card. No sticky footer: actions end
  * the sheet in the flow, so a tall sheet scrolls to them instead of covering
- * its last rows (task-os PR#405). */
+ * its last rows. */
 
 .sheet-body:empty { display: none; }
 

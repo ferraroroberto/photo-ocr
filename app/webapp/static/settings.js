@@ -11,8 +11,8 @@ import { renderTakeOptions, styleLabel } from './capture.js';
 import { openSheet } from './sheet.js';
 import { buildReadoutText } from './_vendored/page-foot/page-foot.js';
 
-// The server holds the defaults. These device-only copies (before #197) would
-// shadow it, so boot clears any that are left.
+// The server holds the defaults. These device-only copies, written before the server held the
+// defaults, would shadow it, so boot clears any that are left.
 const LEGACY_DEVICE_KEYS = ['photo-ocr.model', 'photo-ocr.promptId'];
 
 // Retention presets for "Keep takes for"; any other stored value is shown
@@ -248,8 +248,8 @@ export async function fetchConfig() {
 }
 
 // Surface the loaded build in the page footer so "is the phone running
-// the current code?" is answerable at a glance from any tab — see issue
-// #5. /api/version is auth-exempt, so a plain fetch avoids the login
+// the current code?" is answerable at a glance from any tab.
+// /api/version is auth-exempt, so a plain fetch avoids the login
 // overlay even before the user has signed in.
 export async function loadVersion() {
   if (!els.buildReadout) return;
