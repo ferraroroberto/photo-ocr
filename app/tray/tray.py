@@ -329,9 +329,6 @@ def run_tray(app_config: AppConfig) -> int:
     if tunnel_hostname is not None:
         threading.Thread(target=_start_tunnel, daemon=True).start()
 
-    def open_local(icon, item):  # noqa: ARG001
-        webbrowser.open(manager.base_url)
-
     def copy_local(icon, item):  # noqa: ARG001
         webapp_cfg = load_webapp_config()
         url = append_auth_token(manager.base_url, webapp_cfg.auth_token)

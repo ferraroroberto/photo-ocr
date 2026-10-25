@@ -286,7 +286,7 @@ photo-ocr/
 │   ├── gen_token.py             generate/rotate the bearer token
 │   ├── set_password.py          set/clear the login password
 │   ├── run_named_tunnel.py      uvicorn + cloudflared
-│   ├── verify-before-ship.ps1   pre-ship gate: byte-compile + static ratchet + docs ratchet + structure ratchet + conventions ratchet + comment ratchet + instruction ratchet + doc refs ratchet + pytest + e2e
+│   ├── verify-before-ship.ps1   pre-ship gate: byte-compile + static ratchet + docs ratchet + structure ratchet + conventions ratchet + comment ratchet + instruction ratchet + doc refs ratchet + dead code ratchet + pytest + e2e
 │   ├── static_ratchet.py        vendored baseline-and-ratchet detector (jscpd + ruff)
 │   ├── static_ratchet_gate.py   gate wrapper: only exit 0 passes, exit 3 = NOT CONFIRMED
 │   ├── docs_ratchet.py          vendored baseline-and-ratchet on README size + docs history markers
@@ -500,7 +500,7 @@ Without a tray, a bare run already boots its own disposable webapp on a free por
 
 ### Verifying changes before ship
 
-`scripts/verify-before-ship.ps1` is the single pre-ship gate. It byte-compiles `app`/`src`/`tests`, runs the static, docs, structure, conventions, comment, instruction and doc refs ratchets, runs the non-e2e pytest suite, then runs the Playwright e2e suite (Chromium + WebKit/iPhone) against a **disposable webapp it boots itself on a free port** — so a forgotten tray can't let a regression slip through as a skipped suite.
+`scripts/verify-before-ship.ps1` is the single pre-ship gate. It byte-compiles `app`/`src`/`tests`, runs the static, docs, structure, conventions, comment, instruction, doc refs and dead code ratchets, runs the non-e2e pytest suite, then runs the Playwright e2e suite (Chromium + WebKit/iPhone) against a **disposable webapp it boots itself on a free port** — so a forgotten tray can't let a regression slip through as a skipped suite.
 
 The e2e leg is proportionate to the diff: `scripts/classify_e2e.py` classifies the branch's changed files against `origin/main` (rules in `.fleet.toml` `[e2e]`). A docs-only branch **skips** the leg and the gate prints the tier and reason; a static-image change runs only the smoke slice; anything under `app/webapp/`, `src/`, or any path no rule names runs the **full** suite. A classifier that errors, prints no tier, or returns an unknown one also runs the full suite, and says so — the gate never skips on doubt.
 
@@ -517,6 +517,8 @@ The comment ratchet (`scripts/comment_ratchet.py`, rules in `.fleet.toml` `[comm
 The instruction ratchet (`scripts/instruction_ratchet.py`, rules in `.fleet.toml` `[instruction_ratchet]`) runs the lint-tier rules of the fleet's prompt audit over `CLAUDE.md` and `AGENTS.md` (the repo ships no skills or rules folder): phrase patterns such as shouted pressure words, contradictory always/never pairs, vendor names in agent-neutral prose, and the size caps (`CLAUDE.md` 200 lines, `AGENTS.md` 32,768 bytes). It fails the gate, naming the file, rule and line, when a count rises above `.instruction-ratchet-baseline.json` (empty). Exit 3 (a file could not be read) fails as NOT CONFIRMED, never a pass.
 
 The doc refs ratchet (`scripts/doc_refs_ratchet.py`, rules in `.fleet.toml` `[doc_refs_ratchet]`) reads `README.md`, `CLAUDE.md` and `docs/**/*.md` and resolves every repo path in an inline code span, `python -m` module, relative link and loopback port against the tracked tree and the app's own `port`. It fails the gate, naming the doc and line, on a reference that does not exist and is not in `.doc-refs-ratchet-baseline.json` (empty). The ports of the services the docs name (`:8000` the hub, `:9221` the iOS WebKit debug proxy) are declared in `allow_refs`; fenced code blocks are not read. Exit 3 (git unusable, a doc that is not UTF-8, an unclosed fence) fails as NOT CONFIRMED, never a pass.
+
+The dead code ratchet (`scripts/dead_code_ratchet.py`, rules in `.fleet.toml` `[dead_code_ratchet]`) parses the Python in `app/` and `src/` and fails the gate, naming the file, line and qualified name, on a function, class or variable that nothing names (no other file, string or non-Python source mentions it) and that is not in `.dead-code-ratchet-baseline.json` (empty). Exit 3 (git unusable, a `.py` file that cannot be read or does not parse) fails as NOT CONFIRMED, never a pass.
 
 Each surface the suite opens (a tab, sheet, picker, empty or error state) is tagged `surface(page, "<tab>.<surface>")` from the vendored `tests/e2e/_surface.py`. The call is inert on every normal run; `/design-review photo-ocr --e2e` arms it against the throwaway webapp `scripts/design_review_synthetic.py` boots (never the live tray) to inventory those surfaces in light and dark for the design review. A new sheet or state a test opens takes one `surface(...)` call.
 

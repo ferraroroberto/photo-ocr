@@ -26,6 +26,7 @@ STAGES: dict[str, tuple[str, dict[str, bytes]]] = {
     "comment": ("$commentExit", {"broken.py": b"def f(:\n"}),
     "instruction": ("$instructionExit", {"CLAUDE.md": b"\xff\xfe not utf-8\n"}),
     "doc_refs": ("$docRefsExit", {"README.md": b"\xff\xfe not utf-8\n"}),
+    "dead_code": ("$deadCodeExit", {"broken.py": b"def f(:\n"}),
 }
 
 

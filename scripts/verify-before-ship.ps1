@@ -109,6 +109,17 @@ try {
     if ($docRefsExit -eq 3) { Fail "doc refs ratchet NOT CONFIRMED (git unusable, or a doc could not be read)." }
     if ($docRefsExit -ne 0) { Fail "doc refs ratchet failed (a doc names a path, module or port that does not exist, or a bad table or baseline)." }
 
+    # Dead code ratchet: fails on a Python function, class or variable in app/ or src/ that
+    # nothing names and .dead-code-ratchet-baseline.json does not record. Exit 3 (git
+    # unusable, or a .py file that cannot be read or parsed) is its own failure, never a
+    # pass or a skip. Deleting the last caller in one file strands a definition in another,
+    # so it is not path-routed.
+    Write-Host "==> dead code ratchet..." -ForegroundColor Cyan
+    & $python "scripts/dead_code_ratchet.py"
+    $deadCodeExit = $LASTEXITCODE
+    if ($deadCodeExit -eq 3) { Fail "dead code ratchet NOT CONFIRMED (git unusable, or a .py file could not be read or parsed)." }
+    if ($deadCodeExit -ne 0) { Fail "dead code ratchet failed (a definition nothing names, or a bad table or baseline)." }
+
     Write-Host "==> pytest (non-e2e)..." -ForegroundColor Cyan
     & $python -m pytest -q --ignore=tests/e2e
     if ($LASTEXITCODE -ne 0) { Fail "non-e2e pytest suite failed." }

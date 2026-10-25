@@ -47,6 +47,7 @@ def route(paths, config):
         ".comment-ratchet-baseline.json",
         ".instruction-ratchet-baseline.json",
         ".doc-refs-ratchet-baseline.json",
+        ".dead-code-ratchet-baseline.json",
         "assets/tray/photo-ocr.ico",
         "assets/stream-deck/photo-ocr-144.png",
     ],
