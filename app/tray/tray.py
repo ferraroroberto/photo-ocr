@@ -47,7 +47,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 TUNNEL_URL_FILE = PROJECT_ROOT / "webapp" / "last_tunnel_url.txt"
 TUNNEL_CONFIG_PATH = PROJECT_ROOT / "webapp" / "cloudflared.yml"
 
-# issue #110: the tray's own logger writes to sys.stderr via
+# The tray's own logger writes to sys.stderr via
 # logging.basicConfig(), which doesn't exist under pythonw — so a boot-time
 # failure was previously captured nowhere. This breadcrumb file is the actual
 # persistent record of webapp start/retry/watchdog activity.
@@ -182,7 +182,7 @@ def run_tray(app_config: AppConfig) -> int:
         )
         return 1
 
-    # In-process single-instance guard (project-scaffolding#39): the tray.bat CIM
+    # In-process single-instance guard: the tray.bat CIM
     # pre-check can let two near-simultaneous launches through, so the guarantee
     # must live in the process. Held for the tray's lifetime; the OS frees the
     # named mutex on exit. `instance` is intentionally kept referenced (quit).
@@ -230,11 +230,11 @@ def run_tray(app_config: AppConfig) -> int:
 
     threading.Thread(target=_start, daemon=True).start()
 
-    # Health watchdog (issue #110): a probe covers both "crashed and not
+    # Health watchdog: a probe covers both "crashed and not
     # listening" (safe to auto-respawn) and "listening but not answering
     # /healthz" (wedged — recovery stays manual via the tray menu until the
-    # failure mode is understood, mirroring app-launcher#386's precedent for
-    # that riskier case; auto-killing a stuck process could mask what's
+    # failure mode is understood, as app-launcher does for that
+    # riskier case; auto-killing a stuck process could mask what's
     # actually wrong).
     watchdog_stop = threading.Event()
 

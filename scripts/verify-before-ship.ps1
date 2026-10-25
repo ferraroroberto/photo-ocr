@@ -1,7 +1,7 @@
-# Pre-ship verification gate (issue #8).
+# Pre-ship verification gate.
 #
 # Runs the full validation pipeline locally before a webapp-touching
-# change is declared "done": byte-compile, the static ratchet, the non-e2e pytest suite,
+# change is declared "done": byte-compile, the static ratchet and the other ratchets, the non-e2e pytest suite,
 # then the Playwright e2e suite (Chromium + WebKit/iPhone projections)
 # against a disposable webapp the script boots itself on a free port. The e2e
 # leg is routed on the branch diff by scripts/classify_e2e.py (skip / static
@@ -77,12 +77,22 @@ try {
     if ($conventionsExit -eq 3) { Fail "conventions ratchet NOT CONFIRMED (git unusable, or a .py file could not be read or parsed)." }
     if ($conventionsExit -ne 0) { Fail "conventions ratchet failed (a rule count rose, or a bad table or baseline)." }
 
+    # Comment ratchet: fails when a file's count of #NNN issue references inside
+    # product-code comments rises above .comment-ratchet-baseline.json. Exit 3 (git
+    # unusable, or a file that cannot be scanned) is its own failure, never a pass or a
+    # skip. It reads the whole tree, so it is not path-routed.
+    Write-Host "==> comment ratchet..." -ForegroundColor Cyan
+    & $python "scripts/comment_ratchet.py"
+    $commentExit = $LASTEXITCODE
+    if ($commentExit -eq 3) { Fail "comment ratchet NOT CONFIRMED (git unusable, or a file could not be scanned)." }
+    if ($commentExit -ne 0) { Fail "comment ratchet failed (an issue reference was added to a comment, or a bad table or baseline)." }
+
     Write-Host "==> pytest (non-e2e)..." -ForegroundColor Cyan
     & $python -m pytest -q --ignore=tests/e2e
     if ($LASTEXITCODE -ne 0) { Fail "non-e2e pytest suite failed." }
 
     # ------------------------------------------------------------ e2e routing
-    # Diff-proportionate e2e (#158): scripts/classify_e2e.py (vendored, rules
+    # Diff-proportionate e2e: scripts/classify_e2e.py (vendored, rules
     # in .fleet.toml [e2e]) maps this branch's changed files vs origin/main to
     # a tier. skip -> no browser suite, with the tier and reason printed;
     # static -> the declared smoke slice; full -> the whole suite, as before.

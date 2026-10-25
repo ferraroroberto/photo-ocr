@@ -21,10 +21,10 @@
   --accent-fg: #ffffff;     /* text/icon on an accent fill */
   --accent-fill: #0969da;   /* solid primary fill (button-primary) */
   --toggle-knob: var(--accent-fg); /* switch.thumbColor: white on the accent or grey track */
-  --accent-text: #0550ae;   /* accent text on an accent-soft tint (fleet-config#963) */
+  --accent-text: #0550ae;   /* accent text on an accent-soft tint */
   --success: #1a7f37;       /* read by the vendored action-row avatar badge (no avatar here yet) */
   --danger: #cf222e;
-  --danger-text: #a40e26;   /* danger text on its own tint (fleet-config#963) */
+  --danger-text: #a40e26;   /* danger text on its own tint */
   /* The vendored toast tints an error with a 75% mix of this over the glass
      and sets white text on it. --danger itself gives 3.7:1 there in light, so
      light uses the deeper text red. */
@@ -41,7 +41,7 @@
   --neutral-soft: color-mix(in srgb, var(--muted) 16%, transparent);
   --deficit-soft: color-mix(in srgb, var(--danger) 12%, transparent);
   --deficit-border-soft: color-mix(in srgb, var(--danger) 30%, transparent);
-  --close-bg: transparent;  /* glyph-only controls draw nothing at rest (fleet-config#1259) */
+  --close-bg: transparent;  /* glyph-only controls draw nothing at rest */
   /* theme-invariant surfaces: the login scrim dims content and the photo
      lightbox/thumb overlays frame photos — neither is a themed surface. */
   --scrim: rgba(0, 0, 0, 0.5);

@@ -37,7 +37,7 @@ _OPEN_THINK_RE = re.compile(r"<think\b[^>]*>", re.IGNORECASE)
 
 
 # Per-request read timeout. A 4-photo gemini_flash call was observed at
-# 343 s on the hub (#166), so the old 180 s threw away answers that were
+# 343 s on the hub, so the old 180 s threw away answers that were
 # still coming. Units are smaller now, but the hub serializes Gemini calls,
 # so a queued unit's clock also covers its wait for the lock.
 DEFAULT_TIMEOUT = 420.0

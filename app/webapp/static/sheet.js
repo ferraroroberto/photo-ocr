@@ -7,7 +7,7 @@
  * shell. Each open builds its own native <dialog> and removes it on close,
  * so a confirm can stack over the sheet that asked for it. A backdrop tap,
  * Escape and the × all dismiss; focus goes back to the opener. No sticky
- * footer: the actions end the sheet in the flow (task-os PR#405). */
+ * footer: the actions end the sheet in the flow. */
 
 'use strict';
 
