@@ -37,6 +37,7 @@ docs_ratchet = { src = "scripts/docs_ratchet.py", sha = "0d41425ff2797c98d1d3eb7
 structure_ratchet = { src = "scripts/structure_ratchet.py", sha = "84d2b12ab416551762e4a615e4a706df91cea69f", dest = "scripts/structure_ratchet.py" }
 conventions_ratchet = { src = "scripts/conventions_ratchet.py", sha = "0eb0da42298e391fc614b3fe550bd6cf2d07c693", dest = "scripts/conventions_ratchet.py" }
 comment_ratchet = { src = "scripts/comment_ratchet.py", sha = "9f5ba3bdfb62265908d2b6c1c5436da792f981b3", dest = "scripts/comment_ratchet.py" }
+instruction_ratchet = { src = "scripts/instruction_ratchet.py", sha = "9f5ba3bdfb62265908d2b6c1c5436da792f981b3", dest = "scripts/instruction_ratchet.py" }
 
 # [static_ratchet] -- the scaffold's baseline-and-ratchet static analysis. The gate
 # (scripts/verify-before-ship.ps1) runs scripts/static_ratchet_gate.py, which wraps
@@ -104,6 +105,18 @@ enabled  = true
 baseline = ".comment-ratchet-baseline.json"
 include  = ["app/", "src/", "scripts/"]
 exclude  = ["**/_vendored/**"]
+
+# [instruction_ratchet] -- the scaffold's baseline-and-ratchet on the lint-tier rules of the
+# fleet prompt audit, run over this repo's instruction files (CLAUDE.md, AGENTS.md). The gate
+# (scripts/verify-before-ship.ps1) runs scripts/instruction_ratchet.py: it fails when a file's
+# count for a rule rises above .instruction-ratchet-baseline.json, or a file passes its size
+# cap. The repo ships no skills or rules folder, so skill_dirs is empty. A file it cannot read
+# exits 3, which fails the gate. Procedure + limits: project-scaffolding
+# docs/instruction-ratchet.md.
+[instruction_ratchet]
+enabled     = true
+baseline    = ".instruction-ratchet-baseline.json"
+skill_dirs  = []
 
 # /design-sync verdicts the repo accepts (skills/_lib/design_lint/accepted.py).
 # `detail` pins the exact lint message, so a second off-scale row raises the
@@ -193,6 +206,12 @@ label = "conventions-ratchet-baseline"
 tier = "none"
 path = ".comment-ratchet-baseline.json"
 label = "comment-ratchet-baseline"
+
+# Likewise data for scripts/instruction_ratchet.py.
+[[e2e.rule]]
+tier = "none"
+path = ".instruction-ratchet-baseline.json"
+label = "instruction-ratchet-baseline"
 
 # Desktop tray / Stream Deck icons -- never served to the browser.
 [[e2e.rule]]
