@@ -38,6 +38,7 @@ structure_ratchet = { src = "scripts/structure_ratchet.py", sha = "84d2b12ab4165
 conventions_ratchet = { src = "scripts/conventions_ratchet.py", sha = "0eb0da42298e391fc614b3fe550bd6cf2d07c693", dest = "scripts/conventions_ratchet.py" }
 comment_ratchet = { src = "scripts/comment_ratchet.py", sha = "9f5ba3bdfb62265908d2b6c1c5436da792f981b3", dest = "scripts/comment_ratchet.py" }
 instruction_ratchet = { src = "scripts/instruction_ratchet.py", sha = "9f5ba3bdfb62265908d2b6c1c5436da792f981b3", dest = "scripts/instruction_ratchet.py" }
+doc_refs_ratchet = { src = "scripts/doc_refs_ratchet.py", sha = "9f5ba3bdfb62265908d2b6c1c5436da792f981b3", dest = "scripts/doc_refs_ratchet.py" }
 
 # [static_ratchet] -- the scaffold's baseline-and-ratchet static analysis. The gate
 # (scripts/verify-before-ship.ps1) runs scripts/static_ratchet_gate.py, which wraps
@@ -117,6 +118,18 @@ exclude  = ["**/_vendored/**"]
 enabled     = true
 baseline    = ".instruction-ratchet-baseline.json"
 skill_dirs  = []
+
+# [doc_refs_ratchet] -- the scaffold's baseline-and-ratchet on stale references in docs. The gate
+# (scripts/verify-before-ship.ps1) runs scripts/doc_refs_ratchet.py: it reads README.md,
+# CLAUDE.md and docs/**/*.md, resolves every repo path, python -m module and loopback port
+# against the tracked tree and this file, and fails on a dangling one that
+# .doc-refs-ratchet-baseline.json does not record. allow_refs lists the ports of the other
+# services the docs name: :8000 is the local LLM hub, :9221 the iOS WebKit debug proxy
+# (docs/iphone-debugging.md). Procedure + limits: project-scaffolding docs/doc-refs-ratchet.md.
+[doc_refs_ratchet]
+enabled    = true
+baseline   = ".doc-refs-ratchet-baseline.json"
+allow_refs = [":8000", ":9221"]
 
 # /design-sync verdicts the repo accepts (skills/_lib/design_lint/accepted.py).
 # `detail` pins the exact lint message, so a second off-scale row raises the
@@ -212,6 +225,12 @@ label = "comment-ratchet-baseline"
 tier = "none"
 path = ".instruction-ratchet-baseline.json"
 label = "instruction-ratchet-baseline"
+
+# Likewise data for scripts/doc_refs_ratchet.py.
+[[e2e.rule]]
+tier = "none"
+path = ".doc-refs-ratchet-baseline.json"
+label = "doc-refs-ratchet-baseline"
 
 # Desktop tray / Stream Deck icons -- never served to the browser.
 [[e2e.rule]]

@@ -98,6 +98,17 @@ try {
     if ($instructionExit -eq 3) { Fail "instruction ratchet NOT CONFIRMED (git unusable, or an instruction file could not be read)." }
     if ($instructionExit -ne 0) { Fail "instruction ratchet failed (a rule count rose, a file passed its size cap, or a bad table or baseline)." }
 
+    # Doc refs ratchet: fails on a dangling repo path, python -m module, link or loopback
+    # port in README.md, CLAUDE.md or docs/ that .doc-refs-ratchet-baseline.json does not
+    # record. Exit 3 (git unusable, a doc that is not UTF-8, an unclosed fence) is its own
+    # failure, never a pass or a skip. A code change can strand a doc reference without
+    # touching the doc, so it is not path-routed.
+    Write-Host "==> doc refs ratchet..." -ForegroundColor Cyan
+    & $python "scripts/doc_refs_ratchet.py"
+    $docRefsExit = $LASTEXITCODE
+    if ($docRefsExit -eq 3) { Fail "doc refs ratchet NOT CONFIRMED (git unusable, or a doc could not be read)." }
+    if ($docRefsExit -ne 0) { Fail "doc refs ratchet failed (a doc names a path, module or port that does not exist, or a bad table or baseline)." }
+
     Write-Host "==> pytest (non-e2e)..." -ForegroundColor Cyan
     & $python -m pytest -q --ignore=tests/e2e
     if ($LASTEXITCODE -ne 0) { Fail "non-e2e pytest suite failed." }

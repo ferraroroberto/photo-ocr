@@ -22,8 +22,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 GATE_PS1 = REPO_ROOT / "scripts" / "verify-before-ship.ps1"
 
 # name -> (exit variable in the gate, repo files that make the script exit 3)
-STAGES = {
-    "comment": ("$commentExit", {"broken.py": "def f(:\n"}),
+STAGES: dict[str, tuple[str, dict[str, bytes]]] = {
+    "comment": ("$commentExit", {"broken.py": b"def f(:\n"}),
+    "instruction": ("$instructionExit", {"CLAUDE.md": b"\xff\xfe not utf-8\n"}),
+    "doc_refs": ("$docRefsExit", {"README.md": b"\xff\xfe not utf-8\n"}),
 }
 
 
@@ -37,12 +39,12 @@ def _git(root: Path, *args: str) -> None:
 @pytest.mark.parametrize("name", STAGES)
 def test_an_unreadable_tree_exits_three_not_a_pass(name: str, tmp_path: Path) -> None:
     files = {
-        ".fleet.toml": f"[{name}_ratchet]\nenabled = true\n",
-        f".{name}-ratchet-baseline.json": '{"version": 1, "entries": []}\n',
+        ".fleet.toml": f"[{name}_ratchet]\nenabled = true\n".encode(),
+        f".{name.replace('_', '-')}-ratchet-baseline.json": b'{"version": 1, "entries": []}\n',
         **STAGES[name][1],
     }
-    for rel, text in files.items():
-        (tmp_path / rel).write_text(text, encoding="utf-8")
+    for rel, data in files.items():
+        (tmp_path / rel).write_bytes(data)
     _git(tmp_path, "init", "-q")
     _git(tmp_path, "add", ".")
     proc = subprocess.run(
