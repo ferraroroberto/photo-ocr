@@ -132,6 +132,23 @@ def _index_session_best_effort(
         logger.warning(f"⚠️  Could not index session {session.session_id}: {exc}")
 
 
+def _record_extract_failure(
+    session: Session, model: str, prompt_id: str, total_chunks: int, exc: OcrError
+) -> None:
+    """Mark the take failed, keeping the chunk count the run had reached."""
+    session.mark_extract_failed(model, str(exc), prompt_id=prompt_id)
+    set_extract_progress(
+        session,
+        phase="failed",
+        chunks_total=total_chunks,
+        chunks_done=int(progress_meta(session).get("chunks_done") or 0),
+        model=model,
+        prompt_id=prompt_id,
+        error=str(exc),
+        reused=False,
+    )
+
+
 def execute_extract_job(
     app: Any,
     session_id: str,
@@ -191,17 +208,8 @@ def execute_extract_job(
                 policy=cfg.extract_policy(),
             )
         except OcrError as exc:
-            current = archive.get(session_id) or session
-            current.mark_extract_failed(model, str(exc), prompt_id=prompt_id)
-            set_extract_progress(
-                current,
-                phase="failed",
-                chunks_total=total_chunks,
-                chunks_done=int(progress_meta(current).get("chunks_done") or 0),
-                model=model,
-                prompt_id=prompt_id,
-                error=str(exc),
-                reused=False,
+            _record_extract_failure(
+                archive.get(session_id) or session, model, prompt_id, total_chunks, exc
             )
             return
 

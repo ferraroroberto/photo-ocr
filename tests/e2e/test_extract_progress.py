@@ -54,26 +54,21 @@ def _sessions_by_id(base_url: str) -> dict[str, dict]:
     return {s["session_id"]: s for s in res.json().get("sessions", [])}
 
 
-def test_photo_upload_then_extract_progress(
-    authed_page: Page, base_url: str
-) -> None:
-    before = set(_sessions_by_id(base_url))
-    status_calls = 0
-    extract_bodies: list[dict] = []
+def _handle_config(route: Route) -> None:
+    # Two known models and an invented style, so the chips have a choice
+    # to make whatever this checkout's config holds.
+    body = route.fetch().json()
+    body["ocr_models_available"] = ["gemini_flash", "claude_opus"]
+    body["ocr_model_default"] = "gemini_flash"
+    body["ocr_prompts"] = list(body.get("ocr_prompts") or []) + [
+        {"id": "invented-style", "label": "Invented style", "description": "", "system": "x"}
+    ]
+    route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
 
-    def handle_config(route: Route) -> None:
-        # Two known models and an invented style, so the chips have a choice
-        # to make whatever this checkout's config holds.
-        body = route.fetch().json()
-        body["ocr_models_available"] = ["gemini_flash", "claude_opus"]
-        body["ocr_model_default"] = "gemini_flash"
-        body["ocr_prompts"] = list(body.get("ocr_prompts") or []) + [
-            {"id": "invented-style", "label": "Invented style", "description": "", "system": "x"}
-        ]
-        route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
 
+def _extract_handler(bodies: list[dict]):
     def handle_extract(route: Route) -> None:
-        extract_bodies.append(json.loads(route.request.post_data or "{}"))
+        bodies.append(json.loads(route.request.post_data or "{}"))
         route.fulfill(
             status=200,
             content_type="application/json",
@@ -90,14 +85,21 @@ def test_photo_upload_then_extract_progress(
             ),
         )
 
+    return handle_extract
+
+
+def _status_handler():
+    """Status poll script: running 0/2, running 1/2, then succeeded 2/2."""
+    calls = 0
+
     def handle_status(route: Route) -> None:
-        nonlocal status_calls
-        status_calls += 1
-        if status_calls == 1:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
             phase = "running"
             chunks_done = 0
             extracted = None
-        elif status_calls == 2:
+        elif calls == 2:
             phase = "running"
             chunks_done = 1
             extracted = None
@@ -127,10 +129,75 @@ def test_photo_upload_then_extract_progress(
             body=json.dumps(body),
         )
 
+    return handle_status
+
+
+def _upload_one_photo(page: Page) -> None:
+    page.set_input_files(
+        "#galleryInput",
+        files=[
+            {
+                "name": "take.jpg",
+                "mimeType": "image/jpeg",
+                "buffer": _jpeg_bytes(),
+            }
+        ],
+    )
+    # A thumbnail flips to `ready` only after POST /photos succeeds.
+    expect(page.locator("#thumbStrip li.thumb.ready")).to_have_count(1, timeout=10_000)
+
+    # With a ready photo, Extract appears, enabled.
+    expect(page.locator("#extractBtn")).to_be_visible()
+    expect(page.locator("#extractBtn")).to_be_enabled()
+
+
+def _assert_one_new_session(base_url: str, before: set[str]) -> None:
+    """Server-side confirmation: a new session now exists with the photo."""
+    sessions = _sessions_by_id(base_url)
+    new_ids = set(sessions) - before
+    assert len(new_ids) == 1, (
+        f"expected exactly one new session, got {len(new_ids)}: {new_ids}"
+    )
+    sid = next(iter(new_ids))
+    assert sessions[sid]["photo_count"] >= 1, (
+        f"new session {sid} has no photos: {sessions[sid]}"
+    )
+
+
+def _delete_new_sessions(base_url: str, before: set[str]) -> None:
+    """Don't leave test sessions in the archive."""
+    for sid in set(_sessions_by_id(base_url)) - before:
+        try:
+            requests.delete(f"{base_url}/api/sessions/{sid}", verify=False, timeout=5)
+        except requests.RequestException:
+            pass
+
+
+def _assert_photos_row_then_new_take(page: Page, result) -> None:
+    # "1 photo ›" reopens the strip (Extract again is there), and the
+    # text is one row away.
+    page.locator("#showPhotos").click()
+    expect(page.locator("#takeBuild")).to_be_visible()
+    expect(page.locator("#extractBtn")).to_contain_text("Extract again")
+    page.locator("#showText").click()
+    expect(result).to_be_visible()
+
+    # New take: an empty take again.
+    page.locator("#newTake").click()
+    expect(page.locator("#takeEmpty")).to_be_visible()
+    expect(result).to_be_hidden()
+
+
+def test_photo_upload_then_extract_progress(
+    authed_page: Page, base_url: str
+) -> None:
+    before = set(_sessions_by_id(base_url))
+    extract_bodies: list[dict] = []
+
     try:
-        authed_page.route("**/api/config", handle_config)
-        authed_page.route("**/api/sessions/*/extract", handle_extract)
-        authed_page.route("**/api/sessions/*/extract/status", handle_status)
+        authed_page.route("**/api/config", _handle_config)
+        authed_page.route("**/api/sessions/*/extract", _extract_handler(extract_bodies))
+        authed_page.route("**/api/sessions/*/extract/status", _status_handler())
         authed_page.clock.install()
         # Capture the clipboard write (permissions differ per engine).
         authed_page.add_init_script(
@@ -140,24 +207,7 @@ def test_photo_upload_then_extract_progress(
         authed_page.goto(f"{base_url}/", wait_until="domcontentloaded")
         authed_page.wait_for_selector("#extractBtn", state="attached", timeout=5_000)
 
-        authed_page.set_input_files(
-            "#galleryInput",
-            files=[
-                {
-                    "name": "take.jpg",
-                    "mimeType": "image/jpeg",
-                    "buffer": _jpeg_bytes(),
-                }
-            ],
-        )
-        # A thumbnail flips to `ready` only after POST /photos succeeds.
-        expect(authed_page.locator("#thumbStrip li.thumb.ready")).to_have_count(
-            1, timeout=10_000
-        )
-
-        # With a ready photo, Extract appears, enabled.
-        expect(authed_page.locator("#extractBtn")).to_be_visible()
-        expect(authed_page.locator("#extractBtn")).to_be_enabled()
+        _upload_one_photo(authed_page)
 
         # This take's model and style come from the chips' picker sheets,
         # which mark the current choice; Extract must post what was picked.
@@ -175,16 +225,8 @@ def test_photo_upload_then_extract_progress(
         authed_page.locator("dialog.sheet").get_by_role("button", name="Invented style").click()
         expect(authed_page.locator("#takeStyle")).to_contain_text("Invented style")
 
-        # Server-side confirmation: a new session now exists with the photo.
-        sessions = _sessions_by_id(base_url)
-        new_ids = set(sessions) - before
-        assert len(new_ids) == 1, (
-            f"expected exactly one new session, got {len(new_ids)}: {new_ids}"
-        )
-        sid = next(iter(new_ids))
-        assert sessions[sid]["photo_count"] >= 1, (
-            f"new session {sid} has no photos: {sessions[sid]}"
-        )
+
+        _assert_one_new_session(base_url, before)
 
         authed_page.locator("#extractBtn").click()
 
@@ -223,25 +265,7 @@ def test_photo_upload_then_extract_progress(
         expect(copy).to_contain_text("Copied")
         assert authed_page.evaluate("window.__copied") == "done text"
 
-        # "1 photo ›" reopens the strip (Extract again is there), and the
-        # text is one row away.
-        authed_page.locator("#showPhotos").click()
-        expect(authed_page.locator("#takeBuild")).to_be_visible()
-        expect(authed_page.locator("#extractBtn")).to_contain_text("Extract again")
-        authed_page.locator("#showText").click()
-        expect(result).to_be_visible()
 
-        # New take: an empty take again.
-        authed_page.locator("#newTake").click()
-        expect(authed_page.locator("#takeEmpty")).to_be_visible()
-        expect(result).to_be_hidden()
+        _assert_photos_row_then_new_take(authed_page, result)
     finally:
-        # Don't leave test sessions in the archive.
-        new_ids = set(_sessions_by_id(base_url)) - before
-        for sid in new_ids:
-            try:
-                requests.delete(
-                    f"{base_url}/api/sessions/{sid}", verify=False, timeout=5
-                )
-            except requests.RequestException:
-                pass
+        _delete_new_sessions(base_url, before)

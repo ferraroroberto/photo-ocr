@@ -35,4 +35,4 @@ New backend logic goes in `src/` as a module, not in a router; a router stays a 
 
 ## Baselined offenders
 
-`.structure-ratchet-baseline.json` records the functions that are already over 100 lines at their current length. They may not grow, and the entry drops once a function is back under the limit: `run_tray`, `execute_extract_job` and three long e2e test functions. No file is over 1,000 lines and no directory is over 40 modules.
+`.structure-ratchet-baseline.json` is empty: no file is over 1,000 lines, no function over 100 lines and no directory over 40 modules. A new offender fails the gate; split it instead of baselining it.
