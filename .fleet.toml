@@ -39,6 +39,7 @@ conventions_ratchet = { src = "scripts/conventions_ratchet.py", sha = "0eb0da422
 comment_ratchet = { src = "scripts/comment_ratchet.py", sha = "9f5ba3bdfb62265908d2b6c1c5436da792f981b3", dest = "scripts/comment_ratchet.py" }
 instruction_ratchet = { src = "scripts/instruction_ratchet.py", sha = "9f5ba3bdfb62265908d2b6c1c5436da792f981b3", dest = "scripts/instruction_ratchet.py" }
 doc_refs_ratchet = { src = "scripts/doc_refs_ratchet.py", sha = "9f5ba3bdfb62265908d2b6c1c5436da792f981b3", dest = "scripts/doc_refs_ratchet.py" }
+dead_code_ratchet = { src = "scripts/dead_code_ratchet.py", sha = "9f5ba3bdfb62265908d2b6c1c5436da792f981b3", dest = "scripts/dead_code_ratchet.py" }
 
 # [static_ratchet] -- the scaffold's baseline-and-ratchet static analysis. The gate
 # (scripts/verify-before-ship.ps1) runs scripts/static_ratchet_gate.py, which wraps
@@ -130,6 +131,16 @@ skill_dirs  = []
 enabled    = true
 baseline   = ".doc-refs-ratchet-baseline.json"
 allow_refs = [":8000", ":9221"]
+
+# [dead_code_ratchet] -- the scaffold's baseline-and-ratchet on Python definitions nothing names.
+# The gate (scripts/verify-before-ship.ps1) runs scripts/dead_code_ratchet.py: it fails on an
+# unused function, class or variable in app/ and src/ that .dead-code-ratchet-baseline.json does
+# not record. A name another file, a string or a non-Python source mentions counts as used.
+# Procedure + limits: project-scaffolding docs/dead-code-ratchet.md.
+[dead_code_ratchet]
+enabled  = true
+baseline = ".dead-code-ratchet-baseline.json"
+include  = ["app/", "src/"]
 
 # /design-sync verdicts the repo accepts (skills/_lib/design_lint/accepted.py).
 # `detail` pins the exact lint message, so a second off-scale row raises the
@@ -231,6 +242,12 @@ label = "instruction-ratchet-baseline"
 tier = "none"
 path = ".doc-refs-ratchet-baseline.json"
 label = "doc-refs-ratchet-baseline"
+
+# Likewise data for scripts/dead_code_ratchet.py.
+[[e2e.rule]]
+tier = "none"
+path = ".dead-code-ratchet-baseline.json"
+label = "dead-code-ratchet-baseline"
 
 # Desktop tray / Stream Deck icons -- never served to the browser.
 [[e2e.rule]]
