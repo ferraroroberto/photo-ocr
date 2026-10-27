@@ -34,6 +34,8 @@ if (-not (Test-Path $python)) {
 }
 
 Push-Location $repoRoot
+
+. (Join-Path $PSScriptRoot "box_lock_gate.ps1"); Enter-BoxLockGate
 try {
     Write-Host "==> byte-compile (app, src, tests)..." -ForegroundColor Cyan
     & $python -m compileall -q app src tests
