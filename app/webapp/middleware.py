@@ -4,11 +4,12 @@ from __future__ import annotations
 
 # Standard library imports
 import hmac
+from typing import Callable
 
 # Third-party imports
 from fastapi import Request
 from fastapi.responses import JSONResponse
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 # Loopback addresses bypass the bearer-token gate so local probes keep
 # working without carrying the token. Tunnel traffic arrives with a
@@ -26,7 +27,7 @@ _AUTH_EXEMPT_EXACT = frozenset(
 )
 
 
-class BearerTokenMiddleware(BaseHTTPMiddleware):
+class BearerTokenMiddleware:
     """Require Authorization: Bearer <token> on API endpoints.
 
     Behaviour matches voice-transcriber's gate:
@@ -36,26 +37,47 @@ class BearerTokenMiddleware(BaseHTTPMiddleware):
     - `/`, `/static/*`, `/healthz`, `/api/login`, `/api/version` exempt.
     - Otherwise accept token from `Authorization: Bearer …` header or
       `?token=…` query string.
+
+    A plain ASGI middleware, not ``BaseHTTPMiddleware``: that base class
+    re-streams every body in chunks, which hides each response's real size
+    from the outer compression layer and defeats its minimum-size rule.
     """
 
-    def __init__(self, app, get_token):
-        super().__init__(app)
+    def __init__(self, app: ASGIApp, get_token: Callable[[], str]) -> None:
+        self.app = app
         self._get_token = get_token
 
-    async def dispatch(self, request: Request, call_next):
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        request = Request(scope)
+        if self._is_allowed(request):
+            await self.app(scope, receive, send)
+            return
+
+        response = JSONResponse(
+            status_code=401,
+            content={"detail": "missing or invalid bearer token"},
+            headers={"WWW-Authenticate": 'Bearer realm="photo-ocr"'},
+        )
+        await response(scope, receive, send)
+
+    def _is_allowed(self, request: Request) -> bool:
         token = (self._get_token() or "").strip()
         if not token:
-            return await call_next(request)
+            return True
 
         client_host = request.client.host if request.client else ""
         if client_host in _LOOPBACK_HOSTS:
-            return await call_next(request)
+            return True
 
         path = request.url.path
         if path in _AUTH_EXEMPT_EXACT or any(
             path.startswith(p) for p in _AUTH_EXEMPT_PREFIXES
         ):
-            return await call_next(request)
+            return True
 
         presented = ""
         auth_header = request.headers.get("authorization", "")
@@ -64,11 +86,4 @@ class BearerTokenMiddleware(BaseHTTPMiddleware):
         if not presented:
             presented = request.query_params.get("token", "").strip()
 
-        if presented and hmac.compare_digest(presented, token):
-            return await call_next(request)
-
-        return JSONResponse(
-            status_code=401,
-            content={"detail": "missing or invalid bearer token"},
-            headers={"WWW-Authenticate": 'Bearer realm="photo-ocr"'},
-        )
+        return bool(presented) and hmac.compare_digest(presented, token)

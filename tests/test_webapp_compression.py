@@ -1,11 +1,19 @@
 """Response compression — the entry document, JS/CSS and JSON go out gzipped.
 
-Issue #128 (perf-review): the entry document was served identity-encoded.
+The app serves through the vendored ``StreamSafeGZipMiddleware``. It has no
+SSE, MJPEG or websocket endpoint, so the stream-immediacy cases live in the
+component's own tests; here the stack order and the by-type skip of photos
+are pinned.
 """
 
 from __future__ import annotations
 
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.testclient import TestClient
+
+from app.webapp.middleware import BearerTokenMiddleware
+from app.webapp.server import create_app
+from src.compression import StreamSafeGZipMiddleware
 
 _GZIP = {"Accept-Encoding": "gzip"}
 
@@ -54,3 +62,11 @@ def test_stored_photo_is_not_recompressed(
     assert r.status_code == 200
     assert len(r.content) > 1000  # large enough that gzip *would* kick in
     assert r.headers.get("content-encoding") != "gzip"
+
+
+def test_compression_is_the_outermost_middleware() -> None:
+    """Outermost, so an auth failure passes through it; no second gzip layer."""
+    stack = [m.cls for m in create_app().user_middleware]
+    assert stack[0] is StreamSafeGZipMiddleware
+    assert stack.index(BearerTokenMiddleware) > 0
+    assert GZipMiddleware not in stack
