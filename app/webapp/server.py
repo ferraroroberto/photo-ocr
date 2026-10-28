@@ -20,7 +20,6 @@ from pathlib import Path
 
 # Third-party imports
 from fastapi import FastAPI
-from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import Response
 from starlette.types import Scope
@@ -31,6 +30,7 @@ from app.webapp.routers import auth, config, misc, search, sessions
 from app.webapp.routers._helpers import BUILD_INFO, STATIC_DIR
 from src.app_config import load_app_config
 from src.archive import SessionArchive
+from src.compression import StreamSafeGZipMiddleware
 from src.extract_job import settle_interrupted_extracts
 from src.ocr_client import OcrClient
 from src.runtime_data import runtime_db_path
@@ -45,8 +45,6 @@ logger = logging.getLogger(__name__)
 # never change but we don't want a year of staleness either.
 _LONG_CACHE = "public, max-age=31536000, immutable"
 _DAY_CACHE = "public, max-age=86400"
-# Bodies under this size go out as-is: gzip framing costs more than it saves.
-_GZIP_MIN_BYTES = 1000
 _IMMUTABLE_SUFFIXES = frozenset({".js", ".css"})
 _DAILY_SUFFIXES = frozenset({".webmanifest", ".png", ".ico"})
 
@@ -149,20 +147,16 @@ def create_app() -> FastAPI:
         lifespan=_lifespan,
     )
 
-    # Gzip the entry document, JS/CSS and JSON. Registered *before* the
-    # auth gate so it sits inside it: ``BaseHTTPMiddleware`` re-streams
-    # every body, which would make an outer gzip ignore ``minimum_size``
-    # and compress even empty bodies.
-    app.add_middleware(
-        GZipMiddleware, minimum_size=_GZIP_MIN_BYTES, compresslevel=6
-    )
-
     # Read the token from app.state on every request so a /api/config
     # patch that rotates it takes effect without a restart.
     app.add_middleware(
         BearerTokenMiddleware,
         get_token=lambda: getattr(app.state.webapp_config, "auth_token", ""),
     )
+    # Registered last so it is the outermost layer: a 401 or a bodyless
+    # response from the auth gate passes through it unchanged. The app has no
+    # stream endpoint and its photos are image/jpeg, which it skips by type.
+    app.add_middleware(StreamSafeGZipMiddleware, bypass_paths=())
 
     app.state.app_config = app_config
     app.state.webapp_config = webapp_cfg
