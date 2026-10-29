@@ -288,7 +288,7 @@ photo-ocr/
 │   ├── gen_token.py             generate/rotate the bearer token
 │   ├── set_password.py          set/clear the login password
 │   ├── run_named_tunnel.py      uvicorn + cloudflared
-│   ├── verify-before-ship.ps1   pre-ship gate: byte-compile + static ratchet + docs ratchet + structure ratchet + conventions ratchet + comment ratchet + instruction ratchet + doc refs ratchet + dead code ratchet + pytest + e2e
+│   ├── verify-before-ship.ps1   pre-ship gate: byte-compile + static ratchet + docs ratchet + structure ratchet + conventions ratchet + comment ratchet + docstring ratchet + instruction ratchet + doc refs ratchet + dead code ratchet + pytest + e2e
 │   ├── box_lock_gate.ps1        holds fleet-config's shared box load lock for the whole gate run
 │   ├── static_ratchet.py        vendored baseline-and-ratchet detector (jscpd + ruff)
 │   ├── static_ratchet_gate.py   gate wrapper: only exit 0 passes, exit 3 = NOT CONFIRMED
@@ -297,6 +297,7 @@ photo-ocr/
 │   ├── structure_ratchet.py     vendored baseline-and-ratchet on file/function/directory size, layering and root layout
 │   ├── conventions_ratchet.py   vendored baseline-and-ratchet on no-window/logging-not-print/no-drive-path hits
 │   ├── comment_ratchet.py       vendored baseline-and-ratchet on #NNN issue references inside comments
+│   ├── docstring_ratchet.py     repo-local baseline-and-ratchet on #NNN issue references inside docstrings
 │   ├── instruction_ratchet.py   vendored baseline-and-ratchet on CLAUDE.md/AGENTS.md prompt-audit hits + size cap
 │   ├── doc_refs_ratchet.py      vendored baseline-and-ratchet on unresolved repo paths/modules/links in docs
 │   ├── dead_code_ratchet.py     vendored baseline-and-ratchet on unused functions/classes/variables
@@ -521,6 +522,8 @@ The structure ratchet (`scripts/structure_ratchet.py`, rules in `.fleet.toml` `[
 The conventions ratchet (`scripts/conventions_ratchet.py`, rules in `.fleet.toml` `[conventions_ratchet]`) holds three fleet conventions as `ast` rules: `no-window` (every `subprocess` spawn passes `creationflags`, since the tray and webapp have no console of their own), `logging-not-print` (no `print` in `app/` or `src/` library code) and `no-drive-path` (no hardcoded drive-letter locations). It fails the gate, naming the rule, file and line, when a file's count for a rule rises above `.conventions-ratchet-baseline.json`. `secret-compare` and `git-wrapper` stay off because the repo has no helper for either. A spawn that must break a rule carries a `# <rule>-exempt: <why>` marker. A file it cannot parse fails as NOT CONFIRMED, never a pass.
 
 The comment ratchet (`scripts/comment_ratchet.py`, rules in `.fleet.toml` `[comment_ratchet]`) counts `#NNN` issue references inside comments in `app/`, `src/` and `scripts/` (`.py`, `.js`, `.css`, `.ps1`; strings and docstrings do not count) and fails the gate, naming the file and each reference's line, when a file's count rises above `.comment-ratchet-baseline.json`. A comment states why the code is the way it is now; how it got there lives in the issue, the PR and `git log`. `_vendored/` is excluded. A file it cannot scan fails as NOT CONFIRMED, never a pass.
+
+The docstring ratchet (`scripts/docstring_ratchet.py`, repo-local, rules in `.fleet.toml` `[docstring_ratchet]`) applies the same rule to the blind spot the comment ratchet leaves open: `#NNN` references inside a module, class or function docstring in `app/`, `src/` and `scripts/`. It fails the gate, naming the file and each reference's line, when a file's count rises above `.docstring-ratchet-baseline.json`. `_vendored/` is excluded. A file it cannot read or parse fails as NOT CONFIRMED, never a pass.
 
 The instruction ratchet (`scripts/instruction_ratchet.py`, rules in `.fleet.toml` `[instruction_ratchet]`) runs the lint-tier rules of the fleet's prompt audit over `CLAUDE.md` and `AGENTS.md` (the repo ships no skills or rules folder): phrase patterns such as shouted pressure words, contradictory always/never pairs, vendor names in agent-neutral prose, and the size caps (`CLAUDE.md` 200 lines, `AGENTS.md` 32,768 bytes). It fails the gate, naming the file, rule and line, when a count rises above `.instruction-ratchet-baseline.json` (empty). Exit 3 (a file could not be read) fails as NOT CONFIRMED, never a pass.
 

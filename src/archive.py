@@ -273,10 +273,9 @@ class SessionArchive:
     def _index_path(self) -> Path:
         """Where this archive's index file lives.
 
-        The production archive's index goes to the fleet runtime-data root
-        (project-scaffolding#243) — it is written on every OCR run, and the
-        archive tree sits on whichever drive this repo was cloned onto, a
-        spinning HDD here.
+        The production archive's index goes to the fleet runtime-data root —
+        it is written on every OCR run, and the archive tree sits on
+        whichever drive this repo was cloned onto, a spinning HDD here.
 
         Any *other* root keeps its index beside itself. That is not a special
         case for tests, it is the invariant: an ``Archive``'s index describes

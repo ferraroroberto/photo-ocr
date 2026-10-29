@@ -1,16 +1,15 @@
-"""Webapp health watchdog (issue #110).
+"""Webapp health watchdog.
 
 The tray is the only long-lived process watching the webapp, and it needs a
 real ``/healthz`` round-trip to tell "up" from "dead" or "hung" — a crashed
 uvicorn stops listening entirely, while a wedged one still LISTENs but never
 answers. This turns either case into a loud, timestamped breadcrumb + toast
-at the moment it's detected, instead of a mystery discovered days later
-(photo-ocr#110: the webapp died at tray boot and stayed down for 6 days with
-zero visibility).
+at the moment it's detected, instead of a silent failure that only surfaces
+when someone happens to check.
 
-Ported from app-launcher's ``app/tray/watchdog.py`` (issue #386), with one
-addition: ``rearm()`` lets a wedge handler that already acted (e.g. attempted
-a respawn) ask to be re-evaluated on the next tick instead of waiting for a
+Ported from app-launcher's ``app/tray/watchdog.py``, with one addition:
+``rearm()`` lets a wedge handler that already acted (e.g. attempted a
+respawn) ask to be re-evaluated on the next tick instead of waiting for a
 recovery that will never come on its own.
 """
 

@@ -89,6 +89,18 @@ try {
     if ($commentExit -eq 3) { Fail "comment ratchet NOT CONFIRMED (git unusable, or a file could not be scanned)." }
     if ($commentExit -ne 0) { Fail "comment ratchet failed (an issue reference was added to a comment, or a bad table or baseline)." }
 
+    # Docstring ratchet (repo-local, not vendored): fails when a file's count of #NNN
+    # issue references inside a module/class/function docstring rises above
+    # .docstring-ratchet-baseline.json -- the blind spot comment_ratchet.py's own
+    # docstring exclusion leaves open. Exit 3 (git unusable, or a .py file that cannot
+    # be read or parsed) is its own failure, never a pass or a skip. It reads the whole
+    # tree, so it is not path-routed.
+    Write-Host "==> docstring ratchet..." -ForegroundColor Cyan
+    & $python "scripts/docstring_ratchet.py"
+    $docstringExit = $LASTEXITCODE
+    if ($docstringExit -eq 3) { Fail "docstring ratchet NOT CONFIRMED (git unusable, or a .py file could not be read or parsed)." }
+    if ($docstringExit -ne 0) { Fail "docstring ratchet failed (an issue reference was added to a docstring, or a bad table or baseline)." }
+
     # Instruction ratchet: fails when a file's count for a lint-tier prompt-audit rule
     # rises above .instruction-ratchet-baseline.json, or an instruction file passes its
     # size cap. Exit 3 (git unusable, or a file that cannot be read) is its own failure,

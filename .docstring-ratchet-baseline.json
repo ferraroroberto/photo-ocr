@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "entries": [
+    {"key": "app/tray/single_instance.py", "count": 5},
+    {"key": "scripts/design_review_synthetic.py", "count": 1},
+    {"key": "scripts/docstring_ratchet.py", "count": 1},
+    {"key": "scripts/gen_icons.py", "count": 1},
+    {"key": "src/no_window.py", "count": 1}
+  ]
+}

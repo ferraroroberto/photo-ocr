@@ -16,7 +16,7 @@ and so its hash — are unchanged, yet the module it pulls in is now
 different. So we use a single **fleet hash** — one SHA-256 over the
 concatenation of every hashable file's per-file hash. Any edit to any
 asset rotates the fleet hash, so every ``?v=`` stamp changes and the
-whole (tiny) module graph is re-fetched. See issues #5 and #6.
+whole (tiny) module graph is re-fetched.
 
 Every value is computed once when :class:`BuildInfo` is constructed at
 webapp startup — the tray restarts on every code edit per project
