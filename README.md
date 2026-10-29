@@ -258,7 +258,9 @@ photo-ocr/
 │   ├── extract_job.py           chunked extraction job engine: locking,
 │   │                            progress state machine, archive writes, search index
 │   ├── cloudflared_runner.py    spawn/monitor the named tunnel
+│   ├── no_window.py             creationflags=NO_WINDOW helper for every subprocess spawn
 │   ├── static_versioning.py     cache-busting query param
+│   ├── compression.py           stream-safe gzip middleware for compressible responses
 │   ├── usage_log.py             vendored local-only view/tap log router (SQLite; see Usage log)
 │   └── runtime_data.py          resolves the SQLite data-root path (machine-level, not hardcoded)
 ├── app/
@@ -272,7 +274,7 @@ photo-ocr/
 │   │       └── _vendored/       fleet components (nav · home-head · icons · card ·
 │   │                            button · toast · empty-state · base · text-size ·
 │   │                            action-row · modal · switch · icon-button · select-native ·
-│   │                            segmented · page-foot),
+│   │                            segmented · page-foot · usage-log),
 │   │                            copied verbatim from project-scaffolding
 │   └── tray/                    system-tray launcher
 ├── config/
@@ -287,11 +289,17 @@ photo-ocr/
 │   ├── set_password.py          set/clear the login password
 │   ├── run_named_tunnel.py      uvicorn + cloudflared
 │   ├── verify-before-ship.ps1   pre-ship gate: byte-compile + static ratchet + docs ratchet + structure ratchet + conventions ratchet + comment ratchet + instruction ratchet + doc refs ratchet + dead code ratchet + pytest + e2e
+│   ├── box_lock_gate.ps1        holds fleet-config's shared box load lock for the whole gate run
 │   ├── static_ratchet.py        vendored baseline-and-ratchet detector (jscpd + ruff)
 │   ├── static_ratchet_gate.py   gate wrapper: only exit 0 passes, exit 3 = NOT CONFIRMED
 │   ├── docs_ratchet.py          vendored baseline-and-ratchet on README size + docs history markers
 │   ├── docs_ratchet_gate.py     gate wrapper: only exit 0 passes, exit 3 = NOT CONFIRMED
 │   ├── structure_ratchet.py     vendored baseline-and-ratchet on file/function/directory size, layering and root layout
+│   ├── conventions_ratchet.py   vendored baseline-and-ratchet on no-window/logging-not-print/no-drive-path hits
+│   ├── comment_ratchet.py       vendored baseline-and-ratchet on #NNN issue references inside comments
+│   ├── instruction_ratchet.py   vendored baseline-and-ratchet on CLAUDE.md/AGENTS.md prompt-audit hits + size cap
+│   ├── doc_refs_ratchet.py      vendored baseline-and-ratchet on unresolved repo paths/modules/links in docs
+│   ├── dead_code_ratchet.py     vendored baseline-and-ratchet on unused functions/classes/variables
 │   ├── run-e2e.ps1              e2e leg runner (used by the pre-ship gate)
 │   ├── design_review_synthetic.py  throwaway webapp for /design-review's synthetic and e2e runs
 │   └── classify_e2e.py          branch-diff → e2e tier (skip/static/full)
@@ -543,7 +551,7 @@ curl -sk -X POST "https://127.0.0.1:8444/api/extract?model=claude_opus" \
 
 Every externally-triggered extraction lands in History attributed to its caller (pass `?source=app-launcher`), so History stays the fleet's single source of truth for all OCR — searchable and recoverable, not just PWA takes.
 
-Full contract — single-shot **and** the async progress-polling flow, base-URL/TLS/auth, source attribution, error table, examples, and the stability changelog — is in **[`docs/consuming-the-session-api.md`](docs/consuming-the-session-api.md)**. First consumer: app-launcher's Coding-terminal "paste screenshot" button.
+Full contract — single-shot **and** the async progress-polling flow, base-URL/TLS/auth, source attribution, error table, and examples — is in **[`docs/consuming-the-session-api.md`](docs/consuming-the-session-api.md)**. First consumer: app-launcher's Coding-terminal "paste screenshot" button.
 
 ---
 

@@ -6,7 +6,7 @@ This is a **supported, consumable integration surface**. photo-ocr is the canoni
 
 First consumer: **app-launcher**'s Coding-terminal "paste screenshot" button, which proxies a screenshot here and drops the extracted text into the compose bar — exactly how its 🎤 dictation button consumes the voice-transcriber.
 
-> **Contract status.** The `/api/extract`, `/api/sessions*`, `/api/version`, and `/healthz` routes documented here are a **stable contract**. Breaking changes are recorded under [Breaking changes](#breaking-changes) at the bottom of this file. Pin the build you tested against via `GET /api/version` (`git_sha`) if you need certainty across upgrades.
+> **Contract status.** The `/api/extract`, `/api/sessions*`, `/api/version`, and `/healthz` routes documented here are a **stable contract**, described below as it behaves now; git log and PR history hold the change narrative. Pin the build you tested against via `GET /api/version` (`git_sha`) if you need certainty across upgrades.
 
 ---
 
@@ -131,6 +131,8 @@ Optional JSON body `{ "model": "...", "prompt_id": "..." }`. Starts a **backgrou
 
 `phase` walks `idle → queued → running → merging → succeeded` (or `failed`, with `error` set, when no photo could be read). `chunks_done` counts finished hub requests, which complete out of order when they run in parallel. On a partly read take `phase` is `succeeded` and `missing_photos` lists the unread photos (fill them with `/retry-missing`). On `succeeded` the payload also carries `extracted` (the full text). Poll this until `phase` is `succeeded` or `failed`.
 
+A job interrupted mid-run — a webapp restart, or a crash — never stays stuck at `queued`/`running`: on boot (or when the job dies) it settles to `failed` with `error` set if it had no text yet, or back to `succeeded` with the text intact and `retry_error` explaining why if a redo/retry was in progress.
+
 ### `POST /api/sessions/{id}/retry-missing` — re-read only the unread photos
 
 For a partly read take (`missing_photos` non-empty). Re-runs just the units holding an unread photo — same model and prompt as the take — splices their text in and re-collates in sequence order; units that already read keep their archived text. Async like `/extract`: returns the status payload, poll `/extract/status`. When nothing new could be read the text is left untouched, `phase` is `succeeded` again and the status payload's `retry_error` says why (`null` otherwise).
@@ -245,16 +247,3 @@ print(c.get(f"/api/sessions/{sid}/text").json()["extracted"])
 | `500` | session vanished mid-extract (should not happen) | |
 
 The **async** `/extract` path never returns a hub error as a non-200 — it accepts the job (200) and surfaces the failure through `extract/status` (`phase: "failed"`, `error`). Only the **single-shot** path maps a hub failure to `502`, because a one-call consumer needs a status code to branch on.
-
----
-
-## Breaking changes
-
-Breaking changes to the contract are recorded here. Pin a build via `GET /api/version` (`git_sha`) if you need certainty.
-
-- **2026-10-17** — `POST /api/sessions/{id}/retry-missing` now answers `409` ("photos changed since the read; use Redo") when the take's photos were reordered, removed or added to since the read, instead of re-reading whichever photo now carries the unread name and reporting success (behavior change, no shape change).
-- **2026-10-07** — Audit fixes (behavior changes, no shape changes). `POST /api/sessions/{id}/extract` no longer answers `reused: true` for a take whose photos changed since it was read: it re-reads (photos added, removed or reordered after the read). A take whose extraction was interrupted — a webapp restart, or a job that crashed — no longer stays `queued`/`running` forever: on boot (or when the job dies) it settles to `failed` with `error` set, or, when it already had text (a redo or retry died), back to `succeeded` with the text intact and `retry_error` saying why.
-
-- **2026-10-06** — Partial-result semantics (additive, but changes prior behavior for existing consumers — a chunk that previously failed the whole call now returns a `200`). A photo that no hub request could read no longer fails the take: `text` (single-shot) / `extracted` (async) carries a `[missing: photo N (NN.jpg) could not be read]` marker line in place of that photo's text, and the single-shot response plus the async status payload both gained `missing_photos` (names of the unread photos). Added `POST /api/sessions/{id}/retry-missing` to re-read just the missing photos of a partly read take (`?wait=true` for the single-shot shape); its status payload also gained `retry_error`. Added `409` (an extraction already running) to the Error reference. See [`/retry-missing`](#post-apisessionsidretry-missing-re-read-only-the-unread-photos).
-- **2026-06-12** — Added **source attribution** (additive — not breaking). `POST /api/extract` and `POST /api/sessions` accept an optional `source` label (single-shot default `"api"`, PWA default `"webapp"`); it is recorded per session and surfaces in `GET /api/sessions`, the `source` field of both create responses, the History UI, and full-text search. Documents History as the fleet's single-source-of-truth audit trail for all OCR. See [History as a single source of truth](#history-as-a-single-source-of-truth).
-- **2026-06-11** — Initial publication of the OCR API as a supported consumable surface, plus the new single-shot `POST /api/extract` endpoint. The `/api/sessions*` routes already worked over loopback; this documents them as a contract and adds the one-call path for downstream consumers (first consumer: app-launcher's Coding-terminal "paste screenshot" button, above).
