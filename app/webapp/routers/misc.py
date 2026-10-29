@@ -72,5 +72,5 @@ async def healthz() -> Dict[str, Any]:
 @router.get("/api/version")
 async def version() -> Dict[str, str]:
     """Build identity so the phone (and tests) can confirm which build
-    is loaded — see issue #5."""
+    is loaded."""
     return BUILD_INFO.as_dict()

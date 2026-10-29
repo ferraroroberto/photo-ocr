@@ -110,6 +110,19 @@ baseline = ".comment-ratchet-baseline.json"
 include  = ["app/", "src/", "scripts/"]
 exclude  = ["**/_vendored/**"]
 
+# [docstring_ratchet] -- repo-local baseline-and-ratchet on issue references inside Python
+# docstrings (photo-ocr#266), closing the blind spot comment_ratchet.py's own docstring
+# exclusion leaves open. The gate (scripts/verify-before-ship.ps1) runs
+# scripts/docstring_ratchet.py: it fails when a file's count of #NNN references inside a
+# module/class/function docstring rises above .docstring-ratchet-baseline.json. Not vendored:
+# the real fix belongs in project-scaffolding's comment_ratchet.py; this stands in for
+# photo-ocr until that lands. A file that cannot be read or parsed exits 3, which fails the gate.
+[docstring_ratchet]
+enabled  = true
+baseline = ".docstring-ratchet-baseline.json"
+include  = ["app/", "src/", "scripts/"]
+exclude  = ["**/_vendored/**"]
+
 # [instruction_ratchet] -- the scaffold's baseline-and-ratchet on the lint-tier rules of the
 # fleet prompt audit, run over this repo's instruction files (CLAUDE.md, AGENTS.md). The gate
 # (scripts/verify-before-ship.ps1) runs scripts/instruction_ratchet.py: it fails when a file's
@@ -232,6 +245,12 @@ label = "conventions-ratchet-baseline"
 tier = "none"
 path = ".comment-ratchet-baseline.json"
 label = "comment-ratchet-baseline"
+
+# Likewise data for scripts/docstring_ratchet.py.
+[[e2e.rule]]
+tier = "none"
+path = ".docstring-ratchet-baseline.json"
+label = "docstring-ratchet-baseline"
 
 # Likewise data for scripts/instruction_ratchet.py.
 [[e2e.rule]]
