@@ -295,6 +295,7 @@ photo-ocr/
 │   ├── docs_ratchet.py          vendored baseline-and-ratchet on README size + docs history markers
 │   ├── docs_ratchet_gate.py     gate wrapper: only exit 0 passes, exit 3 = NOT CONFIRMED
 │   ├── structure_ratchet.py     vendored baseline-and-ratchet on file/function/directory size, layering and root layout
+│   ├── structure_layout.py      vendored sibling of the structure ratchet: shape presets, extra roots and folder placement
 │   ├── conventions_ratchet.py   vendored baseline-and-ratchet on no-window/logging-not-print/no-drive-path hits
 │   ├── comment_ratchet.py       vendored baseline-and-ratchet on #NNN issue references inside comments
 │   ├── docstring_ratchet.py     repo-local baseline-and-ratchet on #NNN issue references inside docstrings
