@@ -36,3 +36,4 @@ webapp/last_tunnel_url.txt
 webapp/e2e-junit.xml
 webapp/certificates/
 webapp/cloudflared.yml
+.proof/
