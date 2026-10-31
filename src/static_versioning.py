@@ -45,10 +45,6 @@ _HASH_LEN = 8
 # itself.
 _HASHED_SUFFIXES = (".js", ".css")
 
-# Subdirectories under static/ skipped entirely — third-party bundles
-# carry their own version in the path and never benefit from a hash.
-_SKIP_DIRS = ("vendor",)
-
 # ``import ... from './foo.js'`` — captures the quoted relative module
 # path so ``?v=<hash>`` can be stamped onto it. Any existing ``?v=…`` is
 # captured too, so re-stamping an already-stamped body is idempotent.
@@ -73,9 +69,6 @@ def _short_hash(data: bytes) -> str:
 def _iter_hashable_files(static_dir: Path) -> Iterable[Path]:
     for path in sorted(static_dir.rglob("*")):
         if not path.is_file():
-            continue
-        rel_parts = path.relative_to(static_dir).parts[:-1]
-        if any(part in _SKIP_DIRS for part in rel_parts):
             continue
         if path.suffix.lower() not in _HASHED_SUFFIXES:
             continue

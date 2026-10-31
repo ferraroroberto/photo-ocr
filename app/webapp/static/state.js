@@ -146,9 +146,6 @@ export function readToken() {
 export function writeToken(t) {
   if (t) localStorage.setItem(TOKEN_KEY, t);
 }
-export function clearToken() {
-  localStorage.removeItem(TOKEN_KEY);
-}
 
 // ----------------------------------------------------------- toasts
 // The one fleet toast (neutral frosted; only an error tints). Re-exported so

@@ -77,19 +77,62 @@ def test_webapp_cmd_passes_loop_factory(monkeypatch):
     assert captured.get("loop") == LOOP_FACTORY
 
 
-def test_e2e_autoboot_wires_loop_factory():
-    """conftest.py's disposable-webapp spawn isn't independently importable
-    (module-scoped fixture with subprocess side effects) — a static check
-    that its wa_cmd references the same shim is enough to catch drift."""
-    src = (_REPO_ROOT / "tests" / "e2e" / "conftest.py").read_text(encoding="utf-8")
-    assert "from app.webapp.event_loop import LOOP_FACTORY" in src
-    assert '"--loop",\n            LOOP_FACTORY,' in src
+def test_disposable_webapp_reuses_manager_command(monkeypatch):
+    """The e2e autoboot and the design-review synthetic run both boot through
+    scripts/disposable_webapp.py, which must take its uvicorn argv (loop
+    factory, cert flags) from WebappManager rather than a second copy."""
+    from scripts import disposable_webapp
+
+    captured = {}
+
+    class FakeProc:
+        def poll(self):
+            return None
+
+    def fake_spawn(cmd, log, data_dir):
+        captured["cmd"] = cmd
+        captured["data_dir"] = data_dir
+        return FakeProc()
+
+    monkeypatch.setattr(disposable_webapp, "_spawn", fake_spawn)
+    monkeypatch.setattr(disposable_webapp, "wait_healthz", lambda *a, **k: True)
+    monkeypatch.setattr(disposable_webapp, "terminate", lambda proc: None)
+
+    with disposable_webapp.disposable_webapp(startup_timeout=1.0) as base:
+        assert base.startswith(("http://127.0.0.1:", "https://127.0.0.1:"))
+
+    cmd = captured["cmd"]
+    assert cmd[cmd.index("--loop") + 1] == LOOP_FACTORY
+    assert cmd[cmd.index("--host") + 1] == "127.0.0.1"
+    assert not captured["data_dir"].exists(), "temp data dir must be removed on exit"
 
 
-def test_webapp_bat_wires_loop_factory():
+def test_disposable_webapp_boot_failure_names_the_log(monkeypatch, tmp_path):
+    from scripts import disposable_webapp
+
+    class DeadProc:
+        def poll(self):
+            return 1
+
+    def fake_spawn(cmd, log, data_dir):
+        log.write("boom: port in use\n")
+        return DeadProc()
+
+    monkeypatch.setattr(disposable_webapp, "_spawn", fake_spawn)
+    log_path = tmp_path / "boot.log"
+    with pytest.raises(disposable_webapp.WebappBootError) as exc:
+        with disposable_webapp.disposable_webapp(startup_timeout=1.0, log_path=log_path):
+            pass
+    assert "exited early" in str(exc.value)
+    assert "boom: port in use" in str(exc.value)
+
+
+def test_webapp_bat_delegates_to_webapp_subcommand():
+    """webapp.bat must not carry its own uvicorn argv: the bind, certs and loop
+    factory live in the `webapp` subcommand (covered above)."""
     src = (_REPO_ROOT / "webapp.bat").read_text(encoding="utf-8")
-    assert "app.webapp.event_loop:selector_loop_factory" in src
-    assert "--loop" in src
+    assert "launcher.py" in src and "webapp" in src
+    assert "uvicorn" not in src.replace("REM", "")
 
 
 def test_run_named_tunnel_wires_loop_factory(monkeypatch):
@@ -181,3 +224,50 @@ def test_proactor_loop_dies_on_aborted_connections():
         asyncio.run(
             _bombard_with_aborts(rounds=10, burst=20), loop_factory=asyncio.ProactorEventLoop
         )
+
+
+def test_uvicorn_argv_has_one_home():
+    """Only WebappManager._build_command may spell out `python -m uvicorn`.
+
+    A launcher that hand-builds the argv (the old webapp.bat and the synthetic
+    design-review boot) drifts from the manager's bind, loop factory and cert
+    flags; every other launch path goes through the manager or the `webapp`
+    subcommand."""
+    import re
+
+    pattern = re.compile(r"""-m\W+uvicorn""")
+    allowed = {
+        _REPO_ROOT / "app" / "webapp" / "manager.py",
+        Path(__file__).resolve(),
+    }
+    roots = [_REPO_ROOT / "app", _REPO_ROOT / "scripts", _REPO_ROOT / "src", _REPO_ROOT / "tests"]
+    candidates = [p for r in roots for p in r.rglob("*") if p.suffix in {".py", ".ps1", ".bat"}]
+    candidates += [p for p in _REPO_ROOT.glob("*.bat")] + [_REPO_ROOT / "launcher.py"]
+    offenders = [
+        str(p.relative_to(_REPO_ROOT))
+        for p in candidates
+        if p not in allowed and pattern.search(p.read_text(encoding="utf-8", errors="replace"))
+    ]
+    assert not offenders, f"hand-built uvicorn argv outside the manager: {offenders}"
+
+
+def test_disposable_webapp_isolates_archive_and_data(monkeypatch):
+    """The throwaway webapp must not share the live archive: its boot prunes it and
+    marks a take the live tray is reading as interrupted."""
+    from scripts import disposable_webapp
+    from src.archive import ARCHIVE_DIR_ENV, DEFAULT_ARCHIVE_DIR
+
+    captured = {}
+
+    class FakePopen:
+        def __init__(self, cmd, **kwargs):
+            captured["env"] = kwargs["env"]
+
+    monkeypatch.setattr(disposable_webapp.subprocess, "Popen", FakePopen)
+    data_dir = Path("scratch-data")
+    disposable_webapp._spawn(["x"], None, data_dir)
+
+    env = captured["env"]
+    assert env["PHOTO_OCR_DATA_DIR"] == str(data_dir)
+    assert env[ARCHIVE_DIR_ENV] == str(data_dir / "archive")
+    assert Path(env[ARCHIVE_DIR_ENV]) != DEFAULT_ARCHIVE_DIR

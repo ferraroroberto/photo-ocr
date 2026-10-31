@@ -143,3 +143,26 @@ def test_write_extracted_persists_files(tmp_path: Path) -> None:
     assert rehydrated.meta.extract_succeeded is True
     assert rehydrated.meta.extracted_chars == len("extracted text")
     assert rehydrated.meta.extract_duration_s == 1.23
+
+
+def test_archive_root_follows_env_override(tmp_path, monkeypatch):
+    """A disposable webapp sets PHOTO_OCR_ARCHIVE_DIR so it never opens the live archive."""
+    from src.archive import ARCHIVE_DIR_ENV, DEFAULT_ARCHIVE_DIR, default_archive_root
+
+    monkeypatch.delenv(ARCHIVE_DIR_ENV, raising=False)
+    assert default_archive_root() == DEFAULT_ARCHIVE_DIR
+
+    monkeypatch.setenv(ARCHIVE_DIR_ENV, str(tmp_path / "elsewhere"))
+    arc = SessionArchive()
+    assert arc.root == tmp_path / "elsewhere"
+    assert arc.root.is_dir()
+    # Its index describes that archive, so it sits beside it, not in the shared store.
+    assert arc._index_path().parent == arc.root
+
+
+def test_create_app_archive_follows_env_override(tmp_path, monkeypatch):
+    from app.webapp.server import create_app
+    from src.archive import ARCHIVE_DIR_ENV
+
+    monkeypatch.setenv(ARCHIVE_DIR_ENV, str(tmp_path / "app-archive"))
+    assert create_app().state.archive.root == tmp_path / "app-archive"

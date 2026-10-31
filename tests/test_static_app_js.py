@@ -121,3 +121,28 @@ def test_take_jobs_share_one_busy_cycle(js_source: str) -> None:
     # owns the busy flag.
     assert js_source.count("state.busy = true") == 1
     assert js_source.count("await runTakeJob(") == 3
+
+
+_EXPORT_RE = re.compile(r"^export\s+(?:async\s+)?(?:function\*?|const|let|class)\s+(\w+)", re.M)
+
+
+def test_no_dead_js_exports() -> None:
+    """Every name an app module exports is referenced somewhere else in static/.
+
+    A helper nothing imports reads as live behavior (an unused auth helper sat
+    in state.js); delete it, or stop exporting it if only its own file uses it.
+    Vendored components are byte-identical copies and are not judged here."""
+    app_files = sorted(STATIC_DIR.glob("*.js"))
+    every_file = [*STATIC_DIR.rglob("*.js")]
+    texts = {p: p.read_text(encoding="utf-8") for p in every_file}
+    dead = []
+    for path in app_files:
+        for name in _EXPORT_RE.findall(texts[path]):
+            word = re.compile(rf"\b{re.escape(name)}\b")
+            used_elsewhere = any(
+                word.search(text) for other, text in texts.items() if other != path
+            )
+            used_inside = len(word.findall(texts[path])) > 1
+            if not (used_elsewhere or used_inside):
+                dead.append(f"{path.name}:{name}")
+    assert not dead, f"exported but never referenced: {dead}"
