@@ -1,7 +1,7 @@
 @echo off
 chcp 65001 >nul
 REM ============================================================================
-REM  WEBAPP - standalone FastAPI launcher (HTTPS on :8444 when cert present)
+REM  WEBAPP - standalone FastAPI launcher (config/config.json bind; HTTPS if cert)
 REM ----------------------------------------------------------------------------
 REM  Daily use: launch tray.bat instead — it adopt-or-spawns the webapp for
 REM  you. This bat is for headless boxes, dev iteration, or when you want
@@ -18,21 +18,12 @@ if not exist "%VENV_PY%" (
 
 cd /d "%SCRIPT_DIR%" || exit /b 1
 
-set "CERT_DIR=%SCRIPT_DIR%webapp\certificates"
-set "CERT=%CERT_DIR%\cert.pem"
-set "KEY=%CERT_DIR%\key.pem"
-
 REM Auto-renew the Tailscale cert if it is expiring within 30 days (no-op
 REM when the cert is missing or not a .ts.net cert).
 "%VENV_PY%" "%SCRIPT_DIR%scripts\gen_tailscale_cert.py" --check
 
-if not exist "%CERT%" (
-    echo [INFO] No HTTPS cert found, running HTTP-only on :8444.
-    echo        Run scripts\gen_tailscale_cert.py to enable HTTPS.
-    "%VENV_PY%" -m uvicorn app.webapp.server:app --host 0.0.0.0 --port 8444 --loop app.webapp.event_loop:selector_loop_factory
-) else (
-    echo [INFO] HTTPS via %CERT%
-    "%VENV_PY%" -m uvicorn app.webapp.server:app --host 0.0.0.0 --port 8444 --ssl-keyfile "%KEY%" --ssl-certfile "%CERT%" --loop app.webapp.event_loop:selector_loop_factory
-)
+REM Bind address, port, cert flags and loop factory have one home: the
+REM `webapp` subcommand (config/config.json + app/webapp/manager.py).
+"%VENV_PY%" "%SCRIPT_DIR%launcher.py" webapp
 
 exit /b %ERRORLEVEL%

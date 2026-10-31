@@ -38,28 +38,17 @@ from __future__ import annotations
 import json
 import logging
 import os
-import signal
-import socket
-import subprocess
-import sys
-import tempfile
-import time
-import urllib3
 from pathlib import Path
-from typing import IO, Iterator, List, Optional
+from typing import Iterator, List
 
 import pytest
-import requests
 from playwright.sync_api import BrowserContext, Page
 
+from scripts.disposable_webapp import WebappBootError, disposable_webapp, wait_healthz
 from tests.e2e._e2e_live_guard import require_disposable_instance
 from tests.e2e._surface import pytest_collection_modifyitems  # noqa: F401
 
 logger = logging.getLogger(__name__)
-
-# The cert on 8444 is for the .ts.net name, not loopback — silence the
-# urllib3 noise from /healthz.
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _WEBAPP_CONFIG = _REPO_ROOT / "config" / "webapp_config.json"
@@ -71,6 +60,8 @@ _TOKEN_KEY = "photo-ocr.token"  # must match TOKEN_KEY in app/webapp/static/stat
 _IPHONE_DEVICE = "iPhone 14"
 
 _AUTOBOOT_ENV = "PHOTO_OCR_E2E_AUTOBOOT"
+# The server answers within a fraction of a second; a longer wait only delays a real failure.
+_AUTOBOOT_TIMEOUT_S = 10.0
 # Explicit opt-in for adopting the LIVE tray on :8444 (issue #108) — the
 # flag name passed to the vendored _e2e_live_guard.require_disposable_instance.
 # Without it a bare `pytest tests/e2e` must not silently load-test whatever
@@ -128,73 +119,6 @@ def is_unpainted(locator) -> bool:
     return bool(paints) and all(p == ["rgba(0, 0, 0, 0)", "0px"] for p in paints)
 
 
-def _free_tcp_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("127.0.0.1", 0))
-        return int(s.getsockname()[1])
-
-
-def _spawn(cmd: List[str], log: IO[str]) -> subprocess.Popen:
-    kwargs: dict = dict(
-        cwd=str(_REPO_ROOT),
-        stdout=log,
-        stderr=subprocess.STDOUT,
-        env={
-            **os.environ,
-            "PYTHONIOENCODING": "utf-8",
-            "PYTHONUTF8": "1",
-            # The disposable server logs usage events like the real one; keep
-            # them out of the developer's real runtime-data directory.
-            "PHOTO_OCR_DATA_DIR": tempfile.mkdtemp(prefix="photo-ocr-e2e-data-"),
-        },
-    )
-    if sys.platform == "win32":
-        # New process group so CTRL_BREAK reaches it for a clean stop;
-        # no window so the test run doesn't flash consoles.
-        kwargs["creationflags"] = (
-            subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
-        )
-    return subprocess.Popen(cmd, **kwargs)
-
-
-def _terminate(proc: Optional[subprocess.Popen]) -> None:
-    if proc is None or proc.poll() is not None:
-        return
-    try:
-        if sys.platform == "win32":
-            try:
-                proc.send_signal(signal.CTRL_BREAK_EVENT)
-            except Exception as exc:  # pragma: no cover - best effort
-                logger.debug("CTRL_BREAK_EVENT failed: %s", exc)
-        proc.terminate()
-        try:
-            proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-            proc.wait(timeout=3)
-    except Exception as exc:  # pragma: no cover - best effort
-        logger.warning("⚠️  autoboot: process teardown failed: %s", exc)
-
-
-# Gap between /healthz probes while the disposable server boots. Short on
-# purpose: the server answers within a fraction of a second, so a long gap
-# is dead time on every gate run (issue #159). The deadlines are the callers'.
-_HEALTHZ_POLL_INTERVAL_S = 0.1
-
-
-def _wait_healthz(base: str, timeout: float) -> bool:
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        try:
-            res = requests.get(f"{base}/healthz", timeout=2, verify=False)
-            if res.status_code == 200:
-                return True
-        except requests.RequestException:
-            pass
-        time.sleep(_HEALTHZ_POLL_INTERVAL_S)
-    return False
-
-
 @pytest.fixture(scope="session")
 def _autoboot_server() -> Iterator[str]:
     """Spawn a disposable webapp and yield its base URL.
@@ -202,57 +126,15 @@ def _autoboot_server() -> Iterator[str]:
     A hard failure (``pytest.fail``) — never a skip — if it doesn't come
     up: under the pre-ship gate a missing server must not pass silently.
     """
-    from app.webapp.event_loop import LOOP_FACTORY
-    from app.webapp.manager import cert_paths
-
     logs_dir = _REPO_ROOT / "webapp"  # gitignored runtime dir
-    logs_dir.mkdir(parents=True, exist_ok=True)
-    log_handle: Optional[IO[str]] = None
-    wa_proc: Optional[subprocess.Popen] = None
-
     try:
-        log_handle = (logs_dir / "e2e-autoboot-webapp.log").open(
-            "w", encoding="utf-8", errors="replace"
-        )
-        # A free port, never the hardcoded 8444 — the dev tray may hold it.
-        port = _free_tcp_port()
-        certs = cert_paths()
-        scheme = "https" if certs else "http"
-        cmd = [
-            sys.executable,
-            "-m",
-            "uvicorn",
-            "app.webapp.server:app",
-            "--host",
-            "127.0.0.1",
-            "--port",
-            str(port),
-            "--log-level",
-            "warning",
-            "--loop",
-            LOOP_FACTORY,
-        ]
-        if certs:
-            cert, key = certs
-            cmd += ["--ssl-keyfile", str(key), "--ssl-certfile", str(cert)]
-        wa_proc = _spawn(cmd, log_handle)
-
-        base = f"{scheme}://127.0.0.1:{port}"
-        if not _wait_healthz(base, timeout=10):
-            _terminate(wa_proc)
-            pytest.fail(
-                f"autoboot: webapp did not answer /healthz at {base} "
-                "within 10s — see webapp/e2e-autoboot-webapp.log"
-            )
-        logger.info("✅ autoboot: webapp ready at %s", base)
-        yield base
-    finally:
-        _terminate(wa_proc)
-        if log_handle is not None:
-            try:
-                log_handle.close()
-            except Exception:  # pragma: no cover
-                pass
+        with disposable_webapp(
+            startup_timeout=_AUTOBOOT_TIMEOUT_S,
+            log_path=logs_dir / "e2e-autoboot-webapp.log",
+        ) as base:
+            yield base
+    except WebappBootError as exc:
+        pytest.fail(f"autoboot: {exc}")
 
 
 # ----------------------------------------------------------- fixtures
@@ -294,7 +176,7 @@ def base_url(request: pytest.FixtureRequest) -> str:
     # read-only smoke checks, never kill it — see the module docstring
     # above.
     live_opt_in = require_disposable_instance(_LIVE_PORT, _LIVE_ENV)
-    if live_opt_in and _wait_healthz(_BASE_URL, timeout=2):
+    if live_opt_in and wait_healthz(_BASE_URL, timeout=2):
         logger.info("✅ %s=1 — adopting live tray at %s", _LIVE_ENV, _BASE_URL)
         return _BASE_URL
     return request.getfixturevalue("_autoboot_server")
