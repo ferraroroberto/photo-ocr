@@ -43,6 +43,7 @@ instruction_ratchet = { src = "scripts/instruction_ratchet.py", sha = "9d0fd2777
 doc_refs_ratchet = { src = "scripts/doc_refs_ratchet.py", sha = "baac1ed97388a3545bd1e52544821ec20f1dc77a", dest = "scripts/doc_refs_ratchet.py" }
 dead_code_ratchet = { src = "scripts/dead_code_ratchet.py", sha = "baac1ed97388a3545bd1e52544821ec20f1dc77a", dest = "scripts/dead_code_ratchet.py" }
 compression = { src = "src/compression.py", sha = "d930466848d17d47261261c490c4e9c1cce9399e", dest = "src/compression.py" }
+icons = { src = "app/webapp/static/_vendored/icons/icons.js", sha = "4d75f1ebfae5c9d8462c55a90edd56f8b09157d4", dest = "app/webapp/static/_vendored/icons/icons.js" }
 
 # [static_ratchet] -- the scaffold's baseline-and-ratchet static analysis. The gate
 # (scripts/verify-before-ship.ps1) runs scripts/static_ratchet_gate.py, which wraps
@@ -101,9 +102,9 @@ rules    = ["no-window", "logging-not-print", "no-drive-path"]
 # (scripts/verify-before-ship.ps1) runs scripts/comment_ratchet.py: it fails when a file's
 # count of #NNN references inside product-code comments (.py, .js, .css, .ps1) rises above
 # .comment-ratchet-baseline.json. A comment states the present-tense why; history lives in
-# the issue, the PR and git log. Tests are out of scope. _vendored/ is excluded because
-# icons.js is vendor-verbatim but not declared in [vendored], so the script cannot skip it
-# itself. A file that cannot be scanned exits 3, which fails the gate.
+# the issue, the PR and git log. Tests are out of scope. _vendored/ is excluded because it
+# holds byte-identical scaffold copies. A file that cannot be scanned exits 3, which fails
+# the gate.
 # Procedure + limits: project-scaffolding docs/comment-ratchet.md.
 [comment_ratchet]
 enabled  = true
