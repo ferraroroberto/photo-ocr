@@ -23,6 +23,7 @@ from __future__ import annotations
 # Standard library imports
 import json
 import logging
+import os
 import shutil
 import time
 import uuid
@@ -38,6 +39,9 @@ from src.runtime_data import runtime_db_path
 logger = logging.getLogger(__name__)
 
 DEFAULT_ARCHIVE_DIR = Path(__file__).resolve().parent.parent / "archive"
+# Moves the archive root. A disposable webapp sets it so its boot-time prune and
+# interrupted-extract settle never touch the live archive.
+ARCHIVE_DIR_ENV = "PHOTO_OCR_ARCHIVE_DIR"
 META_FILENAME = "meta.json"
 EXTRACTED_FILENAME = "extracted.txt"
 OCR_REQUEST_FILENAME = "ocr_request.json"
@@ -249,11 +253,17 @@ class Session:
             return None
 
 
+def default_archive_root() -> Path:
+    """The archive root: ``PHOTO_OCR_ARCHIVE_DIR`` if set, else the repo's ``archive/``."""
+    override = os.environ.get(ARCHIVE_DIR_ENV, "").strip()
+    return Path(override) if override else DEFAULT_ARCHIVE_DIR
+
+
 class SessionArchive:
     """Top-level archive — creates sessions, lists them, prunes old ones."""
 
     def __init__(self, root: Optional[Path] = None) -> None:
-        self.root = Path(root) if root is not None else DEFAULT_ARCHIVE_DIR
+        self.root = Path(root) if root is not None else default_archive_root()
         self.root.mkdir(parents=True, exist_ok=True)
         self._index: Optional[ArchiveIndex] = None
 

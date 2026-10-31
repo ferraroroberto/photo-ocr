@@ -27,6 +27,7 @@ import requests
 import urllib3
 
 from app.webapp.manager import PROJECT_ROOT, WebappManager, cert_paths
+from src.archive import ARCHIVE_DIR_ENV
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +99,8 @@ def _spawn(cmd: list[str], log: IO[str], data_dir: Path) -> subprocess.Popen:
             # Usage events and the SQLite files go here, not into the
             # developer's real runtime-data directory.
             "PHOTO_OCR_DATA_DIR": str(data_dir),
+            # The session archive too, or the boot prune would run on the live one.
+            ARCHIVE_DIR_ENV: str(data_dir / "archive"),
         },
     )
     if sys.platform == "win32":

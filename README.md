@@ -70,7 +70,7 @@ same archive shape, same auth model, but for pixels instead of audio.
   the Usage log's `usage.sqlite3`), outside the repo, and rebuilds itself from
   `extracted.txt` on boot, so it can be deleted at any time. Toggle with
   `search_enabled` in `webapp_config.json`.
-- **History + redo.** Every take lands in `archive/YYYY/MM/DD/HH-MM-SS-<id>/`.
+- **History + redo.** Every take lands in `archive/YYYY/MM/DD/HH-MM-SS-<id>/` (`PHOTO_OCR_ARCHIVE_DIR` moves that root; the throwaway webapps set it so they never open the live archive).
   Re-run with a different model from the History tab without re-capturing.
   History opens on search, then the takes under date overlines (Today,
   Yesterday, This week, then by month) and reloads whenever the tab opens.

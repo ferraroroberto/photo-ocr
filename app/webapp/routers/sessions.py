@@ -38,6 +38,23 @@ router = APIRouter()
 # --------------------------------------------------------------- helpers
 
 
+def session_lock(app: Any, session_id: str) -> asyncio.Lock:
+    """The lock serialising photo/meta mutations of one session.
+
+    Every request hydrates its own ``Session`` copy and writes the whole meta
+    back, so two requests interleaving at an ``await`` (a >1 MB multipart part
+    is read through the threadpool) would each overwrite the other's change.
+    Take the lock *before* ``archive.get`` and hold it through ``write_meta``.
+    The registry is weak-valued: a lock is dropped once no request holds it.
+    """
+    locks = app.state.session_locks
+    lock = locks.get(session_id)
+    if lock is None:
+        lock = asyncio.Lock()
+        locks[session_id] = lock
+    return lock
+
+
 def _photo_dict(pm: PhotoMeta) -> Dict[str, Any]:
     return {
         "sequence_index": pm.sequence_index,
@@ -290,59 +307,61 @@ async def upload_photos(
 ) -> Dict[str, Any]:
     archive: SessionArchive = request.app.state.archive
     cfg: WebappConfig = request.app.state.webapp_config
-    session = archive.get(session_id)
-    if session is None:
-        raise HTTPException(status_code=404, detail=f"unknown session {session_id}")
-    if not files:
-        raise HTTPException(status_code=400, detail="no files in upload")
+    async with session_lock(request.app, session_id):
+        session = archive.get(session_id)
+        if session is None:
+            raise HTTPException(status_code=404, detail=f"unknown session {session_id}")
+        if not files:
+            raise HTTPException(status_code=400, detail="no files in upload")
 
-    if len(session.meta.photos) + len(files) > cfg.max_photos_per_session:
-        raise HTTPException(
-            status_code=413,
-            detail=(
-                f"session would exceed max_photos_per_session "
-                f"({cfg.max_photos_per_session}); has {len(session.meta.photos)}, "
-                f"upload adds {len(files)}"
-            ),
-        )
+        if len(session.meta.photos) + len(files) > cfg.max_photos_per_session:
+            raise HTTPException(
+                status_code=413,
+                detail=(
+                    f"session would exceed max_photos_per_session "
+                    f"({cfg.max_photos_per_session}); has {len(session.meta.photos)}, "
+                    f"upload adds {len(files)}"
+                ),
+            )
 
-    persisted = await _persist_uploads(session, files, cfg)
-    session.write_meta()
-    return {
-        "session_id": session.session_id,
-        "photos": [_photo_dict(pm) for pm in session.meta.photos],
-        "added": persisted,
-    }
+        persisted = await _persist_uploads(session, files, cfg)
+        session.write_meta()
+        return {
+            "session_id": session.session_id,
+            "photos": [_photo_dict(pm) for pm in session.meta.photos],
+            "added": persisted,
+        }
 
 
 @router.post("/api/sessions/{session_id}/photos/reorder")
 async def reorder_photos(session_id: str, request: Request) -> Dict[str, Any]:
     archive: SessionArchive = request.app.state.archive
-    session = archive.get(session_id)
-    if session is None:
-        raise HTTPException(status_code=404, detail=f"unknown session {session_id}")
-    body = await maybe_json(request)
-    order = body.get("order")
-    if not isinstance(order, list) or any(
-        not isinstance(i, int) or isinstance(i, bool) for i in order
-    ):
-        raise HTTPException(
-            status_code=400,
-            detail="order must be a list of photo sequence_index integers",
-        )
-    if session.meta.extract_succeeded is not None:
-        logger.info(f"ℹ️  reordering already-extracted session {session_id}")
-    if not session.reorder_photos(order):
-        current = [p.sequence_index for p in session.meta.photos]
-        raise HTTPException(
-            status_code=400,
-            detail=f"order must match current photo sequence indexes {current}",
-        )
-    session.write_meta()
-    return {
-        "session_id": session.session_id,
-        "photos": [_photo_dict(pm) for pm in session.meta.photos],
-    }
+    async with session_lock(request.app, session_id):
+        session = archive.get(session_id)
+        if session is None:
+            raise HTTPException(status_code=404, detail=f"unknown session {session_id}")
+        body = await maybe_json(request)
+        order = body.get("order")
+        if not isinstance(order, list) or any(
+            not isinstance(i, int) or isinstance(i, bool) for i in order
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="order must be a list of photo sequence_index integers",
+            )
+        if session.meta.extract_succeeded is not None:
+            logger.info(f"ℹ️  reordering already-extracted session {session_id}")
+        if not session.reorder_photos(order):
+            current = [p.sequence_index for p in session.meta.photos]
+            raise HTTPException(
+                status_code=400,
+                detail=f"order must match current photo sequence indexes {current}",
+            )
+        session.write_meta()
+        return {
+            "session_id": session.session_id,
+            "photos": [_photo_dict(pm) for pm in session.meta.photos],
+        }
 
 
 @router.delete("/api/sessions/{session_id}/photos/{sequence_index}")
@@ -350,26 +369,27 @@ async def remove_photo(
     session_id: str, sequence_index: int, request: Request
 ) -> Dict[str, Any]:
     archive: SessionArchive = request.app.state.archive
-    session = archive.get(session_id)
-    if session is None:
-        raise HTTPException(status_code=404, detail=f"unknown session {session_id}")
-    if session.meta.extract_succeeded is not None:
-        # Allow but warn — the photos list won't match the
-        # extracted.txt produced before deletion. The UI should
-        # avoid this path, but it's harmless on the server.
-        logger.info(
-            f"ℹ️  removing photo from already-extracted session {session_id}"
-        )
-    if not session.remove_photo(sequence_index):
-        raise HTTPException(
-            status_code=404,
-            detail=f"no photo with sequence_index={sequence_index} in session",
-        )
-    session.write_meta()
-    return {
-        "session_id": session.session_id,
-        "photos": [_photo_dict(pm) for pm in session.meta.photos],
-    }
+    async with session_lock(request.app, session_id):
+        session = archive.get(session_id)
+        if session is None:
+            raise HTTPException(status_code=404, detail=f"unknown session {session_id}")
+        if session.meta.extract_succeeded is not None:
+            # Allow but warn — the photos list won't match the
+            # extracted.txt produced before deletion. The UI should
+            # avoid this path, but it's harmless on the server.
+            logger.info(
+                f"ℹ️  removing photo from already-extracted session {session_id}"
+            )
+        if not session.remove_photo(sequence_index):
+            raise HTTPException(
+                status_code=404,
+                detail=f"no photo with sequence_index={sequence_index} in session",
+            )
+        session.write_meta()
+        return {
+            "session_id": session.session_id,
+            "photos": [_photo_dict(pm) for pm in session.meta.photos],
+        }
 
 
 @router.post("/api/sessions/{session_id}/extract")
@@ -606,13 +626,14 @@ async def update_session(session_id: str, request: Request) -> Dict[str, Any]:
     if "incognito" not in body:
         raise HTTPException(status_code=400, detail="nothing to update: send incognito")
     archive: SessionArchive = request.app.state.archive
-    session = archive.get(session_id)
-    if session is None:
-        raise HTTPException(status_code=404, detail=f"unknown session {session_id}")
-    if progress_meta(session).get("phase") in {"queued", "running", "merging"}:
-        raise HTTPException(status_code=409, detail="extraction in progress; try again when it ends")
-    archive.set_incognito(session_id, bool(body["incognito"]))
-    return {"session_id": session_id, "incognito": bool(body["incognito"])}
+    async with session_lock(request.app, session_id):
+        session = archive.get(session_id)
+        if session is None:
+            raise HTTPException(status_code=404, detail=f"unknown session {session_id}")
+        if progress_meta(session).get("phase") in {"queued", "running", "merging"}:
+            raise HTTPException(status_code=409, detail="extraction in progress; try again when it ends")
+        archive.set_incognito(session_id, bool(body["incognito"]))
+        return {"session_id": session_id, "incognito": bool(body["incognito"])}
 
 
 @router.delete("/api/sessions/{session_id}")

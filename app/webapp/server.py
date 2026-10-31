@@ -15,6 +15,7 @@ import logging
 import mimetypes
 import os
 import threading
+import weakref
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -164,6 +165,7 @@ def create_app() -> FastAPI:
     app.state.ocr_client = ocr_client
     app.state.extract_tasks = {}
     app.state.extract_lock = threading.Lock()
+    app.state.session_locks = weakref.WeakValueDictionary()
 
     if STATIC_DIR.exists():
         app.mount(

@@ -249,3 +249,25 @@ def test_uvicorn_argv_has_one_home():
         if p not in allowed and pattern.search(p.read_text(encoding="utf-8", errors="replace"))
     ]
     assert not offenders, f"hand-built uvicorn argv outside the manager: {offenders}"
+
+
+def test_disposable_webapp_isolates_archive_and_data(monkeypatch):
+    """The throwaway webapp must not share the live archive: its boot prunes it and
+    marks a take the live tray is reading as interrupted."""
+    from scripts import disposable_webapp
+    from src.archive import ARCHIVE_DIR_ENV, DEFAULT_ARCHIVE_DIR
+
+    captured = {}
+
+    class FakePopen:
+        def __init__(self, cmd, **kwargs):
+            captured["env"] = kwargs["env"]
+
+    monkeypatch.setattr(disposable_webapp.subprocess, "Popen", FakePopen)
+    data_dir = Path("scratch-data")
+    disposable_webapp._spawn(["x"], None, data_dir)
+
+    env = captured["env"]
+    assert env["PHOTO_OCR_DATA_DIR"] == str(data_dir)
+    assert env[ARCHIVE_DIR_ENV] == str(data_dir / "archive")
+    assert Path(env[ARCHIVE_DIR_ENV]) != DEFAULT_ARCHIVE_DIR
