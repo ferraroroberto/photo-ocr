@@ -25,10 +25,7 @@
   --success: #1a7f37;       /* read by the vendored action-row avatar badge (no avatar here yet) */
   --danger: #cf222e;
   --danger-text: #a40e26;   /* danger text on its own tint */
-  /* The vendored toast tints an error with a 75% mix of this over the glass
-     and sets white text on it. --danger itself gives 3.7:1 there in light, so
-     light uses the deeper text red. */
-  --deficit: var(--danger-text);
+  --deficit: #cf222e;
   --attention: #9a6700;
   --attention-text: #7d4e00; /* attention text on its own tint, 5.75:1 */
   /* derived surface roles (mapped onto the neutral tokens above) */
@@ -118,7 +115,7 @@
   --success: #3fb950;
   --danger: #f85149;
   --danger-text: #ff7b72;
-  --deficit: #da3633;       /* the vendored error toast: white text holds 4.5:1 */
+  --deficit: #f85149;
   --attention: #d29922;
   --attention-text: #e3b341; /* 6.84:1 on its tint */
   --input-bg: var(--line-muted);
