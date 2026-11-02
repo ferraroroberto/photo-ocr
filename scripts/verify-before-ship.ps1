@@ -134,6 +134,23 @@ try {
     if ($deadCodeExit -eq 3) { Fail "dead code ratchet NOT CONFIRMED (git unusable, or a .py file could not be read or parsed)." }
     if ($deadCodeExit -ne 0) { Fail "dead code ratchet failed (a definition nothing names, or a bad table or baseline)." }
 
+    # Runtime write ratchet: fails when a file's count of write targets resolving under a
+    # code folder rises above .runtime-write-ratchet-baseline.json. Exit 3 (a new target it
+    # cannot resolve, git unusable, a .py file that cannot be parsed) is its own failure,
+    # never a pass or a skip. It reads the whole tree, so it is not path-routed.
+    Write-Host "==> runtime write ratchet..." -ForegroundColor Cyan
+    & $python "scripts/runtime_write_ratchet.py"
+    $runtimeWriteExit = $LASTEXITCODE
+    if ($runtimeWriteExit -eq 3) { Fail "runtime write ratchet NOT CONFIRMED (a new write target could not be resolved, or a .py file could not be read)." }
+    if ($runtimeWriteExit -ne 0) { Fail "runtime write ratchet failed (a write under a code folder was added, or a bad table or baseline)." }
+
+    # Runtime write probe, first half: what already sits untracked or ignored under the
+    # code folders, so the probe after the test runs names only what they wrote.
+    $runtimeSnapshot = Join-Path ([IO.Path]::GetTempPath()) "runtime-write-snapshot-$PID.json"
+    Write-Host "==> runtime write probe (snapshot)..." -ForegroundColor Cyan
+    & $python "scripts/runtime_write_ratchet.py" --snapshot $runtimeSnapshot
+    if ($LASTEXITCODE -ne 0) { Fail "runtime write probe could not take its snapshot (exit $LASTEXITCODE)." }
+
     Write-Host "==> pytest (non-e2e)..." -ForegroundColor Cyan
     & $python -m pytest -q --ignore=tests/e2e
     if ($LASTEXITCODE -ne 0) { Fail "non-e2e pytest suite failed." }
@@ -223,6 +240,13 @@ try {
         }
         if ($e2eExit -ne 0) { Fail "Playwright e2e suite failed." }
     }
+
+    # Runtime write probe, second half: any file the unit and e2e runs left under a code folder.
+    Write-Host "==> runtime write probe..." -ForegroundColor Cyan
+    & $python "scripts/runtime_write_ratchet.py" --probe $runtimeSnapshot
+    $probeExit = $LASTEXITCODE
+    if ($probeExit -eq 3) { Fail "runtime write probe NOT CONFIRMED (the snapshot could not be read)." }
+    if ($probeExit -ne 0) { Fail "runtime write probe failed: the test runs left a file under a code folder." }
 }
 finally {
     Pop-Location
