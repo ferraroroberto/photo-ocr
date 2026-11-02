@@ -303,6 +303,8 @@ photo-ocr/
 │   ├── instruction_ratchet.py   vendored baseline-and-ratchet on CLAUDE.md/AGENTS.md prompt-audit hits + size cap
 │   ├── doc_refs_ratchet.py      vendored baseline-and-ratchet on unresolved repo paths/modules/links in docs
 │   ├── dead_code_ratchet.py     vendored baseline-and-ratchet on unused functions/classes/variables
+│   ├── runtime_write_ratchet.py vendored baseline-and-ratchet on writes resolving under a code folder, + the test-run probe
+│   ├── runtime_write_resolve.py vendored sibling of the runtime write ratchet: the static path resolver
 │   ├── run-e2e.ps1              e2e leg runner (used by the pre-ship gate)
 │   ├── design_review_synthetic.py  throwaway webapp for /design-review's synthetic and e2e runs
 │   ├── disposable_webapp.py     free-port throwaway webapp shared by the e2e autoboot and the synthetic run
@@ -533,6 +535,8 @@ The instruction ratchet (`scripts/instruction_ratchet.py`, rules in `.fleet.toml
 The doc refs ratchet (`scripts/doc_refs_ratchet.py`, rules in `.fleet.toml` `[doc_refs_ratchet]`) reads `README.md`, `CLAUDE.md` and `docs/**/*.md` and resolves every repo path in an inline code span, `python -m` module, relative link and loopback port against the tracked tree and the app's own `port`. It fails the gate, naming the doc and line, on a reference that does not exist and is not in `.doc-refs-ratchet-baseline.json` (empty). The ports of the services the docs name (`:8000` the hub, `:9221` the iOS WebKit debug proxy) are declared in `allow_refs`; fenced code blocks are not read. Exit 3 (git unusable, a doc that is not UTF-8, an unclosed fence) fails as NOT CONFIRMED, never a pass.
 
 The dead code ratchet (`scripts/dead_code_ratchet.py`, rules in `.fleet.toml` `[dead_code_ratchet]`) parses the Python in `app/` and `src/` and fails the gate, naming the file, line and qualified name, on a function, class or variable that nothing names (no other file, string or non-Python source mentions it) and that is not in `.dead-code-ratchet-baseline.json` (empty). Exit 3 (git unusable, a `.py` file that cannot be read or does not parse) fails as NOT CONFIRMED, never a pass.
+
+The runtime write ratchet (`scripts/runtime_write_ratchet.py` with its resolver `scripts/runtime_write_resolve.py`, rules in `.fleet.toml` `[runtime_write_ratchet]`) fails the gate when a file's count of write targets (open for writing, `Path.write_*`, `mkdir`, a log handler, `sqlite3.connect`) resolving under a code folder rises above `.runtime-write-ratchet-baseline.json`; a new target it cannot resolve fails as NOT CONFIRMED. Its `--snapshot`/`--probe` pair brackets the pytest and e2e runs and fails on any untracked or ignored file they leave under a code folder. Runtime output belongs under the runtime root (`src/runtime_data.py`).
 
 Each surface the suite opens (a tab, sheet, picker, empty or error state) is tagged `surface(page, "<tab>.<surface>")` from the vendored `tests/e2e/_surface.py`. The call is inert on every normal run; `/design-review photo-ocr --e2e` arms it against the throwaway webapp `scripts/design_review_synthetic.py` boots (never the live tray) to inventory those surfaces in light and dark for the design review. A new sheet or state a test opens takes one `surface(...)` call.
 
