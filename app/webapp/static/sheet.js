@@ -20,9 +20,10 @@ let sheetSeq = 0;
  *
  * @param {object} o
  * @param {string} o.title                 the heading (also the dialog's name)
+ * @param {string} o.track                 constant usage-log view id of this sheet
  * @param {Node} [o.body]                  content between the header and the actions
  * @param {Array<object>} [o.actions]      full-width rows, in order:
- *   { label, icon?, tone?: 'primary' | 'danger', current?, hidden?, onSelect?() }.
+ *   { label, track, icon?, tone?: 'primary' | 'danger', current?, hidden?, onSelect?() }.
  *   A `danger` action sits last, after a divider, in danger text. `current`
  *   marks a picker's chosen row (a trailing check, aria-current); `hidden`
  *   starts it hidden (the caller reveals it from the returned `actions`).
@@ -40,6 +41,7 @@ export function openSheet(o) {
   const dialog = document.createElement('dialog');
   dialog.className = 'detail-dialog sheet' + (o.className ? ' ' + o.className : '');
   dialog.setAttribute('aria-labelledby', titleId);
+  dialog.dataset.trackView = o.track;
 
   const card = document.createElement('div');
   card.className = 'detail-card sheet-card';
@@ -52,6 +54,7 @@ export function openSheet(o) {
   const closeBtn = document.createElement('button');
   closeBtn.type = 'button';
   closeBtn.className = 'icon-button detail-close';
+  closeBtn.dataset.track = 'sheet.close';
   closeBtn.setAttribute('aria-label', 'Close');
   closeBtn.innerHTML = icon('x');
   closeBtn.addEventListener('click', function () { dialog.close(); });
@@ -72,6 +75,7 @@ export function openSheet(o) {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = a.tone === 'primary' ? 'button-primary sheet-action' : 'sheet-action';
+      btn.dataset.track = a.track;
       if (a.tone === 'danger') btn.dataset.tone = 'danger';
       if (a.icon) btn.innerHTML = icon(a.icon);
       const label = document.createElement('span');
@@ -123,6 +127,7 @@ export function openSheet(o) {
  *
  * @param {object} o
  * @param {string} o.title          the question ("Delete this take?")
+ * @param {string} o.track          constant usage-log view id; the buttons add `.cancel` / `.confirm`
  * @param {string} [o.message]      one sentence saying what happens
  * @param {string} o.confirmLabel   the verb ("Delete")
  * @param {boolean} [o.danger]      draw the verb in the danger tint
@@ -143,6 +148,7 @@ export function confirmSheet(o) {
     const cancel = document.createElement('button');
     cancel.type = 'button';
     cancel.className = 'button-ghost';
+    cancel.dataset.track = o.track + '.cancel';
     cancel.textContent = 'Cancel';
     const go = document.createElement('button');
     go.type = 'button';
@@ -150,12 +156,14 @@ export function confirmSheet(o) {
     // "Components"), never a solid red; a neutral one is the primary.
     go.className = o.danger ? 'button-tint danger' : 'button-primary';
     go.dataset.confirm = 'yes';
+    go.dataset.track = o.track + '.confirm';
     go.textContent = o.confirmLabel;
     row.append(cancel, go);
     content.appendChild(row);
 
     const sheet = openSheet({
       title: o.title,
+      track: o.track,
       body: content,
       className: 'confirm-sheet',
       onClose: function () { resolve(yes); },

@@ -84,9 +84,11 @@ function openModelSheet() {
   const current = defaultModel();
   openSheet({
     title: 'Default model',
+    track: 'settings.model-sheet',
     actions: models.map(function (m) {
       return {
         label: modelLabel(m),
+        track: 'settings.model-option',
         current: m === current,
         onSelect: async function () {
           if (m === current) return;
@@ -103,9 +105,11 @@ function openStyleSheet() {
   const current = defaultPromptId();
   openSheet({
     title: 'Style',
+    track: 'settings.style-sheet',
     actions: (state.prompts || []).map(function (p) {
       return {
         label: p.label || p.id,
+        track: 'settings.style-option',
         current: p.id === current,
         onSelect: async function () {
           if (p.id === current) return;
@@ -134,7 +138,9 @@ function openPromptSheet() {
   text.setAttribute('aria-label', 'Prompt');
   text.textContent = prompt ? prompt.system : '';
   body.append(meta, text);
-  openSheet({ title: 'Prompt', body: body, className: 'prompt-sheet-dialog' });
+  openSheet({
+    title: 'Prompt', track: 'settings.prompt-sheet', body: body, className: 'prompt-sheet-dialog',
+  });
 }
 
 // "Keep takes for": four presets as one segmented control. A pick saves; the
@@ -164,6 +170,7 @@ function openRetentionSheet() {
     btn.type = 'button';
     btn.className = 'segmented-item';
     btn.dataset.days = String(p.days);
+    btn.dataset.track = 'settings.retention-preset';
     btn.textContent = p.label;
     btn.addEventListener('click', async function () {
       if (p.days === state.config.history_retention_days) return;
@@ -173,7 +180,7 @@ function openRetentionSheet() {
     group.appendChild(btn);
   });
   body.append(group, note);
-  openSheet({ title: 'Keep takes for', body: body });
+  openSheet({ title: 'Keep takes for', track: 'settings.retention-sheet', body: body });
   paint();
 }
 
@@ -218,7 +225,7 @@ function openMaxPhotosSheet() {
       input.value = String(saved);
     }
   });
-  openSheet({ title: 'Max photos per take', body: body });
+  openSheet({ title: 'Max photos per take', track: 'settings.max-photos-sheet', body: body });
 }
 
 // Wire the rows once; they read the config when tapped.

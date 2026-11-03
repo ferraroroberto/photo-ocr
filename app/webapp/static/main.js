@@ -93,7 +93,9 @@ initNavTabs({
   storageKey: TAB_KEY,
   onChange: function (tab) {
     els.settingsPane.hidden = true;
-    usage.trackView(tab);
+    // Constant ids only (the usage-track ratchet); the app has these two tabs.
+    if (tab === 'history') usage.trackView('history');
+    else usage.trackView('capture');
     if (tab === 'history' && state.config) refreshHistoryView();
   },
 });

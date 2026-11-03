@@ -125,6 +125,8 @@ baseline = ".runtime-write-ratchet-baseline.json"
 enabled  = true
 baseline = ".usage-track-ratchet-baseline.json"
 rules    = ["untracked-control", "untracked-sheet", "dynamic-id", "usage-log-wired"]
+# Callers of these pass a constant `track:` id; the builder stamps it on the dialog and its buttons.
+builders = ["app/webapp/static/sheet.js:openSheet", "app/webapp/static/sheet.js:confirmSheet"]
 
 # [comment_ratchet] -- the scaffold's baseline-and-ratchet on issue references in comments. The gate
 # (scripts/verify-before-ship.ps1) runs scripts/comment_ratchet.py: it fails when a file's

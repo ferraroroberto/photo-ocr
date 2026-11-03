@@ -105,7 +105,7 @@ def tracked_ids() -> list[str]:
     )
     return re.findall(r'data-track="([^"]*)"', html) + re.findall(
         r"dataset\.track\s*=\s*'([^']*)'", js
-    )
+    ) + re.findall(r"track:\s*'([^']*)'", js)
 
 
 def test_control_ids_are_constants_in_the_bounded_pattern(tracked_ids) -> None:
@@ -118,8 +118,14 @@ def test_no_control_id_is_derived_from_content() -> None:
     js = "\n".join(
         p.read_text(encoding="utf-8") for p in sorted(STATIC_DIR.glob("*.js"))
     )
+    # The sheet builders stamp the caller's `track:` constant (the usage-track
+    # ratchet makes every caller pass a literal), so only that pass-through is
+    # allowed besides a literal.
     for m in re.finditer(r"dataset\.track\s*=\s*([^;]+);", js):
-        assert re.fullmatch(r"'[^']*'", m.group(1).strip()), m.group(0)
+        value = m.group(1).strip()
+        assert re.fullmatch(
+            r"'[^']*'|a\.track|o\.track \+ '\.(?:cancel|confirm)'", value
+        ), m.group(0)
     html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     assert not re.search(r'data-track="[^"]*[{$]', html)
 
