@@ -6,6 +6,7 @@ layer       = "enabling"
 icon        = "📷"
 port        = ":8444"
 description = "Mobile OCR — photos → clean text. Reusable capture surface."
+depends_on  = ["local-llm-hub", "project-scaffolding"]
 shape       = "webapp-tray"
 extra_roots = ["webapp"]
 
