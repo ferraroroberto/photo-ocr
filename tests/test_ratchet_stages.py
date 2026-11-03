@@ -27,7 +27,11 @@ STAGES: dict[str, tuple[str, dict[str, bytes]]] = {
     "instruction": ("$instructionExit", {"CLAUDE.md": b"\xff\xfe not utf-8\n"}),
     "doc_refs": ("$docRefsExit", {"README.md": b"\xff\xfe not utf-8\n"}),
     "dead_code": ("$deadCodeExit", {"broken.py": b"def f(:\n"}),
+    "usage_track": ("$usageTrackExit", {"app/webapp/static/broken.js": b"const s = 'never closed;\n"}),
 }
+
+# Rules a table must name to be valid at all; the other ratchets run on `enabled` alone.
+TABLE_EXTRA = {"usage_track": 'rules = ["untracked-control"]\n'}
 
 
 def _git(root: Path, *args: str) -> None:
@@ -40,11 +44,12 @@ def _git(root: Path, *args: str) -> None:
 @pytest.mark.parametrize("name", STAGES)
 def test_an_unreadable_tree_exits_three_not_a_pass(name: str, tmp_path: Path) -> None:
     files = {
-        ".fleet.toml": f"[{name}_ratchet]\nenabled = true\n".encode(),
+        ".fleet.toml": f"[{name}_ratchet]\nenabled = true\n{TABLE_EXTRA.get(name, '')}".encode(),
         f".{name.replace('_', '-')}-ratchet-baseline.json": b'{"version": 1, "entries": []}\n',
         **STAGES[name][1],
     }
     for rel, data in files.items():
+        (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
         (tmp_path / rel).write_bytes(data)
     _git(tmp_path, "init", "-q")
     _git(tmp_path, "add", ".")
