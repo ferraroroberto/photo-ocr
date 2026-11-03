@@ -2,7 +2,7 @@
 
 Tight by design: two tests that catch the bugs we actually hit on the
 SPA — one boot test (JS exceptions on boot, empty select dropdowns,
-Capture zone, missing login overlay) and one Settings test (the header
+Capture zone, sign-in sheet not opening) and one Settings test (the header
 gear, prompt preview, dirty-aware Save). Expand iteratively if
 regressions slip through — do NOT turn this file into a regression net
 for every feature.
@@ -46,8 +46,8 @@ def _navigate_collecting_errors(
 def test_boot_renders_spa(authed_page: Page, base_url: str) -> None:
     """One page load, four boot checks (they shared an identical setup and
     each paid a load per projection): no JS errors, the Settings rows filled
-    from the config, the Capture zone rendered, and the login overlay markup
-    wired. The overlay check mutates the DOM, so it runs last."""
+    from the config, the Capture zone rendered, and a 401 opening the vendored
+    sign-in sheet. The sheet check reloads the page, so it runs last."""
     errors = _navigate_collecting_errors(authed_page, base_url, boot_settled=True)
     # boot() awaits fetchConfig, then the History request, then renders.
     # Two animation frames after that response let the continuation that
@@ -77,22 +77,22 @@ def test_boot_renders_spa(authed_page: Page, base_url: str) -> None:
     expect(authed_page.locator("#captureHeadline")).to_have_text("")
     surface(authed_page, "capture.empty")
 
-    # The login overlay markup is wired so showLogin() can reveal it. We
-    # exercise the DOM directly rather than triggering a real 401: the
-    # bearer middleware bypasses loopback, so a bad token from 127.0.0.1
-    # won't surface the overlay. This still catches overlay element +
-    # password input missing or renamed.
-    overlay = authed_page.locator("#loginOverlay")
-    expect(overlay).to_be_hidden()
-    authed_page.evaluate(
-        "document.getElementById('loginOverlay').hidden = false"
+    # The bearer middleware bypasses loopback, so a bad token from 127.0.0.1
+    # never surfaces the sheet on its own; a stubbed 401 on /api/config is
+    # the same signal the app reacts to.
+    authed_page.route(
+        "**/api/config",
+        lambda route: route.fulfill(status=401, json={"detail": "auth required"}),
     )
-    expect(overlay).to_be_visible()
-    pw = authed_page.locator("#loginPassword")
+    authed_page.reload(wait_until="domcontentloaded")
+    sheet = authed_page.locator("dialog.sign-in")
+    expect(sheet).to_be_visible()
+    pw = sheet.locator("input[type=password]")
     expect(pw).to_be_editable()
     pw.fill("dummy")
     expect(pw).to_have_value("dummy")
-    surface(authed_page, "login.overlay")
+    expect(sheet.locator("[data-track=sign-in-submit]")).to_be_enabled()
+    surface(authed_page, "sign-in.sheet")
 
 
 class _ConfigStore:

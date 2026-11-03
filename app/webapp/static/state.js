@@ -35,7 +35,7 @@
  *
  * Auth: a bearer token is stored in localStorage under TOKEN_KEY. The
  * page extracts it from ?token=… on first load (then strips it from
- * the visible URL). On 401, api.js shows the login overlay; the
+ * the visible URL). On 401, api.js opens the vendored sign-in sheet; the
  * password is swapped for the token via POST /api/login.
  */
 
@@ -120,10 +120,6 @@ export const els = {
   cleanAll: document.getElementById('cleanAll'),
   loadMoreHistory: document.getElementById('loadMoreHistory'),
   loadMoreLabel: document.getElementById('loadMoreLabel'),
-  loginOverlay: document.getElementById('loginOverlay'),
-  loginForm: document.getElementById('loginForm'),
-  loginPassword: document.getElementById('loginPassword'),
-  loginError: document.getElementById('loginError'),
 };
 
 // ----------------------------------------------------------- auth utils

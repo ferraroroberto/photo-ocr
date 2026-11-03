@@ -17,7 +17,7 @@ import {
   TAB_KEY,
   HISTORY_PAGE_SIZE,
 } from './state.js';
-import { jsonApi, hideLogin } from './api.js';
+import { jsonApi, setSignInHandler } from './api.js';
 import {
   handleFilePick,
   renderThumbnails,
@@ -132,8 +132,8 @@ async function boot() {
   try {
     await fetchConfig();
   } catch (exc) {
-    // Auth gate triggers showLogin from the api wrapper; everything
-    // else surfaces here.
+    // The api wrapper opens the sign-in sheet on a 401; everything else
+    // surfaces here.
     if (String(exc.message) !== 'auth required') {
       toast('Boot failed: ' + (exc.message || exc), 'error');
     }
@@ -146,31 +146,7 @@ async function boot() {
 }
 
 // ----------------------------------------------------------- wire up
-els.loginForm.addEventListener('submit', async function (ev) {
-  ev.preventDefault();
-  els.loginError.hidden = true;
-  const password = els.loginPassword.value;
-  try {
-    const res = await fetch('/api/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password }),
-    });
-    const body = await res.json().catch(function () { return null; });
-    if (!res.ok || !body || !body.token) {
-      const msg = (body && body.detail) || 'Login failed';
-      els.loginError.textContent = msg;
-      els.loginError.hidden = false;
-      return;
-    }
-    writeToken(body.token);
-    hideLogin();
-    boot();
-  } catch (exc) {
-    els.loginError.textContent = String(exc.message || exc);
-    els.loginError.hidden = false;
-  }
-});
+setSignInHandler(boot);
 
 els.cameraInput.addEventListener('change', function () {
   handleFilePick(els.cameraInput.files);

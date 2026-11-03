@@ -165,8 +165,8 @@ device can use the app. To require a token + password:
 .\.venv\Scripts\python.exe scripts\gen_token.py
 .\.venv\Scripts\python.exe scripts\set_password.py "your-password"
 ```
-Tailscale IPs are *not* in the loopback bypass; the phone will see a login
-overlay on first visit and swap the password for a bearer token that's stashed
+Tailscale IPs are *not* in the loopback bypass; the phone will see the vendored sign-in
+sheet on first visit and swap the password for a bearer token that's stashed
 in `localStorage`.
 
 ---
@@ -273,7 +273,7 @@ photo-ocr/
 │   │   └── static/              PWA: index.html, ES-module JS, styles.css, icons
 │   │       └── _vendored/       fleet components (nav · home-head · icons · card ·
 │   │                            button · toast · empty-state · base · text-size ·
-│   │                            action-row · modal · switch · icon-button · select-native ·
+│   │                            action-row · modal · sign-in · switch · icon-button · select-native ·
 │   │                            segmented · page-foot · usage-log),
 │   │                            copied verbatim from project-scaffolding
 │   └── tray/                    system-tray launcher
@@ -492,7 +492,7 @@ The `smoke` marker is the slow live-tray bucket — see the Playwright section b
 
 ### Playwright browser smoke tests
 
-A `pytest-playwright` suite under `tests/e2e/` catches SPA boot regressions (JS errors, empty `<select>`s, broken settings toggle, missing login overlay) plus regression nets for past iPhone-only bugs (cache-busting, cert lifetime, photo upload) and the Capture photo sheet (move left/right, Retake/Keep on a quality-warned photo, Remove, all real 44px targets). Instance selection is guarded by the vendor-verbatim `tests/e2e/_e2e_live_guard.py` (adopted fleet-wide, byte-identical across every adopter): a bare `pytest tests/e2e` with the tray up **refuses to run** with a guard message rather than silently adopting it; with the tray down it boots its own disposable instance instead. Set `PHOTO_OCR_E2E_LIVE=1` (`scripts/run-e2e.ps1` does) to explicitly *adopt* the live tray on `https://127.0.0.1:8444` for read-only smoke checks — this repo never kills it to satisfy the opt-in (`tray.bat --restart` owns that).
+A `pytest-playwright` suite under `tests/e2e/` catches SPA boot regressions (JS errors, empty `<select>`s, broken settings toggle, sign-in sheet not opening) plus regression nets for past iPhone-only bugs (cache-busting, cert lifetime, photo upload) and the Capture photo sheet (move left/right, Retake/Keep on a quality-warned photo, Remove, all real 44px targets). Instance selection is guarded by the vendor-verbatim `tests/e2e/_e2e_live_guard.py` (adopted fleet-wide, byte-identical across every adopter): a bare `pytest tests/e2e` with the tray up **refuses to run** with a guard message rather than silently adopting it; with the tray down it boots its own disposable instance instead. Set `PHOTO_OCR_E2E_LIVE=1` (`scripts/run-e2e.ps1` does) to explicitly *adopt* the live tray on `https://127.0.0.1:8444` for read-only smoke checks — this repo never kills it to satisfy the opt-in (`tray.bat --restart` owns that).
 
 By default the suite runs in **two projections**: Chromium desktop and WebKit projected onto an iPhone 14 (viewport, user-agent, touch). WebKit is iOS Mobile Safari's engine family, so the second projection catches most "Safari is unhappy" regressions on Windows. Pin one engine with `--browser chromium` for a faster dev loop; a test tagged `@pytest.mark.desktop_only` skips the WebKit projection.
 
