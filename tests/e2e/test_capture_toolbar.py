@@ -14,9 +14,11 @@ projections — the iPhone one is the touch surface the targets are for.
 
 from __future__ import annotations
 
+import contextlib
 import io
 import json
 import os
+from collections.abc import Iterator
 
 import pytest
 from playwright.sync_api import Page, Route, expect
@@ -101,6 +103,26 @@ def _mock_session_api(page: Page) -> list[str]:
     return deleted
 
 
+@contextlib.contextmanager
+def _strip_churn(page: Page) -> Iterator[None]:
+    """Re-render the thumbnail strip every few ms for the block's duration.
+
+    A late quality assessment or upload settling re-renders the whole strip,
+    replacing every tile; on a loaded box that lands between any two steps of a
+    test. Churning makes it land between all of them.
+    """
+    page.evaluate(
+        """async () => {
+            const { renderThumbnails } = await import('/static/capture.js');
+            window.__churn = setInterval(renderThumbnails, 5);
+        }"""
+    )
+    try:
+        yield
+    finally:
+        page.evaluate("clearInterval(window.__churn)")
+
+
 def _srcs(page: Page) -> list[str]:
     return page.evaluate(
         "[...document.querySelectorAll('#thumbStrip li.thumb img')].map(i => i.src)"
@@ -116,12 +138,17 @@ def _wait_until(page: Page, predicate, timeout_ms: int = 5_000) -> None:
     raise AssertionError("condition not met in time")
 
 
+_BOXES_JS = """(sel) => [...document.querySelectorAll(sel)]
+    .map((el) => el.getBoundingClientRect())
+    .filter((r) => r.width > 0 || r.height > 0)
+    .map((r) => ({ width: r.width, height: r.height }))"""
+
+
 def _assert_hit_targets(page: Page, selectors: list[str]) -> None:
+    # One evaluate: the boxes are read in a single page task, so a re-render
+    # replacing the elements cannot land between finding one and measuring it.
     for sel in selectors:
-        for i, box in enumerate(
-            b.bounding_box() for b in page.locator(sel).all() if b.is_visible()
-        ):
-            assert box is not None, f"{sel}[{i}] has no box"
+        for i, box in enumerate(page.evaluate(_BOXES_JS, sel)):
             assert box["width"] >= _HIT_MIN and box["height"] >= _HIT_MIN, (
                 f"{sel}[{i}] is {box['width']:.0f}x{box['height']:.0f}px, "
                 f"under the {_HIT_MIN}px floor"
@@ -160,7 +187,8 @@ def test_photo_sheet_holds_every_photo_action(authed_page: Page, base_url: str) 
     # A tile is one 44px+ button that opens its photo's sheet.
     tiles = authed_page.locator("#thumbStrip .thumb-select")
     expect(tiles.nth(0)).to_have_attribute("aria-haspopup", "dialog")
-    _assert_hit_targets(authed_page, ["#thumbStrip button"])
+    with _strip_churn(authed_page):
+        _assert_hit_targets(authed_page, ["#thumbStrip button"])
 
     tiles.nth(0).click()
     sheet = authed_page.locator(_SHEET)
