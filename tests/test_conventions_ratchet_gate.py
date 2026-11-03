@@ -77,7 +77,12 @@ def test_the_ratchet_is_declared_and_its_script_is_vendored() -> None:
     assert table["enabled"] is True
     assert (REPO_ROOT / table["baseline"]).is_file()
     # A helper rule without its helper would exit 2; the repo has neither helper.
-    assert set(table["rules"]) == {"no-window", "logging-not-print", "no-drive-path"}
+    assert set(table["rules"]) == {
+        "no-window",
+        "logging-not-print",
+        "no-drive-path",
+        "password-input-vendored",
+    }
     entry = fleet["vendored"]["conventions_ratchet"]
     assert entry["dest"] == "scripts/conventions_ratchet.py"
     assert (REPO_ROOT / entry["dest"]).is_file()

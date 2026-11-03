@@ -8,7 +8,7 @@ desktop, painful on a phone, and broken on iOS PWAs whose
 localStorage is partitioned from Safari's main jar.
 
 A password gives the user a memorable secret to type instead. The
-webapp shows a login overlay whenever an API call returns 401; on
+webapp shows the sign-in sheet whenever an API call returns 401; on
 correct password, the server hands the bearer token back, the page
 stashes it in localStorage, and from then on the device behaves as
 if it had pasted the tokenised URL.
@@ -90,7 +90,7 @@ def main() -> int:
     print("──────────")
     print("• Restart the tray so the new value is picked up.")
     print("• Open the webapp on a device with no token in localStorage")
-    print("  (e.g. iPhone PWA). The login overlay appears — type the")
+    print("  (e.g. iPhone PWA). The sign-in sheet appears — type the")
     print("  password, the server hands the bearer token back, the")
     print("  page stashes it, you're in.")
     print("• Failed attempts are logged with client IP to:")

@@ -1,29 +1,41 @@
-/* Photo OCR — fetch helpers and the login overlay.
+/* Photo OCR — fetch helpers and the sign-in hook.
  *
- * `api()` attaches the bearer token and routes a 401 to the login
- * overlay; `jsonApi()` adds JSON parsing + error shaping on top.
+ * `api()` attaches the bearer token and routes a 401 to the vendored
+ * sign-in sheet; `jsonApi()` adds JSON parsing + error shaping on top.
  */
 
 'use strict';
 
-import { els, readToken } from './state.js';
+import { readToken, writeToken } from './state.js';
+import { requestSignIn } from './_vendored/sign-in/sign-in.js';
 
 const DEFAULT_TIMEOUT_MS = 45000;
 
-// ----------------------------------------------------------- login UI
-export function showLogin() {
-  if (!els.loginOverlay) return;
-  els.loginOverlay.hidden = false;
-  // The login overlay is not a <dialog>, so the vendored nav's automatic
-  // body:has(dialog[open]) hide rule can't see it — use the nav-hidden
-  // class contract instead (see _vendored/nav/README.md, modal-hide rule).
-  document.body.classList.add('nav-hidden');
-  els.loginPassword.value = '';
-  els.loginPassword.focus();
+// ----------------------------------------------------------- sign-in
+// Every 401 lands here. The sheet hands all callers one promise while it is
+// open, so the follow-up runs once per sign-in, not once per failing call.
+let onSignedIn = null;
+let signInOpen = false;
+
+// main.js passes its boot sequence so this module stays independent of it.
+export function setSignInHandler(handler) {
+  onSignedIn = handler;
 }
-export function hideLogin() {
-  if (els.loginOverlay) els.loginOverlay.hidden = true;
-  document.body.classList.remove('nav-hidden');
+
+function showLogin() {
+  if (signInOpen) return;
+  signInOpen = true;
+  requestSignIn({
+    endpoint: '/api/login',
+    hint: 'Enter the password to use this photo OCR app.',
+    onToken: writeToken,
+  }).then(function () {
+    signInOpen = false;
+    if (onSignedIn) onSignedIn();
+  }, function (exc) {
+    signInOpen = false;
+    console.warn('sign-in failed to open', exc);
+  });
 }
 
 // ----------------------------------------------------------- fetch

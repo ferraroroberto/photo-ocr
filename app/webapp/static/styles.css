@@ -39,9 +39,6 @@
   --deficit-soft: color-mix(in srgb, var(--danger) 12%, transparent);
   --deficit-border-soft: color-mix(in srgb, var(--danger) 30%, transparent);
   --close-bg: transparent;  /* glyph-only controls draw nothing at rest */
-  /* theme-invariant surfaces: the login scrim dims content and the photo
-     lightbox/thumb overlays frame photos — neither is a themed surface. */
-  --scrim: rgba(0, 0, 0, 0.5);
   /* radii (rounded scale) — {sm, md, lg, pill, nav}; other strays fold into md. */
   --radius-sm: 8px;         /* rounded.sm — read by the vendored icon-button */
   --radius-md: 12px;
@@ -148,8 +145,7 @@
 * { box-sizing: border-box; }
 
 /* The HTML `hidden` attribute should always win over explicit display
- * rules (e.g. .login-overlay { display: flex }). Without this the
- * login overlay stays visible after hideLogin() sets `hidden=true`. */
+ * rules (e.g. `.some-row { display: flex }`). */
 [hidden] { display: none !important; }
 
 /* Canonical focus-visible ring (design.md v2 focus contract): one tokenized
@@ -832,47 +828,3 @@ html, body {
 /* ---------- toast ---------- */
 /* The toast is the vendored component (_vendored/toast/toast.css): the nav's
    glass, neutral for every message, tinted only for a real error. */
-
-/* ---------- login overlay ---------- */
-.login-overlay {
-  position: fixed;
-  inset: 0;
-  background: var(--scrim);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 3000;
-  padding: var(--gap);
-}
-.login-card {
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: var(--space-lg);
-  width: 100%;
-  max-width: 360px;
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap);
-}
-.login-card h2 {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4em;
-  margin: 0;
-  font-size: var(--font-heading-lg);
-}
-.login-card h2 .icon { width: var(--icon-feature); height: var(--icon-feature); }
-.login-card input {
-  padding: var(--gap) 14px;
-  background: var(--input-bg);
-  color: var(--ink);
-  border: 1px solid var(--control-border);
-  border-radius: var(--radius-md);
-  font-size: var(--font-body);
-  min-height: 48px;
-}
-.login-error {
-  color: var(--danger);
-  font-size: var(--font-body-sm);
-}

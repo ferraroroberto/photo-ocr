@@ -22,6 +22,7 @@ base = { src = "app/webapp/static/_vendored/base", sha = "5d460bd1d9d44eed955c53
 text-size = { src = "app/webapp/static/_vendored/text-size", sha = "5d460bd1d9d44eed955c5357d1c9f622f2550ad8", dest = "app/webapp/static/_vendored/text-size" }
 action-row = { src = "app/webapp/static/_vendored/action-row", sha = "5d460bd1d9d44eed955c5357d1c9f622f2550ad8", dest = "app/webapp/static/_vendored/action-row" }
 modal = { src = "app/webapp/static/_vendored/modal", sha = "713b1d1e36989440679ec4e415ff149b14d96c81", dest = "app/webapp/static/_vendored/modal" }
+sign-in = { src = "app/webapp/static/_vendored/sign-in", sha = "f05859a2bada56296d7f134e471953867c253571", dest = "app/webapp/static/_vendored/sign-in" }
 button = { src = "app/webapp/static/_vendored/button", sha = "5d460bd1d9d44eed955c5357d1c9f622f2550ad8", dest = "app/webapp/static/_vendored/button" }
 select-native = { src = "app/webapp/static/_vendored/select-native", sha = "5d460bd1d9d44eed955c5357d1c9f622f2550ad8", dest = "app/webapp/static/_vendored/select-native" }
 toast = { src = "app/webapp/static/_vendored/toast", sha = "3b708fd3c54ab7b93b08d489406c405762c83c41", dest = "app/webapp/static/_vendored/toast" }
@@ -41,7 +42,7 @@ structure_ratchet = { src = "scripts/structure_ratchet.py", sha = "5505185c5f4b1
 structure_layout = { src = "scripts/structure_layout.py", sha = "f272f4fbcfb5a5064c918e24a7898b0b34343212", dest = "scripts/structure_layout.py" }
 structure_band = { src = "scripts/structure_band.py", sha = "3b708fd3c54ab7b93b08d489406c405762c83c41", dest = "scripts/structure_band.py" }
 box_lock_gate = { src = "scripts/box_lock_gate.ps1", sha = "98cdb1b7727d12a5c233580478e6fae40d98e6f3", dest = "scripts/box_lock_gate.ps1" }
-conventions_ratchet = { src = "scripts/conventions_ratchet.py", sha = "5505185c5f4b10eea5ab268e7b6676c6c54340c4", dest = "scripts/conventions_ratchet.py" }
+conventions_ratchet = { src = "scripts/conventions_ratchet.py", sha = "f05859a2bada56296d7f134e471953867c253571", dest = "scripts/conventions_ratchet.py" }
 runtime_write_ratchet = { src = "scripts/runtime_write_ratchet.py", sha = "5505185c5f4b10eea5ab268e7b6676c6c54340c4", dest = "scripts/runtime_write_ratchet.py" }
 runtime_write_resolve = { src = "scripts/runtime_write_resolve.py", sha = "5505185c5f4b10eea5ab268e7b6676c6c54340c4", dest = "scripts/runtime_write_resolve.py" }
 comment_ratchet = { src = "scripts/comment_ratchet.py", sha = "5505185c5f4b10eea5ab268e7b6676c6c54340c4", dest = "scripts/comment_ratchet.py" }
@@ -96,13 +97,14 @@ baseline = ".structure-ratchet-baseline.json"
 # rises above .conventions-ratchet-baseline.json. no-window: this app runs on Windows
 # with no console of its own (tray, webapp), so an unsuppressed spawn flashes a window.
 # logging-not-print: app/ and src/ are library code. no-drive-path: no hardcoded drive
-# locations. secret-compare and git-wrapper stay off: the repo has no helper for either.
+# locations. password-input-vendored: the only password input lives in the vendored sign-in
+# sheet. secret-compare and git-wrapper stay off: the repo has no helper for either.
 # A file that cannot be parsed exits 3, which fails the gate. Vendored copies are skipped
 # by the script itself. Procedure + limits: project-scaffolding docs/conventions-ratchet.md.
 [conventions_ratchet]
 enabled  = true
 baseline = ".conventions-ratchet-baseline.json"
-rules    = ["no-window", "logging-not-print", "no-drive-path"]
+rules    = ["no-window", "logging-not-print", "no-drive-path", "password-input-vendored"]
 
 # [runtime_write_ratchet] -- scripts/runtime_write_ratchet.py fails when a tracked
 # Python file gains a write target (open for writing, Path.write_*, mkdir, a log
