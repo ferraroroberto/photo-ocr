@@ -420,18 +420,20 @@ function openTakeSheet(take) {
 
   const sheet = openSheet({
     title: fullWhen(take.created_at),
+    track: 'history.take-sheet',
     body: body,
     className: 'take-sheet-dialog',
     actions: [
-      { label: 'Copy text', icon: 'copy', tone: 'primary', onSelect: function () { copyHistoryEntry(take); } },
+      { label: 'Copy text', track: 'history.copy', icon: 'copy', tone: 'primary', onSelect: function () { copyHistoryEntry(take); } },
       {
         label: retryLabel(take.missing || 0),
+        track: 'history.retry-missing',
         icon: 'refresh-cw',
         hidden: !take.missing,
         onSelect: function () { retryMissing(take.session_id); },
       },
-      { label: 'Redo with…', icon: 'redo-2', onSelect: function () { openRedoPicker(take); } },
-      { label: 'Delete take', icon: 'trash-2', tone: 'danger', onSelect: function () { confirmDelete(take); } },
+      { label: 'Redo with…', track: 'history.redo', icon: 'redo-2', onSelect: function () { openRedoPicker(take); } },
+      { label: 'Delete take', track: 'history.delete', icon: 'trash-2', tone: 'danger', onSelect: function () { confirmDelete(take); } },
     ],
   });
   const retryBtn = sheet.actions[1];
@@ -470,9 +472,11 @@ function openRedoPicker(take) {
   const models = (state.config && state.config.ocr_models_available) || [];
   openSheet({
     title: 'Redo with',
+    track: 'history.redo-sheet',
     actions: models.map(function (m) {
       return {
         label: modelLabel(m),
+        track: 'history.redo-option',
         current: m === take.model,
         onSelect: function () { redoHistoryEntry(take, m); },
       };
@@ -483,6 +487,7 @@ function openRedoPicker(take) {
 async function confirmDelete(take) {
   const yes = await confirmSheet({
     title: 'Delete this take?',
+    track: 'history.delete-confirm',
     message: 'Its photos and text are deleted for good.',
     confirmLabel: 'Delete',
     danger: true,
@@ -506,6 +511,7 @@ async function deleteHistoryEntry(s) {
 export async function cleanAllHistory() {
   const yes = await confirmSheet({
     title: 'Delete all saved takes?',
+    track: 'settings.delete-all-confirm',
     message: 'Every saved take, with its photos and text, is deleted for good.',
     confirmLabel: 'Delete all',
     danger: true,

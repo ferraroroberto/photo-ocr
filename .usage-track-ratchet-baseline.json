@@ -1,10 +1,4 @@
 {
   "version": 1,
-  "entries": [
-    {"key": "app/webapp/static/capture.js", "counts": {"untracked-control": 1}},
-    {"key": "app/webapp/static/index.html", "counts": {"untracked-control": 1}},
-    {"key": "app/webapp/static/main.js", "counts": {"dynamic-id": 1}},
-    {"key": "app/webapp/static/settings.js", "counts": {"untracked-control": 1}},
-    {"key": "app/webapp/static/sheet.js", "counts": {"untracked-control": 4, "untracked-sheet": 1}}
-  ]
+  "entries": []
 }

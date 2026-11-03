@@ -161,9 +161,11 @@ export function openModelPicker() {
   const models = (state.config && state.config.ocr_models_available) || [];
   openSheet({
     title: 'Model for this take',
+    track: 'take.model-sheet',
     actions: models.map(function (m) {
       return {
         label: modelLabel(m),
+        track: 'take.model-option',
         current: m === state.model,
         onSelect: function () { state.model = m; renderTakeOptions(); },
       };
@@ -174,9 +176,11 @@ export function openModelPicker() {
 export function openStylePicker() {
   openSheet({
     title: 'Style for this take',
+    track: 'take.style-sheet',
     actions: (state.prompts || []).map(function (p) {
       return {
         label: p.label || p.id,
+        track: 'take.style-option',
         current: p.id === state.promptId,
         onSelect: function () { state.promptId = p.id; renderTakeOptions(); },
       };
@@ -188,9 +192,10 @@ export function openStylePicker() {
 function openAddSheet() {
   openSheet({
     title: 'Add photos',
+    track: 'take.add-sheet',
     actions: [
-      { label: 'Choose photos', icon: 'image', onSelect: function () { els.galleryInput.click(); } },
-      { label: 'Camera', icon: 'camera', onSelect: function () { els.cameraInput.click(); } },
+      { label: 'Choose photos', track: 'take.add-choose', icon: 'image', onSelect: function () { els.galleryInput.click(); } },
+      { label: 'Camera', track: 'take.add-camera', icon: 'camera', onSelect: function () { els.cameraInput.click(); } },
     ],
   });
 }
@@ -198,9 +203,10 @@ function openAddSheet() {
 export function openTakeMoreSheet() {
   openSheet({
     title: 'This take',
+    track: 'take.more-sheet',
     actions: [
       // Drops the photos and the text, no confirm (the result's New take).
-      { label: 'Start over', icon: 'eraser', onSelect: resetTake },
+      { label: 'Start over', track: 'take.start-over', icon: 'eraser', onSelect: resetTake },
     ],
   });
 }
@@ -237,6 +243,7 @@ function openPhotoSheet(photo) {
   const moves = document.createElement('div');
   moves.className = 'photo-sheet-moves';
   const moveButton = function (glyph, label, step) {
+    // untracked-control-exempt: each caller below stamps its own constant id (left / right).
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'button-surface';
@@ -250,21 +257,25 @@ function openPhotoSheet(photo) {
     return btn;
   };
   const left = moveButton('chevron-left', 'Move left', -1);
+  left.dataset.track = 'photo.move-left';
   const right = moveButton('chevron-right', 'Move right', 1);
+  right.dataset.track = 'photo.move-right';
   moves.append(left, right);
   body.append(frame, warning, moves);
 
   const actions = [];
   if (isWarned(photo)) {
-    actions.push({ label: 'Retake', icon: 'camera', onSelect: function () { retakePhoto(photo); } });
+    actions.push({ label: 'Retake', track: 'photo.retake', icon: 'camera', onSelect: function () { retakePhoto(photo); } });
     actions.push({
       label: 'Keep it',
+      track: 'photo.keep',
       icon: 'check',
       onSelect: function () { photo.warningDismissed = true; renderThumbnails(); },
     });
   }
   actions.push({
     label: 'Remove photo',
+    track: 'photo.remove',
     icon: 'trash-2',
     tone: 'danger',
     onSelect: function () { removePhoto(photo); },
@@ -272,6 +283,7 @@ function openPhotoSheet(photo) {
 
   const sheet = openSheet({
     title: '',
+    track: 'photo.sheet',
     body: body,
     actions: actions,
     className: 'photo-sheet-dialog',
