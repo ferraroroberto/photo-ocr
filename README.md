@@ -288,7 +288,7 @@ photo-ocr/
 │   ├── gen_token.py             generate/rotate the bearer token
 │   ├── set_password.py          set/clear the login password
 │   ├── run_named_tunnel.py      uvicorn + cloudflared
-│   ├── verify-before-ship.ps1   pre-ship gate: byte-compile + static ratchet + docs ratchet + structure ratchet + conventions ratchet + comment ratchet + docstring ratchet + instruction ratchet + doc refs ratchet + dead code ratchet + pytest + e2e
+│   ├── verify-before-ship.ps1   pre-ship gate: byte-compile + static ratchet + docs ratchet + structure ratchet + conventions ratchet + comment ratchet + docstring ratchet + instruction ratchet + doc refs ratchet + dead code ratchet + runtime write ratchet + usage track ratchet + pytest + e2e
 │   ├── box_lock_gate.ps1        holds fleet-config's shared box load lock for the whole gate run
 │   ├── static_ratchet.py        vendored baseline-and-ratchet detector (jscpd + ruff)
 │   ├── static_ratchet_gate.py   gate wrapper: only exit 0 passes, exit 3 = NOT CONFIRMED
@@ -305,6 +305,8 @@ photo-ocr/
 │   ├── dead_code_ratchet.py     vendored baseline-and-ratchet on unused functions/classes/variables
 │   ├── runtime_write_ratchet.py vendored baseline-and-ratchet on writes resolving under a code folder, + the test-run probe
 │   ├── runtime_write_resolve.py vendored sibling of the runtime write ratchet: the static path resolver
+│   ├── usage_track_ratchet.py   vendored baseline-and-ratchet on untracked controls/sheets and built ids in the web UI, + the usage-log wiring
+│   ├── usage_track_scan.py      vendored sibling of the usage track ratchet: the HTML and JS readers
 │   ├── run-e2e.ps1              e2e leg runner (used by the pre-ship gate)
 │   ├── design_review_synthetic.py  throwaway webapp for /design-review's synthetic and e2e runs
 │   ├── disposable_webapp.py     free-port throwaway webapp shared by the e2e autoboot and the synthetic run
@@ -514,7 +516,7 @@ Without a tray, a bare run already boots its own disposable webapp on a free por
 
 ### Verifying changes before ship
 
-`scripts/verify-before-ship.ps1` is the single pre-ship gate. It byte-compiles `app`/`src`/`tests`, runs the static, docs, structure, conventions, comment, instruction, doc refs and dead code ratchets, runs the non-e2e pytest suite, then runs the Playwright e2e suite (Chromium + WebKit/iPhone) against a **disposable webapp it boots itself on a free port** — so a forgotten tray can't let a regression slip through as a skipped suite.
+`scripts/verify-before-ship.ps1` is the single pre-ship gate. It byte-compiles `app`/`src`/`tests`, runs the static, docs, structure, conventions, comment, instruction, doc refs, dead code, runtime write and usage track ratchets, runs the non-e2e pytest suite, then runs the Playwright e2e suite (Chromium + WebKit/iPhone) against a **disposable webapp it boots itself on a free port** — so a forgotten tray can't let a regression slip through as a skipped suite.
 
 The e2e leg is proportionate to the diff: `scripts/classify_e2e.py` classifies the branch's changed files against `origin/main` (rules in `.fleet.toml` `[e2e]`). A docs-only branch **skips** the leg and the gate prints the tier and reason; a static-image change runs only the smoke slice; anything under `app/webapp/`, `src/`, or any path no rule names runs the **full** suite. A classifier that errors, prints no tier, or returns an unknown one also runs the full suite, and says so — the gate never skips on doubt.
 

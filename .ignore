@@ -30,6 +30,8 @@
 /scripts/structure_band.py
 /scripts/structure_layout.py
 /scripts/structure_ratchet.py
+/scripts/usage_track_ratchet.py
+/scripts/usage_track_scan.py
 /src/compression.py
 /src/runtime_data.py
 /src/usage_log.py

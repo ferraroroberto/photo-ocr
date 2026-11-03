@@ -144,6 +144,17 @@ try {
     if ($runtimeWriteExit -eq 3) { Fail "runtime write ratchet NOT CONFIRMED (a new write target could not be resolved, or a .py file could not be read)." }
     if ($runtimeWriteExit -ne 0) { Fail "runtime write ratchet failed (a write under a code folder was added, or a bad table or baseline)." }
 
+    # Usage track ratchet: fails when a file's count of controls with no constant tracking id,
+    # sheets with no data-track-view or built ids rises above .usage-track-ratchet-baseline.json,
+    # or the app does not reach its usage log. Exit 3 (a file that cannot be read, or JS that
+    # never closes) is its own failure, never a pass or a skip. It reads the whole tree, so it is
+    # not path-routed.
+    Write-Host "==> usage track ratchet..." -ForegroundColor Cyan
+    & $python "scripts/usage_track_ratchet.py"
+    $usageTrackExit = $LASTEXITCODE
+    if ($usageTrackExit -eq 3) { Fail "usage track ratchet NOT CONFIRMED (a file could not be read, or JS never closes)." }
+    if ($usageTrackExit -ne 0) { Fail "usage track ratchet failed (an untracked control or sheet, a built id, the usage log not wired, or a bad table or baseline)." }
+
     # Runtime write probe, first half: what already sits untracked or ignored under the
     # code folders, so the probe after the test runs names only what they wrote.
     $runtimeSnapshot = Join-Path ([IO.Path]::GetTempPath()) "runtime-write-snapshot-$PID.json"
