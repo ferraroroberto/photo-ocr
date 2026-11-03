@@ -26,6 +26,7 @@ from starlette.responses import Response
 from starlette.types import Scope
 
 # Local imports
+from app.webapp.login_alert import build_login_lockout
 from app.webapp.middleware import BearerTokenMiddleware
 from app.webapp.routers import auth, config, misc, search, sessions
 from app.webapp.routers._helpers import BUILD_INFO, STATIC_DIR
@@ -163,6 +164,7 @@ def create_app() -> FastAPI:
     app.state.webapp_config = webapp_cfg
     app.state.archive = archive
     app.state.ocr_client = ocr_client
+    app.state.login_lockout = build_login_lockout(webapp_cfg)
     app.state.extract_tasks = {}
     app.state.extract_lock = threading.Lock()
     app.state.session_locks = weakref.WeakValueDictionary()

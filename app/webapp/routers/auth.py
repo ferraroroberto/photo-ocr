@@ -12,7 +12,9 @@ from typing import Any, Dict
 from fastapi import APIRouter, HTTPException, Request
 
 # Local imports
+from app.webapp.middleware import client_address, is_pc_itself
 from app.webapp.routers._helpers import PROJECT_ROOT, maybe_json
+from src.login_lockout import LoginLockout, retry_after_header
 from src.webapp_config import WebappConfig
 
 logger = logging.getLogger(__name__)
@@ -50,7 +52,19 @@ def ensure_auth_log_handler() -> None:
 @router.post("/api/login")
 async def login(request: Request) -> Dict[str, Any]:
     cfg: WebappConfig = request.app.state.webapp_config
-    client_host = request.client.host if request.client else "?"
+    client_host = client_address(request)
+    lockout: LoginLockout = request.app.state.login_lockout
+    # The PC itself never locks: only a loopback caller with no tunnel header
+    # is the PC, because every public request through the tunnel is loopback.
+    exempt = is_pc_itself(request)
+    wait = 0.0 if exempt else lockout.retry_after(client_host)
+    if wait > 0:
+        auth_logger.warning(f"🔒 Login refused for {client_host}: locked out")
+        raise HTTPException(
+            status_code=429,
+            detail="too many attempts",
+            headers=retry_after_header(wait),
+        )
     if not cfg.auth_password:
         auth_logger.info(
             f"⚠️  Login attempt from {client_host} but no auth_password "
@@ -76,6 +90,9 @@ async def login(request: Request) -> Dict[str, Any]:
             f"🚨 Failed password attempt from {client_host} "
             f"(presented: {len(presented)} chars)"
         )
+        if not exempt:
+            lockout.record_failure(client_host)
         raise HTTPException(status_code=401, detail="bad password")
+    lockout.reset(client_host)
     auth_logger.info(f"🔓 Password login from {client_host}")
     return {"token": cfg.auth_token}

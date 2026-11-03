@@ -36,5 +36,8 @@
   "_comment_quality_gate_enabled": "On-device pre-flight image quality gate. true makes the PWA score each added photo for blur/glare/exposure and show an advisory badge before Extract. false skips client-side scoring entirely.",
   "quality_gate_enabled": true,
   "auth_token": "",
-  "auth_password": ""
+  "auth_password": "",
+  "_comment_telegram": "Guessing alert: three wrong passwords in a row from one client send one Telegram message to the fleet coding-alerts chat. Fill in the bot token and that chat id here (this file is gitignored once copied to webapp_config.json). Either empty = the alert is only written to the log.",
+  "telegram_bot_token": "",
+  "telegram_alert_chat_id": ""
 }
