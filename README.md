@@ -261,6 +261,7 @@ photo-ocr/
 │   ├── no_window.py             creationflags=NO_WINDOW helper for every subprocess spawn
 │   ├── static_versioning.py     cache-busting query param
 │   ├── compression.py           stream-safe gzip middleware for compressible responses
+│   ├── login_lockout.py         vendored per-client login lock-out
 │   ├── usage_log.py             vendored local-only view/tap log router (SQLite; see Usage log)
 │   └── runtime_data.py          resolves the SQLite data-root path (machine-level, not hardcoded)
 ├── app/
@@ -418,6 +419,7 @@ Created on the first Settings change. Schema lives in
 | `quality_gate_enabled` | `true` | On-device pre-flight image quality gate. `false` skips client-side blur/glare/exposure scoring entirely. |
 | `auth_token` | `""` | Empty = auth gate **off**. Set via `scripts/gen_token.py`. |
 | `auth_password` | `""` | Optional companion password — see auth section. |
+| `telegram_bot_token`, `telegram_alert_chat_id` | `""` | Guessing-alert Telegram target; empty = log only. |
 
 ### `config/ocr_prompts.json` (committed)
 
@@ -439,6 +441,7 @@ Run once on the home PC:
 - Remote requests (Cloudflare tunnel) need either the `?token=…` query param
   or the password.
 - Failed password attempts are logged with client IP to `webapp/auth.log`.
+- Repeated wrong passwords get a `429` and an alert; see [docs/login-lockout.md](docs/login-lockout.md).
 
 ---
 

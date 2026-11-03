@@ -99,6 +99,11 @@ class WebappConfig:
     # browser when the user types it correctly. Lets a fresh device
     # bootstrap without copy-pasting a tokenised URL.
     auth_password: str = ""
+    # Telegram bot token and the fleet's "coding alerts" chat id that receive
+    # the guessing alert. Both empty → the alert is only logged. Never sent to
+    # the browser (see routers/config.py).
+    telegram_bot_token: str = ""
+    telegram_alert_chat_id: str = ""
 
     @property
     def effective_single_shot_max_photos(self) -> int:

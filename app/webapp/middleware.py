@@ -4,6 +4,7 @@ from __future__ import annotations
 
 # Standard library imports
 import hmac
+import ipaddress
 from typing import Callable
 
 # Third-party imports
@@ -25,6 +26,51 @@ _AUTH_EXEMPT_PREFIXES = ("/static/", "/healthz")
 _AUTH_EXEMPT_EXACT = frozenset(
     {"/", "/healthz", "/api/login", "/api/version"}
 )
+
+
+# cloudflared connects to this app from loopback and names the real caller in
+# this header, so it is the only client address a tunnelled request has.
+_TUNNEL_CLIENT_HEADER = "cf-connecting-ip"
+# Shared bucket for a tunnelled request whose header is not an IP address.
+_UNPARSEABLE_TUNNEL_CLIENT = "tunnel-unknown"
+
+
+def _socket_host(request: Request) -> str:
+    return request.client.host if request.client else ""
+
+
+def _tunnel_client(request: Request) -> str | None:
+    """The real caller behind the tunnel, or None when this is not tunnel traffic.
+
+    The header is believed only on a loopback socket: from any other peer it is
+    just a header the caller chose.
+    """
+    if _socket_host(request) not in _LOOPBACK_HOSTS:
+        return None
+    raw = request.headers.get(_TUNNEL_CLIENT_HEADER)
+    if raw is None:
+        return None
+    try:
+        return ipaddress.ip_address(raw.strip()).compressed
+    except ValueError:
+        return _UNPARSEABLE_TUNNEL_CLIENT
+
+
+def client_address(request: Request) -> str:
+    """The address login attempts are keyed and logged on: the tunnel's
+    client when there is one, else the socket peer."""
+    return _tunnel_client(request) or _socket_host(request) or "?"
+
+
+def is_pc_itself(request: Request) -> bool:
+    """True for a caller on this machine, not one the tunnel forwarded.
+
+    A loopback socket alone proves nothing: every public request through the
+    tunnel arrives that way, so it also must not carry the tunnel's client header.
+    """
+    return _socket_host(request) in _LOOPBACK_HOSTS and (
+        request.headers.get(_TUNNEL_CLIENT_HEADER) is None
+    )
 
 
 class BearerTokenMiddleware:

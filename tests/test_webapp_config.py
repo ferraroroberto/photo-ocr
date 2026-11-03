@@ -211,6 +211,8 @@ def test_load_full_config_reads_every_field(tmp_path: Path) -> None:
         "quality_gate_enabled": False,
         "auth_token": "tok",
         "auth_password": "pw",
+        "telegram_bot_token": "bot",
+        "telegram_alert_chat_id": "chat",
     }
     cfg = load_webapp_config(_write(tmp_path, raw))
     assert {f.name: getattr(cfg, f.name) for f in fields(WebappConfig)} == raw
