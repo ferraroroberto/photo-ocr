@@ -49,6 +49,14 @@ def test_selector_loop_factory_is_zero_arg_and_returns_an_instance():
         loop.close()
 
 
+def test_manager_build_command_launches_serve_module():
+    cmd = WebappManager(WebappManagerConfig(port=18444))._build_command()
+    assert cmd[cmd.index("-m") + 1] == "app.webapp.serve"
+    assert cmd[cmd.index("--server") + 1] == "hypercorn"
+    fallback = WebappManager(WebappManagerConfig(port=18444, server="uvicorn"))._build_command()
+    assert fallback[fallback.index("--server") + 1] == "uvicorn"
+
+
 def test_manager_build_command_passes_loop_factory():
     mgr = WebappManager(WebappManagerConfig(port=18444))
     cmd = mgr._build_command()
@@ -64,17 +72,18 @@ def test_webapp_cmd_passes_loop_factory(monkeypatch):
 
     captured = {}
 
-    def fake_run(app, **kwargs):
+    def fake_run(host, port, **kwargs):
         captured.update(kwargs)
 
-    monkeypatch.setattr("uvicorn.run", fake_run)
+    monkeypatch.setattr("app.webapp.serve.run", fake_run)
     monkeypatch.setattr(
         "app.webapp.manager.cert_paths", lambda *a, **k: None
     )
 
     config = AppConfig(webapp={"host": "127.0.0.1", "port": 18444})
     WebappCommand(config=config).execute(argparse.Namespace(host=None, port=None))
-    assert captured.get("loop") == LOOP_FACTORY
+    assert captured.get("loop_factory") is selector_loop_factory
+    assert captured.get("server") == "hypercorn"
 
 
 def test_disposable_webapp_reuses_manager_command(monkeypatch):
@@ -226,8 +235,9 @@ def test_proactor_loop_dies_on_aborted_connections():
         )
 
 
-def test_uvicorn_argv_has_one_home():
-    """Only WebappManager._build_command may spell out `python -m uvicorn`.
+def test_serve_argv_has_one_home():
+    """Only WebappManager._build_command may spell out `python -m app.webapp.serve`
+    (or `python -m uvicorn`).
 
     A launcher that hand-builds the argv (the old webapp.bat and the synthetic
     design-review boot) drifts from the manager's bind, loop factory and cert
@@ -235,9 +245,10 @@ def test_uvicorn_argv_has_one_home():
     subcommand."""
     import re
 
-    pattern = re.compile(r"""-m\W+uvicorn""")
+    pattern = re.compile(r"""-m\W+(?:uvicorn|app\.webapp\.serve)""")
     allowed = {
         _REPO_ROOT / "app" / "webapp" / "manager.py",
+        _REPO_ROOT / "app" / "webapp" / "serve.py",
         Path(__file__).resolve(),
     }
     roots = [_REPO_ROOT / "app", _REPO_ROOT / "scripts", _REPO_ROOT / "src", _REPO_ROOT / "tests"]
@@ -248,7 +259,7 @@ def test_uvicorn_argv_has_one_home():
         for p in candidates
         if p not in allowed and pattern.search(p.read_text(encoding="utf-8", errors="replace"))
     ]
-    assert not offenders, f"hand-built uvicorn argv outside the manager: {offenders}"
+    assert not offenders, f"hand-built serve argv outside the manager: {offenders}"
 
 
 def test_disposable_webapp_isolates_archive_and_data(monkeypatch):

@@ -21,7 +21,7 @@ Where new code goes, and why each top-level folder exists. The structure ratchet
 |---|---|
 | `app/cli/` | argparse dispatcher; one module per command under `app/cli/commands/` |
 | `app/tray/` | system-tray launcher, single-instance lock, webapp watchdog |
-| `app/webapp/` | FastAPI app factory, auth middleware, uvicorn manager |
+| `app/webapp/` | FastAPI app factory, auth middleware, webapp manager, vendored HTTP/2 launch module `serve.py` |
 | `app/webapp/routers/` | one `APIRouter` per concern (misc, config, auth, sessions, search) |
 | `app/webapp/static/` | the PWA: HTML, ES-module JS, CSS, icons |
 | `app/webapp/static/_vendored/` | fleet components copied verbatim from project-scaffolding; never edited, excluded from the ratchet |

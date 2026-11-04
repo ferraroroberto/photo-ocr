@@ -195,7 +195,7 @@ tunnel in the background so the public URL is up alongside the webapp.
   - **📋 Copy Cloudflare URL** — clipboard the public URL from
     `webapp/last_tunnel_url.txt` (written by the tray when the named
     tunnel comes up).
-  - **🔄 Restart webapp** — stop + start uvicorn so a fresh pull is
+  - **🔄 Restart webapp** — stop + start the webapp so a fresh pull is
     picked up without quitting the tray.
   - **ℹ️ Status** — popup with hub + webapp state.
   - **🚪 Quit** — stops cloudflared (if running) and the webapp.

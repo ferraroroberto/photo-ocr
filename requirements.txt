@@ -20,6 +20,7 @@ pillow-heif>=0.16
 # Webapp (mobile-first FastAPI UI on :8444)
 fastapi>=0.110
 uvicorn[standard]>=0.27
+hypercorn>=0.18
 python-multipart>=0.0.9
 
 # Cert inspection for gen_tailscale_cert.py --check (SAN + expiry)

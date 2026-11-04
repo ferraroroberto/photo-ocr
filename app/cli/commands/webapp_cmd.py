@@ -23,10 +23,9 @@ class WebappCommand(BaseCommand):
 
     def execute(self, args: argparse.Namespace) -> int:
         # Lazy imports so a plain `webapp` subcommand doesn't drag pystray in.
-        import uvicorn
-
-        from app.webapp.event_loop import LOOP_FACTORY
+        from app.webapp.event_loop import selector_loop_factory
         from app.webapp.manager import cert_paths, load_config
+        from app.webapp.serve import run
 
         # Bind address/port have one home — config/config.json's `webapp`
         # section, the same one the tray reads (app/tray/tray.py) — so a
@@ -37,15 +36,14 @@ class WebappCommand(BaseCommand):
 
         certs = cert_paths()
         kwargs = {
-            "host": host,
-            "port": port,
             "log_level": "info",
-            "loop": LOOP_FACTORY,
+            "server": mgr_cfg.server,
+            "loop_factory": selector_loop_factory,
         }
         if certs is not None:
             cert, key = certs
-            kwargs["ssl_certfile"] = str(cert)
-            kwargs["ssl_keyfile"] = str(key)
+            kwargs["certfile"] = str(cert)
+            kwargs["keyfile"] = str(key)
             scheme = "https"
         else:
             scheme = "http"
@@ -53,5 +51,5 @@ class WebappCommand(BaseCommand):
         logger.info(
             f"🚀 photo-ocr webapp on {scheme}://{host if host != '0.0.0.0' else '127.0.0.1'}:{port}"
         )
-        uvicorn.run("app.webapp.server:app", **kwargs)
+        run(host, port, **kwargs)
         return 0
