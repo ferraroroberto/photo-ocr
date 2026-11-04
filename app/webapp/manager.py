@@ -1,10 +1,10 @@
-"""Webapp process manager — adopt-or-spawn for uvicorn.
+"""Webapp process manager — adopt-or-spawn for the HTTP/2 webapp.
 
 Mirrors voice-transcriber's webapp manager:
 
 - ``status()`` checks ``GET /healthz`` and a low-level TCP probe.
 - ``start()`` adopts an already-listening uvicorn (no second spawn) or
-  spawns ``python -m uvicorn app.webapp.server:app`` from this venv.
+  spawns ``python -m app.webapp.serve`` from this venv.
 - ``stop()`` only terminates a process this manager spawned. An
   externally started uvicorn is left alone.
 
@@ -53,6 +53,8 @@ class WebappManagerConfig:
     startup_timeout_seconds: float = 15.0
     request_timeout_seconds: float = 1.0
     poll_interval_seconds: float = 0.4
+    # hypercorn serves HTTP/2 over the certificate; uvicorn is the HTTP/1.1 fallback.
+    server: str = "hypercorn"
 
 
 @dataclass
@@ -71,6 +73,7 @@ def load_config(raw: Optional[Dict[str, Any]] = None) -> WebappManagerConfig:
         enabled=bool(raw.get("enabled", True)),
         host=str(raw.get("host", "0.0.0.0")),
         port=int(raw.get("port", 8444)),
+        server=str(raw.get("server", "hypercorn")),
     )
 
 
@@ -277,7 +280,7 @@ class WebappManager:
         port: Optional[int] = None,
         python: Optional[str] = None,
     ) -> List[str]:
-        """Build the uvicorn argv for this webapp.
+        """Build the ``app.webapp.serve`` argv for this webapp.
 
         ``host``/``port``/``python`` default to ``self.config`` and
         ``sys.executable`` — override them for a caller that needs a
@@ -288,8 +291,7 @@ class WebappManager:
         cmd: List[str] = [
             python if python is not None else sys.executable,
             "-m",
-            "uvicorn",
-            "app.webapp.server:app",
+            "app.webapp.serve",
             "--host",
             host if host is not None else self.config.host,
             "--port",
@@ -298,6 +300,8 @@ class WebappManager:
             "warning",
             "--loop",
             LOOP_FACTORY,
+            "--server",
+            self.config.server,
         ]
         certs = cert_paths()
         if certs is not None:
