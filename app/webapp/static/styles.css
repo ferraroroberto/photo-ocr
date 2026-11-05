@@ -728,6 +728,8 @@ html, body {
    caps use (design.md overline), heading each group of rows. */
 .history-group {
   padding: var(--space-md) 0 var(--space-xs);
+}
+.overline {
   color: var(--muted);
   font-size: var(--font-caption);
   font-weight: 600;
