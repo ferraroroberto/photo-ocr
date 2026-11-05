@@ -203,7 +203,7 @@ function makeSessionRow(take, titleText, isSnippet) {
 
 function groupHeader(label) {
   const li = document.createElement('li');
-  li.className = 'history-group';
+  li.className = 'history-group overline';
   li.setAttribute('role', 'presentation');
   li.textContent = label;
   return li;
