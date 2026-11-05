@@ -83,6 +83,7 @@ def test_the_ratchet_is_declared_and_its_script_is_vendored() -> None:
         "no-drive-path",
         "password-input-vendored",
         "login-lockout",
+        "no-pwsh-stub",
     }
     entry = fleet["vendored"]["conventions_ratchet"]
     assert entry["dest"] == "scripts/conventions_ratchet.py"

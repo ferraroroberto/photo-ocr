@@ -9,7 +9,7 @@
 #
 # Usage:
 #   powershell.exe -File scripts/verify-before-ship.ps1   # Windows PowerShell 5.1 (agent-facing default)
-#   pwsh -File scripts/verify-before-ship.ps1              # PowerShell 7, if installed; do not spawn from an agent (PATH alias can fail non-interactively)
+#   C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -File scripts/verify-before-ship.ps1   # absolute path: the bare pwsh on PATH is a 0-byte stub
 #
 # A tray on :8444 may be running or not — autoboot picks a free port for
 # its own disposable webapp and never touches the running tray. The
