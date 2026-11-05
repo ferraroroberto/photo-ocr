@@ -58,6 +58,10 @@ WATCHDOG_LOG = PROJECT_ROOT / "webapp" / "watchdog.log"
 # up yet) doesn't permanently kill the webapp for the tray's lifetime.
 STARTUP_RETRY_DELAYS_S = (5.0, 15.0, 30.0)
 
+# `clip` copies a short URL and answers in well under a second, so a child still
+# alive after 10 s is wedged and must not stall the tray menu thread.
+CLIP_TIMEOUT_S = 10
+
 
 def _breadcrumb(path: Path, msg: str) -> None:
     try:
@@ -123,8 +127,11 @@ def _clipboard_copy(text: str) -> bool:
                 check=False,
                 encoding="utf-8",
                 creationflags=NO_WINDOW,
+                timeout=CLIP_TIMEOUT_S,
             )
             return p.returncode == 0
+        except subprocess.TimeoutExpired:
+            logger.warning(f"clip did not finish within {CLIP_TIMEOUT_S}s; clipboard not set")
         except OSError as exc:
             logger.debug(f"clip failed: {exc}")
     # POSIX best-effort via xclip / pbcopy if installed.
