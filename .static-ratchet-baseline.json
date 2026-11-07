@@ -1,5 +1,13 @@
 {
   "version": 1,
   "tools": {"jscpd": "5.4.0", "ruff": "0.17.1"},
-  "entries": []
+  "entries": [
+    {"key": "order:I001:app/cli/main.py:from __future__ import annotations", "files": ["app/cli/main.py"]},
+    {"key": "order:I001:app/tray/tray.py:from __future__ import annotations", "files": ["app/tray/tray.py"]},
+    {"key": "order:I001:app/webapp/login_alert.py:from __future__ import annotations", "files": ["app/webapp/login_alert.py"]},
+    {"key": "order:I001:app/webapp/manager.py:from urllib3.exceptions import InsecureRequestWarning", "files": ["app/webapp/manager.py"]},
+    {"key": "order:I001:src/extract_job.py:from __future__ import annotations", "files": ["src/extract_job.py"]},
+    {"key": "order:I001:tests/test_archive_index.py:from __future__ import annotations", "files": ["tests/test_archive_index.py"]},
+    {"key": "order:I001:tests/test_ocr_client.py:from __future__ import annotations", "files": ["tests/test_ocr_client.py"]}
+  ]
 }
