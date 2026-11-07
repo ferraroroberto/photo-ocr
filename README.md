@@ -301,7 +301,7 @@ photo-ocr/
 │   ├── conventions_ratchet.py   vendored baseline-and-ratchet on fleet-convention rule hits; loads conventions_readers.py
 │   ├── comment_ratchet.py       vendored baseline-and-ratchet on #NNN issue references inside comments
 │   ├── docstring_ratchet.py     repo-local baseline-and-ratchet on #NNN issue references inside docstrings
-│   ├── instruction_ratchet.py   vendored baseline-and-ratchet on CLAUDE.md/AGENTS.md prompt-audit hits + size cap
+│   ├── instruction_ratchet.py   vendored ratchet on CLAUDE.md/AGENTS.md prompt-audit hits + size cap; siblings instruction_frontmatter.py, instruction_repeats.py
 │   ├── doc_refs_ratchet.py      vendored baseline-and-ratchet on unresolved repo paths/modules/links in docs
 │   ├── dead_code_ratchet.py     vendored baseline-and-ratchet on unused functions/classes/variables
 │   ├── runtime_write_ratchet.py vendored baseline-and-ratchet on writes resolving under a code folder, + the test-run probe
