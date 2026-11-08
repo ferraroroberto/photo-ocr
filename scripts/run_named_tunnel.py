@@ -64,9 +64,9 @@ def _find_python() -> Path:
 
 def _spawn_uvicorn(port: int) -> subprocess.Popen:
     # Reuse WebappManager's argv builder (and its cert_paths() lookup)
-    # instead of hand-rolling a second uvicorn command — this script, the
-    # tray-owned manager, and webapp.bat had drifted into three places that
-    # each had to be updated for a loop-factory/cert/flag change.
+    # instead of hand-rolling a second uvicorn command: one builder keeps this
+    # script, the tray-owned manager and webapp.bat on the same loop-factory,
+    # cert and flags.
     manager = WebappManager()
     cmd = manager._build_command(
         host="127.0.0.1", port=port, python=str(_find_python())
