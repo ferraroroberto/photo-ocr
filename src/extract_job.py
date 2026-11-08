@@ -19,7 +19,7 @@ from typing import Any, Dict
 # Local imports
 from src.app_config import AppConfig
 from src.archive import Session, SessionArchive
-from src.ocr_client import OcrClient, OcrError, chunk_count
+from src.ocr_client import OcrClient, OcrError, OcrResult, chunk_count
 from src.ocr_prompts import apply_language_hint
 from src.webapp_config import WebappConfig
 
@@ -214,38 +214,61 @@ def execute_extract_job(
             return
 
         duration = time.monotonic() - t0
-        current = archive.get(session_id) or session
-        set_extract_progress(
-            current,
-            phase="merging",
-            chunks_total=total_chunks,
-            chunks_done=total_chunks,
+        _record_extract_success(
+            cfg,
+            archive,
+            archive.get(session_id) or session,
+            result,
             model=model,
             prompt_id=prompt_id,
-            error=None,
-            reused=False,
+            total_chunks=total_chunks,
+            duration=duration,
         )
-        current.write_extracted(
-            result.extracted_text,
-            model=result.model,
-            request_payload=result.request_payload,
-            response_payload=result.response_payload,
-            prompt_id=prompt_id,
-            duration_s=duration,
-        )
-        set_extract_progress(
-            current,
-            phase="succeeded",
-            chunks_total=total_chunks,
-            chunks_done=total_chunks,
-            model=result.model,
-            prompt_id=prompt_id,
-            error=None,
-            reused=False,
-            missing_photos=result.missing_photos,
-            photos_sig=photos_signature(current),
-        )
-        _index_session_best_effort(cfg, archive, current)
+
+
+def _record_extract_success(
+    cfg: WebappConfig,
+    archive: SessionArchive,
+    current: Session,
+    result: OcrResult,
+    *,
+    model: str,
+    prompt_id: str,
+    total_chunks: int,
+    duration: float,
+) -> None:
+    """Merge, write and index a finished extraction, marking the take succeeded."""
+    set_extract_progress(
+        current,
+        phase="merging",
+        chunks_total=total_chunks,
+        chunks_done=total_chunks,
+        model=model,
+        prompt_id=prompt_id,
+        error=None,
+        reused=False,
+    )
+    current.write_extracted(
+        result.extracted_text,
+        model=result.model,
+        request_payload=result.request_payload,
+        response_payload=result.response_payload,
+        prompt_id=prompt_id,
+        duration_s=duration,
+    )
+    set_extract_progress(
+        current,
+        phase="succeeded",
+        chunks_total=total_chunks,
+        chunks_done=total_chunks,
+        model=result.model,
+        prompt_id=prompt_id,
+        error=None,
+        reused=False,
+        missing_photos=result.missing_photos,
+        photos_sig=photos_signature(current),
+    )
+    _index_session_best_effort(cfg, archive, current)
 
 
 def execute_retry_missing_job(app: Any, session_id: str) -> None:

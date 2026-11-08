@@ -210,6 +210,36 @@ def _search_hit_opens_sheet(page: Page, sheet) -> None:
     expect(sheet).to_have_count(0)
 
 
+def _delete_flows(page: Page, mock, rows, sheet) -> None:
+    # Delete from the sheet goes through the confirm sheet: Escape answers
+    # no, the verb deletes.
+    rows.nth(0).locator(".action-row-kebab").click()
+    sheet.get_by_role("button", name="Delete take").click()
+    confirm = page.locator("dialog.confirm-sheet")
+    expect(confirm.locator("h2")).to_have_text("Delete this take?")
+    surface(page, "history.confirm-delete")
+    page.keyboard.press("Escape")
+    expect(confirm).to_have_count(0)
+    assert mock.deletes == []
+    rows.nth(0).locator(".action-row-kebab").click()
+    sheet.get_by_role("button", name="Delete take").click()
+    confirm.locator("[data-confirm='yes']").click()
+    expect(rows).to_have_count(2)
+    assert mock.deletes == ["s-one"]
+
+    # Delete all lives in Settings › Storage, behind the same confirm sheet.
+    page.locator("#paneHistory .home-settings").click()
+    page.locator("#cleanAll").click()
+    expect(confirm.locator("h2")).to_have_text("Delete all saved takes?")
+    surface(page, "history.confirm-delete-all")
+    confirm.get_by_role("button", name="Cancel").click()
+    expect(confirm).to_have_count(0)
+    page.locator("#cleanAll").click()
+    confirm.locator("[data-confirm='yes']").click()
+    expect(page.locator("#toast")).to_contain_text("History cleared")
+    assert mock.deletes == ["s-one", "all"]
+
+
 def test_history_rows_take_sheet_and_deletes(authed_page: Page, base_url: str) -> None:
     page = authed_page
     mock = _HistoryMock()
@@ -269,33 +299,7 @@ def test_history_rows_take_sheet_and_deletes(authed_page: Page, base_url: str) -
     expect(page.locator("#historySearch")).to_have_value("")
     expect(rows).to_have_count(3)
 
-    # Delete from the sheet goes through the confirm sheet: Escape answers
-    # no, the verb deletes.
-    rows.nth(0).locator(".action-row-kebab").click()
-    sheet.get_by_role("button", name="Delete take").click()
-    confirm = page.locator("dialog.confirm-sheet")
-    expect(confirm.locator("h2")).to_have_text("Delete this take?")
-    surface(page, "history.confirm-delete")
-    page.keyboard.press("Escape")
-    expect(confirm).to_have_count(0)
-    assert mock.deletes == []
-    rows.nth(0).locator(".action-row-kebab").click()
-    sheet.get_by_role("button", name="Delete take").click()
-    confirm.locator("[data-confirm='yes']").click()
-    expect(rows).to_have_count(2)
-    assert mock.deletes == ["s-one"]
-
-    # Delete all lives in Settings › Storage, behind the same confirm sheet.
-    page.locator("#paneHistory .home-settings").click()
-    page.locator("#cleanAll").click()
-    expect(confirm.locator("h2")).to_have_text("Delete all saved takes?")
-    surface(page, "history.confirm-delete-all")
-    confirm.get_by_role("button", name="Cancel").click()
-    expect(confirm).to_have_count(0)
-    page.locator("#cleanAll").click()
-    confirm.locator("[data-confirm='yes']").click()
-    expect(page.locator("#toast")).to_contain_text("History cleared")
-    assert mock.deletes == ["s-one", "all"]
+    _delete_flows(page, mock, rows, sheet)
 
     # The empty state names its way forward.
     page.locator("#tabHistory").click()

@@ -25,7 +25,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Tuple
 
 # Third-party imports
 import requests
@@ -256,24 +256,9 @@ class OcrClient:
         """
         if policy is None:
             policy = ExtractPolicy(request_timeout_s=self.timeout)
-        by_name = {p.name: p for p in image_paths}
-        unit_specs = request_payload.get("chunks")
-        entries = response_payload.get("chunks")
-        if (
-            not isinstance(unit_specs, list)
-            or not isinstance(entries, list)
-            or not unit_specs
-            or len(unit_specs) != len(entries)
-        ):
-            raise OcrError(
-                "this take has no per-photo archive to retry from; use Redo"
-            )
-        try:
-            units = [[by_name[n] for n in spec["images"]] for spec in unit_specs]
-        except (KeyError, TypeError) as exc:
-            raise OcrError(
-                f"photo {exc} is no longer in this take; use Redo"
-            ) from exc
+        units, entries = _archived_units(
+            image_paths, request_payload, response_payload
+        )
 
         model = str(request_payload.get("model") or "")
         max_tokens = int(request_payload.get("max_tokens") or DEFAULT_MAX_TOKENS)
@@ -434,35 +419,8 @@ class OcrClient:
             raise OcrError("no images to extract from")
         read_timeout = self.timeout if timeout is None else timeout
 
-        content_blocks = []
-        for p in image_paths:
-            try:
-                raw = p.read_bytes()
-            except OSError as exc:
-                raise OcrError(f"could not read {p}: {exc}") from exc
-            content_blocks.append(
-                {
-                    "type": "image",
-                    "source": {
-                        "type": "base64",
-                        "media_type": "image/jpeg",
-                        "data": base64.b64encode(raw).decode("ascii"),
-                    },
-                }
-            )
-
+        payload = _build_request_payload(image_paths, model, system, max_tokens)
         url = self.base_url + "/v1/messages"
-        payload = {
-            "model": model,
-            "max_tokens": max_tokens,
-            "system": system,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": content_blocks,
-                }
-            ],
-        }
 
         logger.info(
             f"🔍 POST {url} model={model} photos={len(image_paths)}"
@@ -546,6 +504,68 @@ class _UnitOutcome:
 
 def _names(paths: List[Path]) -> str:
     return ", ".join(p.name for p in paths)
+
+
+def _build_request_payload(
+    image_paths: List[Path], model: str, system: str, max_tokens: int
+) -> dict:
+    """The hub request body: one user message holding only the base64 photos."""
+    content_blocks = []
+    for p in image_paths:
+        try:
+            raw = p.read_bytes()
+        except OSError as exc:
+            raise OcrError(f"could not read {p}: {exc}") from exc
+        content_blocks.append(
+            {
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": "image/jpeg",
+                    "data": base64.b64encode(raw).decode("ascii"),
+                },
+            }
+        )
+    return {
+        "model": model,
+        "max_tokens": max_tokens,
+        "system": system,
+        "messages": [
+            {
+                "role": "user",
+                "content": content_blocks,
+            }
+        ],
+    }
+
+
+def _archived_units(
+    image_paths: List[Path], request_payload: dict, response_payload: dict
+) -> Tuple[List[List[Path]], list]:
+    """The archived per-unit photo lists and response entries of a finished take.
+
+    Raises ``OcrError`` when the archive keeps no per-unit entries or a photo it
+    names is no longer in the take.
+    """
+    by_name = {p.name: p for p in image_paths}
+    unit_specs = request_payload.get("chunks")
+    entries = response_payload.get("chunks")
+    if (
+        not isinstance(unit_specs, list)
+        or not isinstance(entries, list)
+        or not unit_specs
+        or len(unit_specs) != len(entries)
+    ):
+        raise OcrError(
+            "this take has no per-photo archive to retry from; use Redo"
+        )
+    try:
+        units = [[by_name[n] for n in spec["images"]] for spec in unit_specs]
+    except (KeyError, TypeError) as exc:
+        raise OcrError(
+            f"photo {exc} is no longer in this take; use Redo"
+        ) from exc
+    return units, entries
 
 
 def _failed_from_entry(
