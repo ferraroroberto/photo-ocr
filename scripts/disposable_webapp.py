@@ -132,9 +132,11 @@ def disposable_webapp(
     """
     data_dir = Path(tempfile.mkdtemp(prefix="photo-ocr-disposable-"))
     log_path = log_path or data_dir / "webapp.log"
+    # runtime-write-exempt: log_path defaults to a file inside the tempfile.mkdtemp() data dir; a caller override is its own choice
     log_path.parent.mkdir(parents=True, exist_ok=True)
     proc: Optional[subprocess.Popen] = None
     try:
+        # runtime-write-exempt: same temp-dir log path as the mkdir above
         with log_path.open("w", encoding="utf-8", errors="replace") as log:
             try:
                 # A free port, never the hardcoded 8444: the live tray may hold it.

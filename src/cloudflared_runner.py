@@ -95,7 +95,9 @@ def build_tunnel_url(hostname: str, token: str) -> str:
 def write_tunnel_url(url_file: Path, url: str) -> None:
     """Persist ``url`` to ``url_file`` (creating parents). Warn on OS error."""
     try:
+        # runtime-write-exempt: url_file is the tray's TUNNEL_URL_FILE under the gitignored webapp/ runtime folder, passed in by the caller
         url_file.parent.mkdir(parents=True, exist_ok=True)
+        # runtime-write-exempt: same caller-supplied url_file as the mkdir above
         url_file.write_text(url + "\n", encoding="utf-8")
     except OSError as exc:
         logger.warning(f"⚠️  Could not write {url_file}: {exc}")

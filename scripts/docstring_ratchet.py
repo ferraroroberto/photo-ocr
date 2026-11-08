@@ -1,4 +1,4 @@
-"""Ratchet on issue references inside Python docstrings (photo-ocr#266).
+"""Ratchet on issue references inside Python docstrings.
 
 `scripts/comment_ratchet.py` ratchets `#NNN` references in comments but
 explicitly treats a docstring as "not a comment" (its own module docstring,
@@ -390,6 +390,7 @@ def run(root: Path, *, init: bool, update: bool, allow_additions: bool) -> int:
     current = {path: len(found) for path, found in refs.items()}
 
     if init:
+        # runtime-write-exempt: the ratchet's own baseline file at the repo root, written only by --init / --update-baseline
         baseline_path.write_text(render_baseline(current), encoding="utf-8", newline="\n")
         print(f"docstring ratchet: wrote {cfg.baseline} with {len(current)} file(s), {sum(current.values())} reference(s)")
         return EXIT_PASS
@@ -400,6 +401,7 @@ def run(root: Path, *, init: bool, update: bool, allow_additions: bool) -> int:
             _report_rose(rose, refs, baseline)
             print("docstring ratchet: nothing written -- remove the references, or raise the baseline with --allow-additions")
             return EXIT_RISE
+        # runtime-write-exempt: the ratchet's own baseline file at the repo root, written only by --init / --update-baseline
         baseline_path.write_text(render_baseline(current), encoding="utf-8", newline="\n")
         print(f"docstring ratchet: {cfg.baseline} now has {len(current)} file(s), {sum(current.values())} reference(s) "
               f"({len(shrank)} lowered or dropped, {len(rose)} raised or added)")

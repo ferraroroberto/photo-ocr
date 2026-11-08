@@ -64,8 +64,10 @@ CLIP_TIMEOUT_S = 10
 
 def _breadcrumb(path: Path, msg: str) -> None:
     try:
+        # runtime-write-exempt: path is the caller's WATCHDOG_LOG under the gitignored webapp/ runtime folder, not a code folder
         path.parent.mkdir(parents=True, exist_ok=True)
         stamp = datetime.datetime.now().isoformat(timespec="seconds")
+        # runtime-write-exempt: same caller-supplied log path as the mkdir above
         with path.open("a", encoding="utf-8") as fh:
             fh.write(f"{stamp} {msg}\n")
     except OSError:

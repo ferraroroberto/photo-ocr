@@ -1,6 +1,6 @@
 """Windows console-suppression flag for every ``subprocess`` spawn in this repo.
 
-Global ``CLAUDE.md`` convention (fleet-config#399): any spawn of an external
+Global ``CLAUDE.md`` convention (console-window suppression): any spawn of an external
 executable must pass ``creationflags=subprocess.CREATE_NO_WINDOW`` on Windows,
 because a parent with no console of its own — the tray, a scheduled task, a
 daemon — otherwise gets a console window flashed on screen for every call.
