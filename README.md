@@ -259,6 +259,7 @@ photo-ocr/
 │   │                            progress state machine, archive writes, search index
 │   ├── cloudflared_runner.py    spawn/monitor the named tunnel
 │   ├── no_window.py             creationflags=NO_WINDOW helper for every subprocess spawn
+│   ├── runtime_files.py         writers for caller-named runtime paths; refuse a code folder at runtime
 │   ├── static_versioning.py     cache-busting query param
 │   ├── compression.py           stream-safe gzip middleware for compressible responses
 │   ├── login_lockout.py         vendored per-client login lock-out
@@ -539,7 +540,7 @@ The doc refs ratchet (`scripts/doc_refs_ratchet.py`, rules in `.fleet.toml` `[do
 
 The dead code ratchet (`scripts/dead_code_ratchet.py`, rules in `.fleet.toml` `[dead_code_ratchet]`) parses the Python in `app/` and `src/` and fails the gate, naming the file, line and qualified name, on a function, class or variable that nothing names (no other file, string or non-Python source mentions it) and that is not in `.dead-code-ratchet-baseline.json` (empty). Exit 3 (git unusable, a `.py` file that cannot be read or does not parse) fails as NOT CONFIRMED, never a pass.
 
-The runtime write ratchet (`scripts/runtime_write_ratchet.py` with its resolver `scripts/runtime_write_resolve.py`, rules in `.fleet.toml` `[runtime_write_ratchet]`) fails the gate when a file's count of write targets (open for writing, `Path.write_*`, `mkdir`, a log handler, `sqlite3.connect`) resolving under a code folder rises above `.runtime-write-ratchet-baseline.json`; a new target it cannot resolve fails as NOT CONFIRMED. Its `--snapshot`/`--probe` pair brackets the pytest and e2e runs and fails on any untracked or ignored file they leave under a code folder. Runtime output belongs under the runtime root (`src/runtime_data.py`).
+The runtime write ratchet (`scripts/runtime_write_ratchet.py` with its resolver `scripts/runtime_write_resolve.py`, rules in `.fleet.toml` `[runtime_write_ratchet]`) fails the gate when a file's count of write targets (open for writing, `Path.write_*`, `mkdir`, a log handler, `sqlite3.connect`) resolving under a code folder rises above `.runtime-write-ratchet-baseline.json`; a new target it cannot resolve fails as NOT CONFIRMED. Its `--snapshot`/`--probe` pair brackets the pytest and e2e runs and fails on any untracked or ignored file they leave under a code folder. Runtime output belongs under the runtime root (`src/runtime_data.py`). A write to a path a parameter or config names goes through `src/runtime_files.py`, which raises at runtime when the path resolves under `src/`, `app/` or `scripts/`; only that module (plus the search index connection) carries runtime-write exempt markers.
 
 Each surface the suite opens (a tab, sheet, picker, empty or error state) is tagged `surface(page, "<tab>.<surface>")` from the vendored `tests/e2e/_surface.py`. The call is inert on every normal run; `/design-review photo-ocr --e2e` arms it against the throwaway webapp `scripts/design_review_synthetic.py` boots (never the live tray) to inventory those surfaces in light and dark for the design review. A new sheet or state a test opens takes one `surface(...)` call.
 

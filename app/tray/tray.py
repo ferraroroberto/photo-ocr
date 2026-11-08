@@ -36,7 +36,7 @@ from app.webapp.manager import (
     cert_paths,
     load_config,
 )
-from src import AppConfig, cloudflared_runner
+from src import AppConfig, cloudflared_runner, runtime_files
 from src.no_window import NO_WINDOW
 from src.webapp_config import append_auth_token, load_webapp_config
 
@@ -64,11 +64,9 @@ CLIP_TIMEOUT_S = 10
 
 def _breadcrumb(path: Path, msg: str) -> None:
     try:
-        # runtime-write-exempt: path is the caller's WATCHDOG_LOG under the gitignored webapp/ runtime folder, not a code folder
-        path.parent.mkdir(parents=True, exist_ok=True)
+        runtime_files.make_dirs(path.parent)
         stamp = datetime.datetime.now().isoformat(timespec="seconds")
-        # runtime-write-exempt: same caller-supplied log path as the mkdir above
-        with path.open("a", encoding="utf-8") as fh:
+        with runtime_files.open_for_write(path, "a", encoding="utf-8") as fh:
             fh.write(f"{stamp} {msg}\n")
     except OSError:
         pass

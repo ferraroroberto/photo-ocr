@@ -27,6 +27,7 @@ import requests
 import urllib3
 
 from app.webapp.manager import PROJECT_ROOT, WebappManager, cert_paths
+from src import runtime_files
 from src.archive import ARCHIVE_DIR_ENV
 
 logger = logging.getLogger(__name__)
@@ -132,12 +133,12 @@ def disposable_webapp(
     """
     data_dir = Path(tempfile.mkdtemp(prefix="photo-ocr-disposable-"))
     log_path = log_path or data_dir / "webapp.log"
-    # runtime-write-exempt: log_path defaults to a file inside the tempfile.mkdtemp() data dir; a caller override is its own choice
-    log_path.parent.mkdir(parents=True, exist_ok=True)
+    runtime_files.make_dirs(log_path.parent)
     proc: Optional[subprocess.Popen] = None
     try:
-        # runtime-write-exempt: same temp-dir log path as the mkdir above
-        with log_path.open("w", encoding="utf-8", errors="replace") as log:
+        with runtime_files.open_for_write(
+            log_path, "w", encoding="utf-8", errors="replace"
+        ) as log:
             try:
                 # A free port, never the hardcoded 8444: the live tray may hold it.
                 port = free_tcp_port()

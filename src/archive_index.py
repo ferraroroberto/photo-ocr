@@ -30,6 +30,9 @@ import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+# Local imports
+from src import runtime_files
+
 logger = logging.getLogger(__name__)
 
 INDEX_FILENAME = "index.sqlite"
@@ -105,12 +108,9 @@ class ArchiveIndex:
         """
         if self._conn is not None:
             return self._conn
-        # runtime-write-exempt: db_path is the index file chosen by SessionArchive (runtime_db_path for the production archive, else beside a disposable archive root)
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        runtime_files.make_dirs(self.db_path.parent)
         try:
-            # runtime-write-exempt: same db_path as the mkdir above
-            conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
-            conn.row_factory = sqlite3.Row
+            conn = self._open()
             self._provision(conn)
         except sqlite3.DatabaseError as exc:
             logger.warning(
@@ -127,11 +127,17 @@ class ArchiveIndex:
                 self.db_path.unlink()
             except OSError:
                 pass
-            # runtime-write-exempt: recreates the same db_path after deleting the corrupt file
-            conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
-            conn.row_factory = sqlite3.Row
+            conn = self._open()
             self._provision(conn)
         self._conn = conn
+        return conn
+
+    def _open(self) -> sqlite3.Connection:
+        """Open ``db_path``; refused when it resolves under a code folder."""
+        runtime_files.checked(self.db_path)
+        # runtime-write-exempt: db_path is the caller's index file; checked() above raises when it is under a code folder
+        conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
+        conn.row_factory = sqlite3.Row
         return conn
 
     def _conn_if_exists(self) -> Optional[sqlite3.Connection]:

@@ -23,6 +23,7 @@ from typing import List, Optional, get_origin, get_type_hints
 from urllib.parse import urlencode, urlparse, urlunparse
 
 # Local imports
+from src import runtime_files
 from src.ocr_client import ExtractPolicy
 
 logger = logging.getLogger(__name__)
@@ -161,14 +162,12 @@ def load_webapp_config(path: Optional[Path] = None) -> WebappConfig:
 def save_webapp_config(cfg: WebappConfig, path: Optional[Path] = None) -> Path:
     """Atomically write the config back to disk."""
     target = Path(path) if path is not None else DEFAULT_CONFIG_PATH
-    # runtime-write-exempt: target is config/webapp_config.json (gitignored, outside every code folder) or a caller-supplied path
-    target.parent.mkdir(parents=True, exist_ok=True)
+    runtime_files.make_dirs(target.parent)
 
     payload = asdict(cfg)
 
     tmp = target.with_suffix(target.suffix + ".tmp")
-    # runtime-write-exempt: same config path as the mkdir above, written to a sibling .tmp before the atomic replace
-    tmp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    runtime_files.save_text(tmp, json.dumps(payload, indent=2))
     os.replace(tmp, target)
     logger.info(f"💾 Saved webapp_config to {target}")
     return target

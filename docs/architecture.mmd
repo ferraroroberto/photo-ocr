@@ -57,6 +57,7 @@ flowchart TB
     ARCHIVEIDX["archive_index.py — SQLite FTS5 search index"]
     EXTRACTJOB["extract_job.py — chunked extraction job engine:\nlocking, progress state machine, archive writes, search index"]
     CLOUDRUNNER["cloudflared_runner.py — spawn/monitor named tunnel"]
+    RUNTIMEFILES["runtime_files.py — runtime writers; refuse a code-folder path"]
     STATICVER["static_versioning.py — cache-busting query param"]
     USAGELOG["usage_log.py — vendored local-only view/tap log (SQLite in the runtime-data dir)"]
   end
