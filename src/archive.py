@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 # Local imports
+from src import runtime_files
 from src.archive_index import INDEX_FILENAME, ArchiveIndex
 from src.runtime_data import runtime_db_path
 
@@ -192,19 +193,14 @@ class Session:
         prompt_id: Optional[str],
         duration_s: Optional[float] = None,
     ) -> Path:
-        # runtime-write-exempt: self.folder is a session folder under the archive root, set at construction
-        (self.folder / EXTRACTED_FILENAME).write_text(
-            extracted_text, encoding="utf-8"
-        )
-        # runtime-write-exempt: same session folder as above
-        (self.folder / OCR_REQUEST_FILENAME).write_text(
+        runtime_files.save_text(self.folder / EXTRACTED_FILENAME, extracted_text)
+        runtime_files.save_text(
+            self.folder / OCR_REQUEST_FILENAME,
             json.dumps(request_payload, indent=2, ensure_ascii=False),
-            encoding="utf-8",
         )
-        # runtime-write-exempt: same session folder as above
-        (self.folder / OCR_RESPONSE_FILENAME).write_text(
+        runtime_files.save_text(
+            self.folder / OCR_RESPONSE_FILENAME,
             json.dumps(response_payload, indent=2, ensure_ascii=False),
-            encoding="utf-8",
         )
         self.meta.model = model
         self.meta.prompt_id = prompt_id
@@ -228,10 +224,8 @@ class Session:
 
     def write_meta(self) -> Path:
         path = self.folder / META_FILENAME
-        # runtime-write-exempt: same session folder under the archive root
-        path.write_text(
-            json.dumps(asdict(self.meta), indent=2, ensure_ascii=False),
-            encoding="utf-8",
+        runtime_files.save_text(
+            path, json.dumps(asdict(self.meta), indent=2, ensure_ascii=False)
         )
         return path
 
@@ -268,8 +262,7 @@ class SessionArchive:
 
     def __init__(self, root: Optional[Path] = None) -> None:
         self.root = Path(root) if root is not None else default_archive_root()
-        # runtime-write-exempt: the archive root is PHOTO_OCR_ARCHIVE_DIR or the repo's archive/ folder, outside every code folder
-        self.root.mkdir(parents=True, exist_ok=True)
+        runtime_files.make_dirs(self.root)
         self._index: Optional[ArchiveIndex] = None
 
     # ------------------------------------------------------ search index
@@ -363,8 +356,7 @@ class SessionArchive:
             / ts.strftime("%d")
             / session_id
         )
-        # runtime-write-exempt: a dated session folder under the archive root
-        folder.mkdir(parents=True, exist_ok=True)
+        runtime_files.make_dirs(folder)
 
         meta = SessionMeta(
             session_id=session_id,

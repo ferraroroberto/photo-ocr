@@ -35,6 +35,8 @@ except ImportError:  # pragma: no cover — runtime env detail
 
 from PIL import Image, ImageOps, UnidentifiedImageError
 
+from src import runtime_files
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_MAX_DIM_PX = 2048
@@ -116,12 +118,10 @@ def validate_and_persist(
             f"could not decode image (content_type={ct}): {exc}"
         ) from exc
 
-    # runtime-write-exempt: dest_folder is a session folder under the archive root, supplied by the caller
-    dest_folder.mkdir(parents=True, exist_ok=True)
+    runtime_files.make_dirs(dest_folder)
     filename = f"{sequence_index:02d}.jpg"
     out_path = dest_folder / filename
-    # runtime-write-exempt: same caller-supplied session folder as the mkdir above
-    out_path.write_bytes(jpeg_bytes)
+    runtime_files.save_bytes(out_path, jpeg_bytes)
 
     logger.info(
         f"📷 persisted {filename} ({final_size[0]}x{final_size[1]}, "
