@@ -116,9 +116,11 @@ def validate_and_persist(
             f"could not decode image (content_type={ct}): {exc}"
         ) from exc
 
+    # runtime-write-exempt: dest_folder is a session folder under the archive root, supplied by the caller
     dest_folder.mkdir(parents=True, exist_ok=True)
     filename = f"{sequence_index:02d}.jpg"
     out_path = dest_folder / filename
+    # runtime-write-exempt: same caller-supplied session folder as the mkdir above
     out_path.write_bytes(jpeg_bytes)
 
     logger.info(

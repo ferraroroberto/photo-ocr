@@ -11,8 +11,15 @@ from unittest.mock import MagicMock, patch
 import pytest
 import requests
 
-from src.ocr_client import ExtractPolicy, OcrClient, OcrError, _extract_text
-from src.ocr_client import _chunk_paths, _join_chunk_texts, chunk_count
+from src.ocr_client import (
+    ExtractPolicy,
+    OcrClient,
+    OcrError,
+    _chunk_paths,
+    _extract_text,
+    _join_chunk_texts,
+    chunk_count,
+)
 
 
 @pytest.fixture(autouse=True)

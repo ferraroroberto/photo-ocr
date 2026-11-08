@@ -2,7 +2,7 @@
 
 Thin caller onto ``project-scaffolding``'s ``brand_gen.render_set()`` — the
 master art is photo-ocr's vendored Lucide ``camera.svg``, not a bespoke
-Pillow-drawn silhouette (app-launcher#65: a coherent icon family across the
+Pillow-drawn silhouette (so the icons form a coherent family across the
 fleet).
 
 Writes into ``app/webapp/static/``: ``icon-512.png``, ``icon-512-maskable.png``,

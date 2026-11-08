@@ -105,8 +105,10 @@ class ArchiveIndex:
         """
         if self._conn is not None:
             return self._conn
+        # runtime-write-exempt: db_path is the index file chosen by SessionArchive (runtime_db_path for the production archive, else beside a disposable archive root)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         try:
+            # runtime-write-exempt: same db_path as the mkdir above
             conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
             conn.row_factory = sqlite3.Row
             self._provision(conn)
@@ -125,6 +127,7 @@ class ArchiveIndex:
                 self.db_path.unlink()
             except OSError:
                 pass
+            # runtime-write-exempt: recreates the same db_path after deleting the corrupt file
             conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
             conn.row_factory = sqlite3.Row
             self._provision(conn)

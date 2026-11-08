@@ -133,8 +133,8 @@ class WebappManager:
         # legacy self-signed one) — hostname never matches 127.0.0.1.
         self._session.verify = False
         try:
-            from urllib3.exceptions import InsecureRequestWarning
             import urllib3
+            from urllib3.exceptions import InsecureRequestWarning
             urllib3.disable_warnings(InsecureRequestWarning)
         except Exception:
             pass
