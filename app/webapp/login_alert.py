@@ -8,7 +8,7 @@ import threading
 from typing import Callable, Optional
 
 # Local imports
-from src.login_lockout import LoginLockout, LockoutAlert
+from src.login_lockout import LockoutAlert, LoginLockout
 from src.notify import Notifier, NotifierError, TelegramConfig, build_notifier
 from src.webapp_config import WebappConfig
 

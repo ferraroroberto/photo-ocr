@@ -29,10 +29,6 @@ import webbrowser
 from pathlib import Path
 from typing import Optional
 
-from src import AppConfig, cloudflared_runner
-from src.no_window import NO_WINDOW
-from src.webapp_config import append_auth_token, load_webapp_config
-
 from app.tray.single_instance import SingleInstance
 from app.tray.watchdog import HealthWatchdog
 from app.webapp.manager import (
@@ -40,6 +36,9 @@ from app.webapp.manager import (
     cert_paths,
     load_config,
 )
+from src import AppConfig, cloudflared_runner
+from src.no_window import NO_WINDOW
+from src.webapp_config import append_auth_token, load_webapp_config
 
 logger = logging.getLogger(__name__)
 

@@ -17,8 +17,8 @@ import time
 from typing import Any, Dict
 
 # Local imports
-from src.archive import Session, SessionArchive
 from src.app_config import AppConfig
+from src.archive import Session, SessionArchive
 from src.ocr_client import OcrClient, OcrError, chunk_count
 from src.ocr_prompts import apply_language_hint
 from src.webapp_config import WebappConfig
