@@ -1,27 +1,38 @@
-"""Windows console-suppression flag for every ``subprocess`` spawn in this repo.
+"""One definition of the Windows ``CREATE_NO_WINDOW`` subprocess flag.
 
-Global ``CLAUDE.md`` convention (console-window suppression): any spawn of an external
-executable must pass ``creationflags=subprocess.CREATE_NO_WINDOW`` on Windows,
-because a parent with no console of its own — the tray, a scheduled task, a
-daemon — otherwise gets a console window flashed on screen for every call.
-That is this repo's normal case: the tray and the webapp it manages run with
-no console, and each unsuppressed spawn beneath them (tailscale, git, clip)
-would flash a window.
+Every ``subprocess`` spawn that launches an external console executable
+(``git``, ``netstat``, ``taskkill``, ``powershell.exe``, ``tailscale``, a
+helper script, ...) must pass ``creationflags=NO_WINDOW`` on Windows. A parent
+with no console of its own -- a ``pythonw`` tray, a scheduled task, a daemon,
+an agent's captured shell -- otherwise makes Windows allocate a fresh console
+per child, flashing a window on screen; on a poll loop that reads as malware
+or a stuck app. See ``CLAUDE.md`` -> "Windows console-subprocess suppression
+(``CREATE_NO_WINDOW``)".
 
-The convention also says a repo with 3+ call sites factors the ternary into
-one helper instead of repeating it. This module is that helper — imported by
-``app/webapp/manager.py``, ``app/tray/tray.py``, ``src/static_versioning.py``,
-``src/cloudflared_runner.py``, ``scripts/run_named_tunnel.py``, and
-``scripts/gen_tailscale_cert.py``. The vendored ``scripts/classify_e2e.py``
-keeps its own copy (byte-identical from project-scaffolding; not part of this
-repo's own call-site count).
+Import the flag from here instead of re-deriving the
+``sys.platform == "win32"`` ternary at each call site::
 
-Do not combine with ``DETACHED_PROCESS`` — the two flags are mutually
-exclusive. A long-lived child that also needs ``CTRL_BREAK_EVENT`` combines
-this with ``CREATE_NEW_PROCESS_GROUP`` instead — that combination is
-``NEW_GROUP_NO_WINDOW`` below, so a caller never re-inlines the pair.
+    from src.no_window import NO_WINDOW
 
-stdlib only.
+    subprocess.run([...], creationflags=NO_WINDOW)
+
+**Vendor-verbatim modules are the one exception and keep a local definition.**
+A file copied byte-identical into adopter repos cannot import a module of this
+repo's -- the copy would not resolve, and the hash-verified bytes must stay
+self-contained. A handful of such files therefore derive the flag themselves
+on purpose, and that is not drift: every ``src`` catalogued in
+``.fleet.toml``'s ``[components]`` table (read via
+``scripts/vendored_catalog.py``) is a vendor-verbatim publication, and
+``tests/test_no_window_convention.py`` derives its allow-list from that same
+catalog.
+
+A long-lived child that is later stopped with ``CTRL_BREAK_EVENT`` takes
+``NEW_GROUP_NO_WINDOW`` instead: its own process group, so the signal reaches
+only that child, plus no console window. Never add ``DETACHED_PROCESS`` to
+either flag (``docs/long-lived-process-conventions.md``).
+
+Stdlib-only and side-effect-free, so a standalone script launched outside the
+project venv can import it after putting the repo root on ``sys.path``.
 """
 
 from __future__ import annotations
@@ -29,15 +40,17 @@ from __future__ import annotations
 import subprocess
 import sys
 
-# ``subprocess.CREATE_NO_WINDOW`` is Windows-only; the conditional expression
-# evaluates the platform test first, so the attribute is never touched on POSIX.
-NO_WINDOW = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+#: ``subprocess.CREATE_NO_WINDOW`` on Windows, ``0`` (a no-op) elsewhere, so
+#: the same call site is portable without a per-platform branch.
+NO_WINDOW: int = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 
-# For a long-lived child that also needs CTRL_BREAK_EVENT teardown: own
-# process group (so the signal is scoped to the child, not this process)
-# plus no console window. Same POSIX-safe shape as NO_WINDOW above.
-NEW_GROUP_NO_WINDOW = (
+#: ``CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW`` on Windows, ``0`` elsewhere:
+#: the flags for a child torn down with ``CTRL_BREAK_EVENT``, which is scoped
+#: to a process group and would otherwise also reach this process.
+NEW_GROUP_NO_WINDOW: int = (
     subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
     if sys.platform == "win32"
     else 0
 )
+
+__all__ = ["NEW_GROUP_NO_WINDOW", "NO_WINDOW"]

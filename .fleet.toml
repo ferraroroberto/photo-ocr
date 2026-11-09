@@ -59,12 +59,7 @@ instruction_frontmatter = { src = "scripts/instruction_frontmatter.py", sha = "c
 instruction_repeats = { src = "scripts/instruction_repeats.py", sha = "c5535ac326c398df8f44486f386ff0e0b6d4c61c", dest = "scripts/instruction_repeats.py" }
 single_instance = { src = "app/tray/single_instance.py", sha = "da2e9350daee6ab9d25d399daca21663aa509030", dest = "app/tray/single_instance.py" }
 tray_watchdog = { src = "app/tray/watchdog.py", sha = "da2e9350daee6ab9d25d399daca21663aa509030", dest = "app/tray/watchdog.py" }
-
-# A catalogued component this repo deliberately keeps different from the scaffold tip. Not
-# re-vendored (a byte-for-byte copy would drop what the callers import); the generic change is
-# offered upstream and the entry is removed once the scaffold ships it.
-[vendored_forks]
-no_window = { src = "src/no_window.py", reason = "adds NEW_GROUP_NO_WINDOW (own process group + no console) imported by app/webapp/manager.py, src/cloudflared_runner.py and scripts/run_named_tunnel.py", upstream = "ferraroroberto/project-scaffolding#680" }
+no_window = { src = "src/no_window.py", sha = "ade32f799c9102daf72535b4899ab2843f65910b", dest = "src/no_window.py" }
 
 # [static_ratchet] -- the scaffold's baseline-and-ratchet static analysis. The gate
 # (scripts/verify-before-ship.ps1) runs scripts/static_ratchet_gate.py, which wraps
