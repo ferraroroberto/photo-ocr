@@ -85,6 +85,9 @@ def test_the_ratchet_is_declared_and_its_script_is_vendored() -> None:
         "login-lockout",
         "no-pwsh-stub",
         "subprocess-timeout",
+        "state-literal",
+        "state-set-repeat",
+        "state-write",
     }
     entry = fleet["vendored"]["conventions_ratchet"]
     assert entry["dest"] == "scripts/conventions_ratchet.py"
