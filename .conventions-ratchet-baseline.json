@@ -1,4 +1,7 @@
 {
   "version": 1,
-  "entries": []
+  "entries": [
+    {"key": "app/webapp/routers/sessions.py", "counts": {"state-literal": 9, "state-set-repeat": 3}},
+    {"key": "src/extract_job.py", "counts": {"state-literal": 16, "state-set-repeat": 1}}
+  ]
 }

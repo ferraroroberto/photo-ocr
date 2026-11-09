@@ -299,7 +299,7 @@ photo-ocr/
 │   ├── structure_ratchet.py     vendored baseline-and-ratchet on file/function/directory size, layering and root layout
 │   ├── structure_layout.py      vendored sibling of the structure ratchet: shape presets, extra roots and folder placement
 │   ├── structure_band.py        vendored sibling of the structure ratchet: the near-limit warning band
-│   ├── conventions_ratchet.py   vendored baseline-and-ratchet on fleet-convention rule hits; loads conventions_readers.py
+│   ├── conventions_ratchet.py   vendored ratchet on convention rule hits; loads conventions_readers.py, conventions_state.py
 │   ├── comment_ratchet.py       vendored baseline-and-ratchet on #NNN issue references inside comments
 │   ├── instruction_ratchet.py   vendored ratchet on CLAUDE.md/AGENTS.md prompt-audit hits + size cap; siblings instruction_frontmatter.py, instruction_repeats.py
 │   ├── doc_refs_ratchet.py      vendored baseline-and-ratchet on unresolved repo paths/modules/links in docs
