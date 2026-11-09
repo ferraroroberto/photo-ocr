@@ -27,6 +27,7 @@ from typing import Any, Dict, List, Optional
 
 # Third-party imports
 import requests
+from cryptography import x509
 
 # Local imports
 from app.tray.single_instance import cross_process_lock
@@ -41,6 +42,11 @@ OWNERSHIP_OURS = "ours"
 OWNERSHIP_EXTERNAL = "external"
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+
+# iOS/macOS reject a TLS leaf whose validity span exceeds this; the Tailscale
+# (Let's Encrypt) leaf is ~90 days, well inside it.
+APPLE_MAX_VALIDITY_DAYS = 398
+_over_cap_warned: set[tuple[str, int]] = set()
 
 
 @dataclass(frozen=True)
@@ -77,13 +83,46 @@ def load_config(raw: Optional[Dict[str, Any]] = None) -> WebappManagerConfig:
     )
 
 
+def leaf_validity_days(cert_file: Path) -> Optional[int]:
+    """Whole days between the leaf's notBefore and notAfter, or None if unreadable."""
+    try:
+        cert = x509.load_pem_x509_certificate(cert_file.read_bytes())
+        return (cert.not_valid_after_utc - cert.not_valid_before_utc).days
+    except (OSError, ValueError) as exc:
+        logger.warning(f"⚠️  Could not read the validity span of {cert_file.name}: {exc}")
+        return None
+
+
+def _warn_over_cap_once(cert: Path, days: int) -> None:
+    # cert_paths() runs on every status poll; one warning per cert file version.
+    marker = (str(cert), cert.stat().st_mtime_ns)
+    if marker in _over_cap_warned:
+        return
+    _over_cap_warned.add(marker)
+    logger.warning(
+        f"⚠️  {cert} is valid for {days} days, over Apple's "
+        f"{APPLE_MAX_VALIDITY_DAYS}-day cap — refusing it (iOS would reject it); "
+        "reissue with scripts/gen_tailscale_cert.py"
+    )
+
+
 def cert_paths(project_root: Optional[Path] = None) -> Optional[tuple[Path, Path]]:
+    """Return the cert/key pair to serve, or None when absent or unusable.
+
+    A leaf valid for more than Apple's 398-day cap is refused: iOS rejects it,
+    so serving it would make the PWA unreachable from an iPhone. The caller
+    falls back to plain HTTP, which is loud, rather than a silent TLS failure.
+    """
     root = project_root or PROJECT_ROOT
     cert = root / "webapp" / "certificates" / "cert.pem"
     key = root / "webapp" / "certificates" / "key.pem"
-    if cert.exists() and key.exists():
-        return cert, key
-    return None
+    if not (cert.exists() and key.exists()):
+        return None
+    days = leaf_validity_days(cert)
+    if days is not None and days > APPLE_MAX_VALIDITY_DAYS:
+        _warn_over_cap_once(cert, days)
+        return None
+    return cert, key
 
 
 def _renew_tailscale_cert() -> None:
