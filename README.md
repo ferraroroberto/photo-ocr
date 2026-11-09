@@ -548,7 +548,7 @@ Each surface the suite opens (a tab, sheet, picker, empty or error state) is tag
 powershell.exe -File scripts/verify-before-ship.ps1
 ```
 
-Exits non-zero on the first failure with the output left visible; prints total wall time and `Ready to ship` when green. Re-runnable with no manual cleanup. Any change under `app/webapp/` must pass it before being declared done. Use Windows PowerShell 5.1 (`powershell.exe`), not `pwsh` — the default `pwsh` on PATH is a 0-byte WindowsApps reparse stub that fails non-interactively.
+Exits non-zero on the first failure, output left visible; ends on `GATE-RESULT: PASS` or `GATE-RESULT: FAIL` (assert on it when piping). Re-runnable with no manual cleanup. Any change under `app/webapp/` must pass it before being declared done. Use Windows PowerShell 5.1 (`powershell.exe`), not `pwsh` — the default `pwsh` on PATH is a 0-byte WindowsApps reparse stub that fails non-interactively.
 
 ---
 
