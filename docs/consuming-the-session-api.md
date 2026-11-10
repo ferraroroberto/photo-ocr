@@ -120,16 +120,16 @@ Optional JSON body `{ "model": "...", "prompt_id": "..." }`. Starts a **backgrou
 
 ```json
 {
-  "session_id": "…", "phase": "running",
+  "session_id": "…", "phase": "running", "in_flight": true, "failed": false,
   "chunks_total": 3, "chunks_done": 1,
   "model": "claude_opus", "prompt_id": "verbatim-merge",
   "duration_s": null, "extract_succeeded": null,
-  "extracted_chars": 0, "error": null, "reused": false,
+  "extracted_chars": 0, "error": null, "has_text": false, "reused": false,
   "missing_photos": [], "retry_error": null
 }
 ```
 
-`phase` walks `idle → queued → running → merging → succeeded` (or `failed`, with `error` set, when no photo could be read). `chunks_done` counts finished hub requests, which complete out of order when they run in parallel. On a partly read take `phase` is `succeeded` and `missing_photos` lists the unread photos (fill them with `/retry-missing`). On `succeeded` the payload also carries `extracted` (the full text). Poll this until `phase` is `succeeded` or `failed`.
+`phase` walks `idle → queued → running → merging → succeeded` (or `failed`, with `error` set, when no photo could be read). `chunks_done` counts finished hub requests, which complete out of order when they run in parallel. On a partly read take `phase` is `succeeded` and `missing_photos` lists the unread photos (fill them with `/retry-missing`). On `succeeded` the payload also carries `extracted` (the full text). Poll this until `phase` is `succeeded` or `failed`. `in_flight` is true while `phase` is `queued`, `running` or `merging`; `failed` is true when it is `failed`. `has_text` is true when a text is on disk: with `phase` `failed` it means a redo failed over the last good read, which is kept (see [extract-phase-state.md](extract-phase-state.md)).
 
 A job interrupted mid-run — a webapp restart, or a crash — never stays stuck at `queued`/`running`: on boot (or when the job dies) it settles to `failed` with `error` set if it had no text yet, or back to `succeeded` with the text intact and `retry_error` explaining why if a redo/retry was in progress.
 

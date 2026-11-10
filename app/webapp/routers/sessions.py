@@ -20,11 +20,12 @@ from src.extract_job import (
     execute_extract_job,
     execute_retry_missing_job,
     extract_is_current,
+    extract_phase,
     extract_status_payload,
-    progress_meta,
     set_extract_progress,
     settle_interrupted,
 )
+from src.extract_state import ACTIVE_PHASES, ExtractPhase
 from src.image_utils import ImageValidationError, validate_and_persist
 from src.ocr_client import chunk_count
 from src.ocr_prompts import OcrPrompt, get_prompt
@@ -182,7 +183,7 @@ async def _start_extract(
         # the read makes that text stale, so it re-reads instead.
         set_extract_progress(
             session,
-            phase="succeeded",
+            phase=ExtractPhase.SUCCEEDED,
             chunks_total=chunk_count(len(session.meta.photos), cfg.extract_chunk_size),
             chunks_done=chunk_count(len(session.meta.photos), cfg.extract_chunk_size),
             model=session.meta.model,
@@ -192,8 +193,7 @@ async def _start_extract(
         )
         return extract_status_payload(session)
 
-    progress = progress_meta(session)
-    if progress.get("phase") in {"queued", "running", "merging"}:
+    if extract_phase(session) in ACTIVE_PHASES:
         return extract_status_payload(session)
 
     model = _resolve_model(body.get("model"), cfg)
@@ -201,7 +201,7 @@ async def _start_extract(
     total_chunks = chunk_count(len(session.meta.photos), cfg.extract_chunk_size)
     set_extract_progress(
         session,
-        phase="queued",
+        phase=ExtractPhase.QUEUED,
         chunks_total=total_chunks,
         chunks_done=0,
         model=model,
@@ -420,7 +420,7 @@ async def retry_missing_photos(
     if session is None:
         raise HTTPException(status_code=404, detail=f"unknown session {session_id}")
     status = extract_status_payload(session, include_extracted=False)
-    if status["phase"] in {"queued", "running", "merging"}:
+    if extract_phase(session) in ACTIVE_PHASES:
         raise HTTPException(
             status_code=409, detail="an extraction is already running for this take"
         )
@@ -433,7 +433,7 @@ async def retry_missing_photos(
 
     set_extract_progress(
         session,
-        phase="queued",
+        phase=ExtractPhase.QUEUED,
         chunks_total=len(status["missing_photos"]),
         chunks_done=0,
         error=None,
@@ -630,7 +630,7 @@ async def update_session(session_id: str, request: Request) -> Dict[str, Any]:
         session = archive.get(session_id)
         if session is None:
             raise HTTPException(status_code=404, detail=f"unknown session {session_id}")
-        if progress_meta(session).get("phase") in {"queued", "running", "merging"}:
+        if extract_phase(session) in ACTIVE_PHASES:
             raise HTTPException(status_code=409, detail="extraction in progress; try again when it ends")
         archive.set_incognito(session_id, bool(body["incognito"]))
         return {"session_id": session_id, "incognito": bool(body["incognito"])}

@@ -257,6 +257,7 @@ photo-ocr/
 │   ├── archive_index.py         SQLite FTS5 full-text search index
 │   ├── extract_job.py           chunked extraction job engine: locking,
 │   │                            progress state machine, archive writes, search index
+│   ├── extract_state.py         extraction phases, declared once
 │   ├── cloudflared_runner.py    spawn/monitor the named tunnel
 │   ├── no_window.py             creationflags=NO_WINDOW helper for every subprocess spawn
 │   ├── runtime_files.py         writers for caller-named runtime paths; refuse a code folder at runtime
@@ -525,7 +526,7 @@ The e2e leg is proportionate to the diff: `scripts/classify_e2e.py` classifies t
 
 The static ratchet (`scripts/static_ratchet_gate.py`, rules in `.fleet.toml` `[static_ratchet]`) records the repo's existing duplicate blocks, unused imports/variables, and ruff bug (`B`) and security (`S`) findings in `.static-ratchet-baseline.json` and fails the gate on any new one, naming it, so the count can only go down. It needs **Node** (jscpd runs through `npx`; the first run needs network) and `ruff` (installed from `requirements-dev.txt`). A detector that cannot run fails the gate as NOT CONFIRMED rather than passing. `_vendored/` is excluded because vendor-verbatim copies are duplicates by design.
 
-The docs ratchet (`scripts/docs_ratchet_gate.py`, rules in `.fleet.toml` `[docs_ratchet]`) holds `README.md` under 40 KiB and keeps history out of the docs: it counts issue references, dated headings and changelog headings in `README.md` and `docs/**/*.md` and fails the gate, naming the file and line, when a count rises above `.docs-ratchet-baseline.json`. Docs state what is true now and why; the story of how they got there lives in git, PRs and issues. A doc it cannot read (not UTF-8, an unclosed fence) fails as NOT CONFIRMED rather than passing. Lower the baseline with `--update-baseline` in the PR that removes debt; adding entries needs `--allow-additions`.
+The docs ratchet (`scripts/docs_ratchet_gate.py`, rules in `.fleet.toml` `[docs_ratchet]`) holds `README.md` under 40 KiB and keeps history out of the docs: it counts issue references, dated headings and changelog headings in `README.md` and `docs/**/*.md` and fails the gate, naming the file and line, when a count rises above `.docs-ratchet-baseline.json`. A doc it cannot read (not UTF-8, an unclosed fence) fails as NOT CONFIRMED rather than passing. Lower the baseline with `--update-baseline` in the PR that removes debt; adding entries needs `--allow-additions`.
 
 The structure ratchet (`scripts/structure_ratchet.py`, rules in `.fleet.toml` `[structure_ratchet]`) fails the gate when a file passes 1,000 lines, a Python or JS function 100 lines, a directory 40 modules, or a `src/` module imports `app/`, beyond `.structure-ratchet-baseline.json`, and when a tracked root folder falls outside the declared `shape` (`webapp-tray`) and `extra_roots`. The layout is never baselined; `docs/layout.md` gives each folder's purpose. Exit 3 (a file could not be measured, or an unknown shape) fails as NOT CONFIRMED, never a pass.
 

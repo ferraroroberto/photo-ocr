@@ -19,6 +19,12 @@ from typing import Any, Dict
 # Local imports
 from src.app_config import AppConfig
 from src.archive import Session, SessionArchive
+from src.extract_state import (
+    ACTIVE_PHASES,
+    ExtractPhase,
+    derive_extract_phase,
+    require_legal_transition,
+)
 from src.ocr_client import OcrClient, OcrError, OcrResult, chunk_count
 from src.ocr_prompts import apply_language_hint
 from src.webapp_config import WebappConfig
@@ -26,7 +32,6 @@ from src.webapp_config import WebappConfig
 logger = logging.getLogger(__name__)
 
 _PROGRESS_KEY = "extract_progress"
-_NON_TERMINAL_PHASES = frozenset({"queued", "running", "merging"})
 
 # Why a retry is refused once the take's photos moved on from the read.
 STALE_RETRY_DETAIL = "photos changed since the read; use Redo"
@@ -37,22 +42,26 @@ def progress_meta(session: Session) -> Dict[str, Any]:
     return dict(raw) if isinstance(raw, dict) else {}
 
 
+def extract_phase(session: Session) -> ExtractPhase:
+    """The take's extraction phase; every reader asks here."""
+    return derive_extract_phase(
+        progress_meta(session).get("phase"), session.meta.extract_succeeded
+    )
+
+
 def extract_status_payload(
     session: Session, include_extracted: bool = True
 ) -> Dict[str, Any]:
     progress = progress_meta(session)
-    phase = progress.get("phase")
-    if not phase:
-        if session.meta.extract_succeeded is True:
-            phase = "succeeded"
-        elif session.meta.extract_succeeded is False:
-            phase = "failed"
-        else:
-            phase = "idle"
+    phase = extract_phase(session)
 
     payload = {
         "session_id": session.session_id,
-        "phase": phase,
+        "phase": phase.value,
+        # The phase as two flags for clients that only need the exceptions
+        # (History); derived here so they never re-spell the phase names.
+        "in_flight": phase in ACTIVE_PHASES,
+        "failed": phase is ExtractPhase.FAILED,
         "chunks_total": int(progress.get("chunks_total") or 0),
         "chunks_done": int(progress.get("chunks_done") or 0),
         "model": progress.get("model") or session.meta.model,
@@ -61,17 +70,26 @@ def extract_status_payload(
         "extract_succeeded": session.meta.extract_succeeded,
         "extracted_chars": session.meta.extracted_chars,
         "error": session.meta.error,
+        # Text is on disk. With phase "failed" this is a redo that failed over
+        # the last good read, which stays on disk.
+        "has_text": session.meta.extracted_chars > 0,
         "reused": bool(progress.get("reused", False)),
         "missing_photos": list(progress.get("missing_photos") or []),
         # Why the last "retry missing" read nothing new; the text is unchanged.
         "retry_error": progress.get("retry_error"),
     }
-    if phase == "succeeded" and include_extracted:
+    if phase is ExtractPhase.SUCCEEDED and include_extracted:
         payload["extracted"] = session.read_extracted() or ""
     return payload
 
 
 def set_extract_progress(session: Session, **fields: Any) -> None:
+    """Merge ``fields`` into the take's progress. A ``phase`` among them must
+    be a legal move from the take's current phase, else nothing is written."""
+    if "phase" in fields:
+        new = ExtractPhase(fields["phase"])
+        require_legal_transition(extract_phase(session), new)
+        fields["phase"] = new.value
     progress = progress_meta(session)
     progress.update(fields)
     session.meta.extra[_PROGRESS_KEY] = progress
@@ -102,11 +120,11 @@ def settle_interrupted(session: Session, reason: str) -> None:
     ``/retry-missing``. A take with text on disk keeps it (a redo or retry
     died, the last good read is intact); one without is marked failed."""
     if session.meta.extract_succeeded:
-        set_extract_progress(session, phase="succeeded", retry_error=reason)
+        set_extract_progress(session, phase=ExtractPhase.SUCCEEDED, retry_error=reason)
         return
     model = progress_meta(session).get("model") or session.meta.model or ""
     session.mark_extract_failed(model, reason, prompt_id=session.meta.prompt_id)
-    set_extract_progress(session, phase="failed", error=reason)
+    set_extract_progress(session, phase=ExtractPhase.FAILED, error=reason)
 
 
 def settle_interrupted_extracts(archive: SessionArchive) -> int:
@@ -114,7 +132,7 @@ def settle_interrupted_extracts(archive: SessionArchive) -> int:
     non-terminal phase was interrupted. Returns how many were settled."""
     settled = 0
     for session in archive.iter_sessions():
-        if progress_meta(session).get("phase") in _NON_TERMINAL_PHASES:
+        if extract_phase(session) in ACTIVE_PHASES:
             settle_interrupted(session, "interrupted by a webapp restart")
             logger.info(f"ℹ️  Settled interrupted extract for {session.session_id}")
             settled += 1
@@ -139,7 +157,7 @@ def _record_extract_failure(
     session.mark_extract_failed(model, str(exc), prompt_id=prompt_id)
     set_extract_progress(
         session,
-        phase="failed",
+        phase=ExtractPhase.FAILED,
         chunks_total=total_chunks,
         chunks_done=int(progress_meta(session).get("chunks_done") or 0),
         model=model,
@@ -172,7 +190,7 @@ def execute_extract_job(
         total_chunks = chunk_count(len(session.meta.photos), chunk_size)
         set_extract_progress(
             session,
-            phase="running",
+            phase=ExtractPhase.RUNNING,
             chunks_total=total_chunks,
             chunks_done=0,
             model=model,
@@ -191,7 +209,7 @@ def execute_extract_job(
                 return
             set_extract_progress(
                 current,
-                phase="running",
+                phase=ExtractPhase.RUNNING,
                 chunks_total=total,
                 chunks_done=done,
                 model=model,
@@ -240,7 +258,7 @@ def _record_extract_success(
     """Merge, write and index a finished extraction, marking the take succeeded."""
     set_extract_progress(
         current,
-        phase="merging",
+        phase=ExtractPhase.MERGING,
         chunks_total=total_chunks,
         chunks_done=total_chunks,
         model=model,
@@ -258,7 +276,7 @@ def _record_extract_success(
     )
     set_extract_progress(
         current,
-        phase="succeeded",
+        phase=ExtractPhase.SUCCEEDED,
         chunks_total=total_chunks,
         chunks_done=total_chunks,
         model=result.model,
@@ -297,13 +315,13 @@ def execute_retry_missing_job(app: Any, session_id: str) -> None:
         # for the lock, and the archived names map onto the current files.
         if not extract_is_current(session):
             logger.info(f"ℹ️  Retry refused for {session_id}: photos changed since the read")
-            _settle(phase="succeeded", retry_error=STALE_RETRY_DETAIL)
+            _settle(phase=ExtractPhase.SUCCEEDED, retry_error=STALE_RETRY_DETAIL)
             return
 
         payloads = session.read_ocr_payloads()
         if payloads is None:
             _settle(
-                phase="succeeded", retry_error="this take's OCR archive is "
+                phase=ExtractPhase.SUCCEEDED, retry_error="this take's OCR archive is "
                 "missing; use Redo",
             )
             return
@@ -314,12 +332,12 @@ def execute_retry_missing_job(app: Any, session_id: str) -> None:
             if isinstance(entry, dict) and "error" in entry
         )
         _settle(
-            phase="running", chunks_total=total_units, chunks_done=0,
+            phase=ExtractPhase.RUNNING, chunks_total=total_units, chunks_done=0,
             error=None, retry_error=None,
         )
 
         def _on_unit(done: int, total: int) -> None:
-            _settle(phase="running", chunks_total=total, chunks_done=done)
+            _settle(phase=ExtractPhase.RUNNING, chunks_total=total, chunks_done=done)
 
         t0 = time.monotonic()
         try:
@@ -333,11 +351,11 @@ def execute_retry_missing_job(app: Any, session_id: str) -> None:
             )
         except OcrError as exc:
             logger.info(f"ℹ️  Retry of missing photos read nothing new: {exc}")
-            _settle(phase="succeeded", retry_error=str(exc))
+            _settle(phase=ExtractPhase.SUCCEEDED, retry_error=str(exc))
             return
 
         current = archive.get(session_id) or session
-        _settle(phase="merging", chunks_done=total_units)
+        _settle(phase=ExtractPhase.MERGING, chunks_done=total_units)
         current.write_extracted(
             result.extracted_text,
             model=result.model,
@@ -348,7 +366,7 @@ def execute_retry_missing_job(app: Any, session_id: str) -> None:
             + (time.monotonic() - t0),
         )
         _settle(
-            phase="succeeded",
+            phase=ExtractPhase.SUCCEEDED,
             chunks_done=total_units,
             model=result.model,
             error=None,
