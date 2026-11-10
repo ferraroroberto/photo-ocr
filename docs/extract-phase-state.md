@@ -64,7 +64,7 @@ A phase may always repeat (a progress tick). Between different phases:
 | boot sweep and crash handler (`settle_interrupted_extracts`, `settle_interrupted`) | `extract_phase` and `ACTIVE_PHASES` |
 | History (`sessions.js`) | the payload's `in_flight`, `failed` and `has_text`; it does not spell phase names |
 
-The Capture progress poll (`poll.js`, `extract.js`) still reads `phase` strings on the client; moving it onto one derived value is a separate change.
+The Capture progress poll (`poll.js`, `extract.js`) reads the phase through `app/webapp/static/extract_phase.js`, the client's one place for the phase names (the `extract-phase-client` machine in `.fleet.toml`). `deriveExtractPhase(body)` maps a status body to a phase (a body with none, or one this build does not know, is `idle`, so the loop keeps waiting), `isExtractDone` and `isExtractFailed` answer the two terminal questions, and `requireForwardPhase` throws if successive polls of one job move from a later live phase to an earlier one (`merging` back to `running`), which the server cannot produce. Its values are checked against the server's `ExtractPhase` in `tests/test_client_state_machines.py`.
 
 A new reader calls `extract_phase` (or reads the payload) and extends `ExtractPhase` if it needs a mode the table lacks. It does not look at `extract_succeeded`, `error` or the progress dict to guess one.
 

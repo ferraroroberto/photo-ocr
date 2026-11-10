@@ -9,6 +9,13 @@
 'use strict';
 
 import { jsonApi } from './api.js';
+import {
+  ExtractPhase,
+  deriveExtractPhase,
+  isExtractDone,
+  isExtractFailed,
+  requireForwardPhase,
+} from './extract_phase.js';
 
 function sleep(ms) {
   return new Promise(function (resolve) { setTimeout(resolve, ms); });
@@ -23,17 +30,18 @@ export function extractProgress(body, prefix) {
   const lead = prefix ? prefix + ' · ' : 'Reading · ';
   const total = body.chunks_total || 0;
   const done = body.chunks_done || 0;
-  if (body.phase === 'queued') {
+  const phase = deriveExtractPhase(body);
+  if (phase === ExtractPhase.QUEUED) {
     return { label: lead + 'queued', fraction: 0 };
   }
-  if (body.phase === 'running') {
+  if (phase === ExtractPhase.RUNNING) {
     const current = total ? Math.min(done + 1, total) : 1;
     return {
       label: lead + 'part ' + current + ' of ' + (total || 1),
       fraction: total ? done / total : 0,
     };
   }
-  if (body.phase === 'merging') {
+  if (phase === ExtractPhase.MERGING) {
     return { label: lead + 'merging the parts', fraction: 1 };
   }
   return { label: '', fraction: 0 };
@@ -43,15 +51,17 @@ export function extractProgress(body, prefix) {
 // `onStatus(body)` for every non-terminal poll so the caller can update
 // the UI, returns the succeeded body, and throws on a failed phase.
 export async function pollUntilDone(sessionId, onStatus) {
+  let phase = ExtractPhase.IDLE;
   while (true) {
     const body = await jsonApi(
       '/api/sessions/' + encodeURIComponent(sessionId) + '/extract/status',
       { timeoutMs: 15000 }
     );
-    if (body.phase === 'failed') {
+    phase = requireForwardPhase(phase, deriveExtractPhase(body));
+    if (isExtractFailed(body)) {
       throw new Error(body.error || 'extract failed');
     }
-    if (body.phase === 'succeeded') return body;
+    if (isExtractDone(body)) return body;
     if (onStatus) onStatus(body);
     await sleep(1000);
   }
