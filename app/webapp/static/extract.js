@@ -20,6 +20,8 @@ import { loadHistory } from './sessions.js';
 import { pollUntilDone, extractProgress } from './poll.js';
 import { defaultModel, defaultPromptId } from './settings.js';
 import { icon } from './_vendored/icons/icons.js';
+import { isExtractDone, isExtractFailed } from './extract_phase.js';
+import { isPhotoReady } from './photo_state.js';
 
 // The result's one meta line, from the outcome the job reported: model,
 // time, cached, and whether the take is in History. The photo count is the
@@ -70,14 +72,14 @@ function takeResult(body, startedAt) {
 // so during polling only the queued/running/merging branch fires here; the
 // succeeded branch runs once at the end with the final body.
 function renderExtractStatus(body, startedAt) {
-  if (body.phase === 'succeeded') {
+  if (isExtractDone(body)) {
     state.extracted = body.extracted || '';
     state.missingPhotos = body.missing_photos || [];
     state.photosChanged = false;
     state.result = takeResult(body, startedAt);
     state.showPhotos = false;
     renderExtracted();
-  } else if (body.phase === 'failed') {
+  } else if (isExtractFailed(body)) {
     throw new Error(body.error || 'extract failed');
   } else {
     setProgress(extractProgress(body, ''));
@@ -100,7 +102,7 @@ export function postJob(sessionId, action, payload) {
 // The terminal body of a job whose start answer was `started`. `prefix` words
 // the meter per surface ('' | 'Redo' | 'Retry').
 export function followJob(sessionId, started, prefix) {
-  if (started.phase === 'succeeded') return Promise.resolve(started);
+  if (isExtractDone(started)) return Promise.resolve(started);
   return pollUntilDone(sessionId, function (b) {
     setProgress(extractProgress(b, prefix));
   });
@@ -137,7 +139,7 @@ export async function extract() {
     return;
   }
   if (state.busy) return;
-  const readyPhotos = state.photos.filter(function (p) { return p.status === 'ready'; });
+  const readyPhotos = state.photos.filter(isPhotoReady);
   if (!readyPhotos.length) {
     toast('No photos ready yet.', 'error');
     return;
@@ -153,7 +155,7 @@ export async function extract() {
         prompt_id: state.promptId,
       });
       renderExtractStatus(body, t0);
-      if (body.phase !== 'succeeded') {
+      if (!isExtractDone(body)) {
         const finalBody = await pollUntilDone(state.sessionId, function (b) {
           renderExtractStatus(b, t0);
         });

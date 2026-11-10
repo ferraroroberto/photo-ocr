@@ -17,6 +17,20 @@ module = "src/extract_state.py"
 type   = "ExtractPhase"
 derive = "derive_extract_phase"
 
+# The same phases as the client reads them (docs/extract-phase-state.md).
+[[state_machines]]
+name   = "extract-phase-client"
+module = "app/webapp/static/extract_phase.js"
+type   = "ExtractPhase"
+derive = "deriveExtractPhase"
+
+# One photo's upload in the Capture strip (docs/photo-upload-state.md).
+[[state_machines]]
+name   = "photo-upload"
+module = "app/webapp/static/photo_state.js"
+type   = "PhotoStatus"
+derive = "derivePhotoStatus"
+
 [vendored]
 geometry = { src = "tests/e2e/_geometry.py", sha = "f70569640ebaf251ab0ed5f5daadd6055953a8c9", dest = "tests/e2e/_geometry.py" }
 surface_capture = { src = "tests/e2e/_surface.py", sha = "5c4d3a7947dae8b3b4a028bf636c0f052ea3b1f7", dest = "tests/e2e/_surface.py" }

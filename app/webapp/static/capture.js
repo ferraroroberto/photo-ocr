@@ -13,6 +13,15 @@ import { assessImage } from './quality.js';
 import { icon } from './_vendored/icons/icons.js';
 import { resetTake } from './extract.js';
 import { openSheet } from './sheet.js';
+import {
+  PhotoStatus,
+  derivePhotoStatus,
+  isPhotoFailed,
+  isPhotoReady,
+  isPhotoUploading,
+  newPhotoStatus,
+  setPhotoStatus,
+} from './photo_state.js';
 
 function clientId() {
   return 'c' + Math.random().toString(36).slice(2, 10);
@@ -20,7 +29,7 @@ function clientId() {
 
 function readyPhotos() {
   return state.photos.filter(function (p) {
-    return p.status === 'ready' && p.seq != null;
+    return isPhotoReady(p) && p.seq != null;
   });
 }
 
@@ -72,14 +81,11 @@ function plural(n, word) {
 // Computed from the same state the card draws, so the two never disagree.
 export function renderHeadline() {
   const photos = state.photos;
-  const count = function (status) {
-    return photos.filter(function (p) { return p.status === status; }).length;
-  };
+  const failed = photos.filter(isPhotoFailed).length;
+  const uploading = photos.filter(isPhotoUploading).length;
   const parts = [];
   if (state.busy) parts.push({ text: 'Reading', tone: 'accent' });
-  const failed = count('failed');
   if (failed) parts.push({ text: failed + ' failed', tone: 'danger', photo: true });
-  const uploading = count('pending') + count('uploading');
   if (uploading) parts.push({ text: 'Uploading ' + uploading, tone: 'neutral' });
   if (state.result && state.missingPhotos.length) {
     parts.push({ text: plural(state.missingPhotos.length, 'photo') + ' unread', tone: 'attention' });
@@ -315,9 +321,7 @@ export function renderThumbnails() {
   els.thumbStrip.innerHTML = '';
   state.photos.forEach(function (photo, idx) {
     const li = document.createElement('li');
-    li.className = 'thumb ' + (photo.status || 'pending');
-    if (photo.status === 'uploading') li.classList.add('uploading');
-    if (photo.status === 'failed') li.classList.add('failed');
+    li.className = 'thumb ' + derivePhotoStatus(photo);
     const warned = isWarned(photo);
     if (warned) li.classList.add('warned');
 
@@ -378,7 +382,7 @@ export function renderThumbnails() {
   els.thumbStrip.scrollLeft = scrollLeft;
 
   // Extract appears once a photo is ready to read.
-  const haveReady = state.photos.some(function (p) { return p.status === 'ready'; });
+  const haveReady = state.photos.some(isPhotoReady);
   els.extractBtn.hidden = !haveReady;
   els.extractBtn.disabled = state.busy;
   // A running job rewrites the take's meta: the switch waits for it.
@@ -411,7 +415,7 @@ export function handleFilePick(files) {
       clientId: clientId(),
       file: file,
       previewUrl: URL.createObjectURL(file),
-      status: 'pending',
+      status: newPhotoStatus(),
       seq: state.photos.length + 1,
       error: null,
       warnings: [],
@@ -448,7 +452,7 @@ async function ensureSession() {
 }
 
 async function uploadPhoto(photo) {
-  photo.status = 'uploading';
+  setPhotoStatus(photo, PhotoStatus.UPLOADING);
   renderThumbnails();
   try {
     const sid = await ensureSession();
@@ -471,9 +475,9 @@ async function uploadPhoto(photo) {
       if (added) await deleteServerPhoto(sid, added.sequence_index);
       return;
     }
-    photo.status = 'ready';
+    setPhotoStatus(photo, PhotoStatus.READY);
   } catch (exc) {
-    photo.status = 'failed';
+    setPhotoStatus(photo, PhotoStatus.FAILED);
     photo.error = String(exc.message || exc);
     toast('Upload failed: ' + photo.error, 'error');
   } finally {
@@ -502,7 +506,7 @@ async function removePhoto(photo) {
   state.photos.splice(idx, 1);
   state.photosChanged = true;
   renderThumbnails();
-  if (photo.status === 'ready' && state.sessionId && photo.seq != null) {
+  if (isPhotoReady(photo) && state.sessionId && photo.seq != null) {
     await deleteServerPhoto(state.sessionId, photo.seq);
   }
 }
@@ -532,7 +536,7 @@ function movePhoto(fromIdx, toIdx) {
   if (
     !state.sessionId ||
     readyPhotos().length < 2 ||
-    state.photos.some(function (p) { return p.status === 'pending' || p.status === 'uploading'; })
+    state.photos.some(isPhotoUploading)
   ) {
     toast('Order will sync before Extract.');
     return;
