@@ -171,6 +171,10 @@ async def _start_extract(
         raise HTTPException(status_code=404, detail=f"unknown session {session_id}")
     if not session.meta.photos:
         raise HTTPException(status_code=400, detail="session has no photos to extract")
+    if extract_phase(session) in ACTIVE_PHASES:
+        # A live job owns the phase; the reuse branch below would stamp
+        # `succeeded` over a redo that is still reading the earlier text.
+        return extract_status_payload(session)
     if (
         session.meta.extract_succeeded
         and not allow_when_done
@@ -193,10 +197,7 @@ async def _start_extract(
         )
         return extract_status_payload(session)
 
-    if extract_phase(session) in ACTIVE_PHASES:
-        return extract_status_payload(session)
-
-    model = _resolve_model(body.get("model"), cfg)
+    model =_resolve_model(body.get("model"), cfg)
     prompt = _resolve_prompt(body.get("prompt_id"), cfg)
     total_chunks = chunk_count(len(session.meta.photos), cfg.extract_chunk_size)
     set_extract_progress(

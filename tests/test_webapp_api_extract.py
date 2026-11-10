@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 import time
 from unittest.mock import patch
 
@@ -159,6 +160,51 @@ def _fake_read(text: str) -> OcrResult:
         request_payload={"model": "gemini_flash", "images": ["01.jpg"]},
         response_payload={"content": [{"type": "text", "text": text}]},
     )
+
+
+def test_extract_during_an_inflight_redo_leaves_the_phase_active(
+    client: TestClient, jpeg_bytes: bytes
+) -> None:
+    """/extract over a take whose earlier text is still current must not stamp
+    it succeeded while a redo is still reading."""
+    sid = client.post("/api/sessions", json={}).json()["session_id"]
+    client.post(
+        f"/api/sessions/{sid}/photos",
+        files=[("files", ("a.jpg", jpeg_bytes, "image/jpeg"))],
+    )
+    with patch.object(
+        client.app.state.ocr_client, "extract", return_value=_fake_read("first run")
+    ):
+        client.post(f"/api/sessions/{sid}/extract", json={})
+        _wait_for_phase(client, sid, "succeeded")
+
+    started = threading.Event()
+    release = threading.Event()
+
+    def _blocked_read(**_kwargs: object) -> OcrResult:
+        started.set()
+        assert release.wait(timeout=5), "test never released the redo"
+        return _fake_read("second run")
+
+    with patch.object(client.app.state.ocr_client, "extract", side_effect=_blocked_read):
+        try:
+            client.post(f"/api/sessions/{sid}/redo", json={})
+            assert started.wait(timeout=5), "the redo never reached the hub call"
+            mid = client.get(f"/api/sessions/{sid}/extract/status").json()
+            assert mid["in_flight"] is True
+
+            r = client.post(f"/api/sessions/{sid}/extract", json={})
+            assert r.status_code == 200
+            assert r.json()["in_flight"] is True
+            assert r.json()["phase"] in {"queued", "running", "merging"}
+            after = client.get(f"/api/sessions/{sid}/extract/status").json()
+            assert after["in_flight"] is True
+            assert after["phase"] in {"queued", "running", "merging"}
+        finally:
+            release.set()
+        body = _wait_for_phase(client, sid, "succeeded")
+    assert body["extracted"] == "second run"
+    assert body["reused"] is False
 
 
 def test_extract_re_reads_when_a_photo_was_added_after_the_read(
