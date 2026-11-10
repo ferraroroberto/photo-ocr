@@ -112,6 +112,7 @@ function chipEl(text, tone) {
 // a search hit carries no photo count, duration or unread count (they are
 // left undefined, never invented, and the sheet asks the server).
 function browseTake(s) {
+  const progress = s.extract_progress || {};
   return {
     session_id: s.session_id,
     created_at: s.created_at,
@@ -119,10 +120,23 @@ function browseTake(s) {
     model: s.model,
     prompt_id: s.prompt_id,
     duration: s.extract_duration_s,
-    missing: ((s.extract_progress || {}).missing_photos || []).length,
-    failed: !!s.error,
+    missing: (progress.missing_photos || []).length,
+    // The phase the API derives (src/extract_state.py), not the error field:
+    // a take read, then redone and failed, has both text and an error.
+    failed: !!progress.failed,
+    inFlight: !!progress.in_flight,
+    hasText: !!progress.has_text,
+    error: s.error,
     source: s.source,
   };
+}
+
+// What leads a browse row: the text when there is some (a failed redo keeps
+// the last good read), else the failure, else that it is being read.
+function browseTitle(take, s) {
+  if (s.extracted_preview) return s.extracted_preview;
+  if (take.failed && s.error) return s.error;
+  return take.inFlight ? 'Reading…' : '(no text)';
 }
 
 function searchTake(r) {
@@ -135,14 +149,18 @@ function searchTake(r) {
     duration: undefined,
     missing: undefined,
     failed: false,
+    inFlight: false,
+    hasText: true,
     source: r.source,
   };
 }
 
-// The exception chips, in one place for the row and the sheet: unread
-// (attention), failed (danger), the calling app (neutral). Normal takes none.
+// The exception chips, in one place for the row and the sheet: being read
+// (accent), unread (attention), failed (danger), the calling app (neutral).
+// Normal takes none.
 function takeChips(take) {
   const chips = [];
+  if (take.inFlight) chips.push(chipEl('Reading', 'accent'));
   if (take.missing) chips.push(chipEl(take.missing + ' unread', 'attention'));
   if (take.failed) chips.push(chipEl('Failed', 'danger'));
   // Externally sourced takes (app-launcher, api, …) keep History an
@@ -263,9 +281,8 @@ function renderHistory() {
       els.historyList.appendChild(groupHeader(label));
       group = label;
     }
-    els.historyList.appendChild(
-      makeSessionRow(browseTake(s), s.error || s.extracted_preview || '(no text)', false)
-    );
+    const take = browseTake(s);
+    els.historyList.appendChild(makeSessionRow(take, browseTitle(take, s), false));
   });
   const left = state.historyTotal - state.historyItems.length;
   els.loadMoreHistory.hidden = left <= 0;
@@ -416,6 +433,11 @@ function openTakeSheet(take) {
   const error = document.createElement('p');
   error.className = 'take-sheet-error';
   error.hidden = true;
+  // A failed redo keeps the last good text: show it, and say why it failed.
+  if (take.failed && take.hasText && take.error) {
+    error.textContent = 'The last read failed: ' + take.error;
+    error.hidden = false;
+  }
   body.append(meta, text, error);
 
   const sheet = openSheet({

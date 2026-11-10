@@ -54,6 +54,37 @@ def _sessions() -> list[dict]:
             "extract_progress": {"missing_photos": ["02.jpg"]},
         },
         {
+            # A redo that failed over a good read: text and an error at once.
+            "session_id": "s-redo-failed",
+            "created_at": _iso(0),
+            "photo_count": 2,
+            "model": "gemini_flash",
+            "prompt_id": "verbatim-merge",
+            "extract_duration_s": 1.5,
+            "extracted_preview": "Kept text from the last good read",
+            "source": "webapp",
+            "error": "hub unreachable",
+            "extract_progress": {
+                "phase": "failed", "failed": True, "in_flight": False,
+                "has_text": True, "missing_photos": [],
+            },
+        },
+        {
+            "session_id": "s-reading",
+            "created_at": _iso(0),
+            "photo_count": 1,
+            "model": "gemini_flash",
+            "prompt_id": "verbatim-merge",
+            "extract_duration_s": None,
+            "extracted_preview": None,
+            "source": "webapp",
+            "error": None,
+            "extract_progress": {
+                "phase": "running", "failed": False, "in_flight": True,
+                "has_text": False, "missing_photos": [],
+            },
+        },
+        {
             "session_id": "s-old",
             "created_at": _iso(40),
             "photo_count": 2,
@@ -63,7 +94,10 @@ def _sessions() -> list[dict]:
             "extracted_preview": None,
             "source": "webapp",
             "error": "invented failure",
-            "extract_progress": {"missing_photos": []},
+            "extract_progress": {
+                "phase": "failed", "failed": True, "in_flight": False,
+                "has_text": False, "missing_photos": [],
+            },
         },
     ]
 
@@ -148,7 +182,7 @@ def _assert_list_chrome(page: Page) -> None:
     # Search first, then the takes; no tool row, no "0/0".
     expect(pane.locator("#historySearch")).to_be_visible()
     expect(pane.locator("#refreshHistory, #historyCount, .history-tools")).to_have_count(0)
-    expect(pane.locator("#historySearch")).to_have_attribute("placeholder", "Search 15 saved takes…")
+    expect(pane.locator("#historySearch")).to_have_attribute("placeholder", "Search 17 saved takes…")
     # Header names the exception among the loaded takes.
     expect(page.locator("#historyHeadline")).to_have_text("1 partly read")
     # Date overlines group the rows; Load more says what is left.
@@ -224,7 +258,7 @@ def _delete_flows(page: Page, mock, rows, sheet) -> None:
     rows.nth(0).locator(".action-row-kebab").click()
     sheet.get_by_role("button", name="Delete take").click()
     confirm.locator("[data-confirm='yes']").click()
-    expect(rows).to_have_count(2)
+    expect(rows).to_have_count(4)
     assert mock.deletes == ["s-one"]
 
     # Delete all lives in Settings › Storage, behind the same confirm sheet.
@@ -256,19 +290,25 @@ def test_history_rows_take_sheet_and_deletes(authed_page: Page, base_url: str) -
     calls_before = mock.list_calls
     page.locator("#tabHistory").click()
     # Opening the tab reloads the list (there is no Refresh button).
-    expect(page.locator("#historyList .action-row")).to_have_count(3)
+    expect(page.locator("#historyList .action-row")).to_have_count(5)
     assert mock.list_calls > calls_before
 
     _assert_list_chrome(page)
 
     rows = page.locator("#historyList .action-row")
-    first, second, old = rows.nth(0), rows.nth(1), rows.nth(2)
+    first, second, redo_failed, reading, old = (rows.nth(i) for i in range(5))
     # Chips only for exceptions: none on a normal take; unread + caller; failed.
     expect(first.locator(".chip")).to_have_count(0)
     expect(second.locator(".chip[data-tone='attention']")).to_have_text("1 unread")
     expect(second.locator(".chip[data-tone='neutral']")).to_have_text("app-launcher")
     expect(old.locator(".chip[data-tone='danger']")).to_have_text("Failed")
     expect(old.locator(".action-row-title")).to_have_text("invented failure")
+    # A failed redo leads with the text it kept, still flagged Failed; a take
+    # being read says so, in the accent tone, instead of reading as a plain row.
+    expect(redo_failed.locator(".chip[data-tone='danger']")).to_have_text("Failed")
+    expect(redo_failed.locator(".action-row-title")).to_have_text("Kept text from the last good read")
+    expect(reading.locator(".chip[data-tone='accent']")).to_have_text("Reading")
+    expect(reading.locator(".action-row-title")).to_have_text("Reading…")
     surface(page, "history.list")
     expect(first.locator(".action-row-meta")).to_contain_text("1 photo · Gemini Flash")
     _assert_kebab_is_unpainted_44px(first)
@@ -290,6 +330,13 @@ def test_history_rows_take_sheet_and_deletes(authed_page: Page, base_url: str) -
     page.keyboard.press("Escape")
     expect(sheet).to_have_count(0)
 
+    # A failed redo's sheet says why next to the text it kept.
+    redo_failed.locator(".action-row-kebab").click()
+    expect(sheet.locator(".take-sheet-error")).to_have_text("The last read failed: hub unreachable")
+    surface(page, "history.take-sheet-failed")
+    page.keyboard.press("Escape")
+    expect(sheet).to_have_count(0)
+
     _search_hit_opens_sheet(page, sheet)
     # No matches offers clearing the search, which restores the list.
     page.locator("#historySearch").fill("zzz")
@@ -297,7 +344,7 @@ def test_history_rows_take_sheet_and_deletes(authed_page: Page, base_url: str) -
     surface(page, "history.no-matches")
     page.get_by_role("button", name="Clear search").click()
     expect(page.locator("#historySearch")).to_have_value("")
-    expect(rows).to_have_count(3)
+    expect(rows).to_have_count(5)
 
     _delete_flows(page, mock, rows, sheet)
 
