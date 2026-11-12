@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from src.ocr_client import (
+    DEFAULT_CHUNK_SIZE,
     DEFAULT_CONCURRENCY,
     DEFAULT_RUN_BUDGET,
     DEFAULT_TIMEOUT,
@@ -206,6 +207,7 @@ def test_extract_defaults_follow_the_ocr_client_constants() -> None:
     assert cfg.extract_request_timeout_s == policy.request_timeout_s == DEFAULT_TIMEOUT
     assert cfg.extract_run_budget_s == policy.run_budget_s == DEFAULT_RUN_BUDGET
     assert cfg.extract_concurrency == policy.concurrency == DEFAULT_CONCURRENCY
+    assert cfg.extract_chunk_size == DEFAULT_CHUNK_SIZE
     sample = json.loads(
         (Path(__file__).resolve().parents[1] / "config" / "webapp_config.sample.json")
         .read_text(encoding="utf-8")
@@ -213,6 +215,7 @@ def test_extract_defaults_follow_the_ocr_client_constants() -> None:
     assert sample["extract_request_timeout_s"] == DEFAULT_TIMEOUT
     assert sample["extract_run_budget_s"] == DEFAULT_RUN_BUDGET
     assert sample["extract_concurrency"] == DEFAULT_CONCURRENCY
+    assert sample["extract_chunk_size"] == DEFAULT_CHUNK_SIZE
 
 
 def test_load_full_config_reads_every_field(tmp_path: Path) -> None:
