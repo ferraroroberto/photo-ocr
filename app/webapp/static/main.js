@@ -89,7 +89,7 @@ const usage = initUsageLog({
 // so onChange hides the pane.
 // Opening History reloads it (there is no Refresh button); before boot has
 // the config the boot sequence loads it instead.
-initNavTabs({
+const navTabs = initNavTabs({
   storageKey: TAB_KEY,
   onChange: function (tab) {
     els.settingsPane.hidden = true;
@@ -108,12 +108,7 @@ function openSettings() {
   document.querySelectorAll('main.app > section.pane').forEach(function (pane) {
     pane.hidden = pane !== els.settingsPane;
   });
-  const nav = document.querySelector('nav.tabs');
-  nav.querySelectorAll('.tab').forEach(function (tab) {
-    tab.classList.remove('active');
-    tab.setAttribute('aria-selected', 'false');
-  });
-  nav.dataset.activeTab = 'settings';
+  navTabs.setTab(null);
   usage.trackView('settings');
   const scroller = document.querySelector('.app');
   if (scroller) scroller.scrollTop = 0;
