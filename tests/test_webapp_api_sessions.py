@@ -253,10 +253,14 @@ def test_every_session_mutating_route_refuses_while_extracting() -> None:
 
     from app.webapp.routers import sessions
 
+    # Routes that start the read themselves and refuse an already-active phase
+    # with their own 409 rather than the photo-change one.
+    starts_the_read = {"retry_missing_photos"}
     unguarded = [
         route.endpoint.__name__
         for route in sessions.router.routes
         if route.methods & {"POST", "PATCH", "DELETE"}
+        and route.endpoint.__name__ not in starts_the_read
         and "session_lock(" in inspect.getsource(route.endpoint)
         and "refuse_while_extracting(" not in inspect.getsource(route.endpoint)
     ]

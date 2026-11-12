@@ -64,6 +64,65 @@ async def test_concurrent_large_uploads_keep_every_photo(app) -> None:
     assert on_disk == ["01.jpg", "02.jpg", "03.jpg", "04.jpg"]
 
 
+async def _race_upload_against(app, monkeypatch, route: str, prepare) -> tuple:
+    """Hold an upload mid-read, fire ``route``, return (client results, session)."""
+    from app.webapp.routers import sessions as sessions_router
+
+    for job in ("execute_extract_job", "execute_retry_missing_job"):
+        monkeypatch.setattr(sessions_router, job, lambda *a, **k: None)
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://127.0.0.1") as client:
+        sid = (await client.post("/api/sessions", json={})).json()["session_id"]
+        await client.post(
+            f"/api/sessions/{sid}/photos",
+            files=[("files", ("a.jpg", _noisy_jpeg(), "image/jpeg"))],
+        )
+        prepare(app, sid)
+        lock = sessions_router.session_lock(app, sid)
+        upload = asyncio.create_task(
+            client.post(
+                f"/api/sessions/{sid}/photos",
+                files=[("files", ("b.jpg", _noisy_jpeg(), "image/jpeg"))],
+            )
+        )
+        while not lock.locked():
+            await asyncio.sleep(0)
+        queued = await client.post(f"/api/sessions/{sid}/{route}")
+        uploaded = await upload
+    return (uploaded, queued), app.state.archive.get(sid)
+
+
+async def test_extract_queued_during_upload_keeps_its_phase(app, monkeypatch) -> None:
+    from src.extract_job import extract_phase
+    from src.extract_state import ExtractPhase
+
+    (uploaded, queued), session = await _race_upload_against(
+        app, monkeypatch, "extract", lambda a, s: None
+    )
+
+    assert (uploaded.status_code, queued.status_code) == (200, 200)
+    assert len(session.meta.photos) == 2
+    assert extract_phase(session) == ExtractPhase.QUEUED
+
+
+async def test_retry_missing_queued_during_upload_keeps_its_phase(app, monkeypatch) -> None:
+    from src.extract_job import extract_phase, set_extract_progress
+    from src.extract_state import ExtractPhase
+
+    def partly_read(a, sid: str) -> None:
+        session = a.state.archive.get(sid)
+        set_extract_progress(session, phase=ExtractPhase.QUEUED, missing_photos=["01.jpg"])
+        set_extract_progress(session, phase=ExtractPhase.SUCCEEDED)
+
+    (uploaded, queued), session = await _race_upload_against(
+        app, monkeypatch, "retry-missing", partly_read
+    )
+
+    assert (uploaded.status_code, queued.status_code) == (200, 200)
+    assert len(session.meta.photos) == 2
+    assert extract_phase(session) == ExtractPhase.QUEUED
+
+
 # Handlers that write a session's meta without the lock because the session is
 # brand new and unreachable by any other request until they return.
 _UNSHARED_SESSION_HANDLERS = {"extract_single_shot"}
@@ -87,7 +146,7 @@ def test_every_meta_writing_handler_takes_the_session_lock() -> None:
             for c in ast.walk(fn)
             if isinstance(c, ast.Call)
         }
-        writes_meta = bool(calls & {"write_meta", "set_incognito"})
+        writes_meta = bool(calls & {"write_meta", "set_incognito", "set_extract_progress"})
         if writes_meta and "session_lock" not in calls and fn.name not in _UNSHARED_SESSION_HANDLERS:
             unlocked.append(fn.name)
     assert not unlocked, f"meta-writing handlers without session_lock: {unlocked}"
