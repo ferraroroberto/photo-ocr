@@ -179,65 +179,68 @@ async def _start_extract(
     cfg: WebappConfig = request.app.state.webapp_config
     archive: SessionArchive = request.app.state.archive
 
-    session = archive.get(session_id)
-    if session is None:
-        raise HTTPException(status_code=404, detail=f"unknown session {session_id}")
-    if not session.meta.photos:
-        raise HTTPException(status_code=400, detail="session has no photos to extract")
-    if extract_phase(session) in ACTIVE_PHASES:
-        # A live job owns the phase; the reuse branch below would stamp
-        # `succeeded` over a redo that is still reading the earlier text.
-        return extract_status_payload(session)
-    if (
-        session.meta.extract_succeeded
-        and not allow_when_done
-        and extract_is_current(session)
-    ):
-        # The /extract endpoint should be idempotent on the client
-        # path — the UI uses /redo when the user wants to re-run with
-        # a different model. Surface the existing text instead of
-        # silently re-billing the hub. A photo added or removed since
-        # the read makes that text stale, so it re-reads instead.
+    # Check-and-queue under the session lock: an upload mid-read holds a stale
+    # copy of the meta and would otherwise overwrite the queued phase.
+    async with session_lock(request.app, session_id):
+        session = archive.get(session_id)
+        if session is None:
+            raise HTTPException(status_code=404, detail=f"unknown session {session_id}")
+        if not session.meta.photos:
+            raise HTTPException(status_code=400, detail="session has no photos to extract")
+        if extract_phase(session) in ACTIVE_PHASES:
+            # A live job owns the phase; the reuse branch below would stamp
+            # `succeeded` over a redo that is still reading the earlier text.
+            return extract_status_payload(session)
+        if (
+            session.meta.extract_succeeded
+            and not allow_when_done
+            and extract_is_current(session)
+        ):
+            # The /extract endpoint should be idempotent on the client
+            # path — the UI uses /redo when the user wants to re-run with
+            # a different model. Surface the existing text instead of
+            # silently re-billing the hub. A photo added or removed since
+            # the read makes that text stale, so it re-reads instead.
+            set_extract_progress(
+                session,
+                phase=ExtractPhase.SUCCEEDED,
+                chunks_total=chunk_count(len(session.meta.photos), cfg.extract_chunk_size),
+                chunks_done=chunk_count(len(session.meta.photos), cfg.extract_chunk_size),
+                model=session.meta.model,
+                prompt_id=session.meta.prompt_id,
+                error=None,
+                reused=True,
+            )
+            return extract_status_payload(session)
+
+        model = _resolve_model(body.get("model"), cfg)
+        prompt = _resolve_prompt(body.get("prompt_id"), cfg)
+        total_chunks = chunk_count(len(session.meta.photos), cfg.extract_chunk_size)
         set_extract_progress(
             session,
-            phase=ExtractPhase.SUCCEEDED,
-            chunks_total=chunk_count(len(session.meta.photos), cfg.extract_chunk_size),
-            chunks_done=chunk_count(len(session.meta.photos), cfg.extract_chunk_size),
-            model=session.meta.model,
-            prompt_id=session.meta.prompt_id,
+            phase=ExtractPhase.QUEUED,
+            chunks_total=total_chunks,
+            chunks_done=0,
+            model=model,
+            prompt_id=prompt.id,
             error=None,
-            reused=True,
+            reused=False,
+            missing_photos=[],
         )
+
+        task = asyncio.create_task(
+            asyncio.to_thread(
+                execute_extract_job,
+                request.app,
+                session_id,
+                model,
+                prompt.system,
+                prompt.id,
+                cfg.extract_chunk_size,
+            )
+        )
+        _store_extract_task(request.app, session_id, task)
         return extract_status_payload(session)
-
-    model =_resolve_model(body.get("model"), cfg)
-    prompt = _resolve_prompt(body.get("prompt_id"), cfg)
-    total_chunks = chunk_count(len(session.meta.photos), cfg.extract_chunk_size)
-    set_extract_progress(
-        session,
-        phase=ExtractPhase.QUEUED,
-        chunks_total=total_chunks,
-        chunks_done=0,
-        model=model,
-        prompt_id=prompt.id,
-        error=None,
-        reused=False,
-        missing_photos=[],
-    )
-
-    task = asyncio.create_task(
-        asyncio.to_thread(
-            execute_extract_job,
-            request.app,
-            session_id,
-            model,
-            prompt.system,
-            prompt.id,
-            cfg.extract_chunk_size,
-        )
-    )
-    _store_extract_task(request.app, session_id, task)
-    return extract_status_payload(session)
 
 
 # ---------------------------------------------------------------- routes
@@ -433,29 +436,32 @@ async def retry_missing_photos(
     could be read. ``400`` when the take has no missing photos.
     """
     archive: SessionArchive = request.app.state.archive
-    session = archive.get(session_id)
-    if session is None:
-        raise HTTPException(status_code=404, detail=f"unknown session {session_id}")
-    status = extract_status_payload(session, include_extracted=False)
-    if extract_phase(session) in ACTIVE_PHASES:
-        raise HTTPException(
-            status_code=409, detail="an extraction is already running for this take"
-        )
-    if not extract_is_current(session):
-        # The archived per-photo names map onto the *current* files, which a
-        # reorder or removal renumbered: retrying would re-read the wrong photo.
-        raise HTTPException(status_code=409, detail=STALE_RETRY_DETAIL)
-    if not status["missing_photos"]:
-        raise HTTPException(status_code=400, detail="nothing to retry: no photo is missing")
+    # Check-and-queue under the session lock, released before the job runs: the
+    # queued phase then refuses photo changes, and a stale upload cannot clobber it.
+    async with session_lock(request.app, session_id):
+        session = archive.get(session_id)
+        if session is None:
+            raise HTTPException(status_code=404, detail=f"unknown session {session_id}")
+        status = extract_status_payload(session, include_extracted=False)
+        if extract_phase(session) in ACTIVE_PHASES:
+            raise HTTPException(
+                status_code=409, detail="an extraction is already running for this take"
+            )
+        if not extract_is_current(session):
+            # The archived per-photo names map onto the *current* files, which a
+            # reorder or removal renumbered: retrying would re-read the wrong photo.
+            raise HTTPException(status_code=409, detail=STALE_RETRY_DETAIL)
+        if not status["missing_photos"]:
+            raise HTTPException(status_code=400, detail="nothing to retry: no photo is missing")
 
-    set_extract_progress(
-        session,
-        phase=ExtractPhase.QUEUED,
-        chunks_total=len(status["missing_photos"]),
-        chunks_done=0,
-        error=None,
-        retry_error=None,
-    )
+        set_extract_progress(
+            session,
+            phase=ExtractPhase.QUEUED,
+            chunks_total=len(status["missing_photos"]),
+            chunks_done=0,
+            error=None,
+            retry_error=None,
+        )
     if wait:
         await asyncio.to_thread(execute_retry_missing_job, request.app, session_id)
         final = archive.get(session_id)
