@@ -201,6 +201,8 @@ def execute_extract_job(
             retry_error=None,
         )
         photo_paths = session.photo_paths()
+        # Fingerprint what this run reads, not what the take holds when it ends.
+        read_sig = photos_signature(session)
         t0 = time.monotonic()
 
         def _on_chunk(done: int, total: int) -> None:
@@ -241,6 +243,7 @@ def execute_extract_job(
             prompt_id=prompt_id,
             total_chunks=total_chunks,
             duration=duration,
+            photos_sig=read_sig,
         )
 
 
@@ -254,8 +257,12 @@ def _record_extract_success(
     prompt_id: str,
     total_chunks: int,
     duration: float,
+    photos_sig: str,
 ) -> None:
-    """Merge, write and index a finished extraction, marking the take succeeded."""
+    """Merge, write and index a finished extraction, marking the take succeeded.
+
+    ``photos_sig`` is the fingerprint of the photos the run read, so a photo
+    changed meanwhile leaves the text stale instead of folding it in."""
     set_extract_progress(
         current,
         phase=ExtractPhase.MERGING,
@@ -284,7 +291,7 @@ def _record_extract_success(
         error=None,
         reused=False,
         missing_photos=result.missing_photos,
-        photos_sig=photos_signature(current),
+        photos_sig=photos_sig,
     )
     _index_session_best_effort(cfg, archive, current)
 

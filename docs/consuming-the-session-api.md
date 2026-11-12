@@ -242,7 +242,7 @@ print(c.get(f"/api/sessions/{sid}/text").json()["extracted"])
 | `401` | remote caller, token gate on, token missing/wrong | loopback never sees this |
 | `404` | unknown `session_id` | |
 | `413` | single-shot over `single_shot_max_photos`, or a session over `max_photos_per_session` | use / split via the async flow |
-| `409` | `/retry-missing` called while an extraction is already running, or after the take's photos changed since the read | retry after the current extraction finishes; or use `/redo` when the photos changed |
+| `409` | `/retry-missing` called while an extraction is already running, or after the take's photos changed since the read | retry after the current extraction finishes; or use `/redo` when the photos changed. The photo routes (upload, reorder, remove) and `PATCH` of a take also answer `409` while an extraction is running |
 | `502` | hub unreachable, or the model exhausted its token budget while reasoning | single-shot only; the async path reports the same failure via `phase: "failed"` + `error`; also returned by `/retry-missing?wait=true` when nothing new could be read |
 | `500` | session vanished mid-extract (should not happen) | |
 
