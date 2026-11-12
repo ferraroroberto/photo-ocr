@@ -292,3 +292,51 @@ def test_boot_sweep_settles_takes_interrupted_mid_extract(
     assert kept["extracted"] == "good text"
     assert "restart" in kept["retry_error"]
     assert settle_interrupted_extracts(archive) == 0
+
+
+def test_photo_added_mid_read_leaves_the_text_stale(
+    client: TestClient, jpeg_bytes: bytes
+) -> None:
+    """The fingerprint covers the photos the run read: one that slipped in
+    while it ran must not make the old text read as current."""
+    from src.archive import PhotoMeta
+
+    sid = client.post("/api/sessions", json={}).json()["session_id"]
+    client.post(
+        f"/api/sessions/{sid}/photos",
+        files=[("files", ("a.jpg", jpeg_bytes, "image/jpeg"))],
+    )
+    started = threading.Event()
+    release = threading.Event()
+
+    def _read_then_gain_a_photo(**_kwargs: object) -> OcrResult:
+        started.set()
+        assert release.wait(timeout=5), "test never released the read"
+        return _fake_read("one photo")
+
+    with patch.object(
+        client.app.state.ocr_client, "extract", side_effect=_read_then_gain_a_photo
+    ):
+        try:
+            client.post(f"/api/sessions/{sid}/extract", json={})
+            assert started.wait(timeout=5), "the read never reached the hub call"
+            # The routes refuse this now; write the meta directly to cover a
+            # change that gets past them.
+            session = client.app.state.archive.get(sid)
+            session.record_photo(
+                PhotoMeta(
+                    sequence_index=2, path="02.jpg", width=10, height=10, bytes_on_disk=5
+                )
+            )
+            session.write_meta()
+        finally:
+            release.set()
+        _wait_for_phase(client, sid, "succeeded")
+
+    with patch.object(
+        client.app.state.ocr_client, "extract", return_value=_fake_read("two photos")
+    ) as mock_extract:
+        r = client.post(f"/api/sessions/{sid}/extract", json={})
+        assert r.json()["reused"] is False
+        _wait_for_phase(client, sid, "succeeded")
+    mock_extract.assert_called_once()

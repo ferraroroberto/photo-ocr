@@ -23,6 +23,8 @@ import {
   setPhotoStatus,
 } from './photo_state.js';
 
+const BUSY_PHOTOS_MESSAGE = 'Photos are locked while a read is running.';
+
 function clientId() {
   return 'c' + Math.random().toString(36).slice(2, 10);
 }
@@ -343,7 +345,15 @@ export function renderThumbnails() {
       img.alt = '';
       pick.appendChild(img);
     }
-    pick.addEventListener('click', function () { openPhotoSheet(photo); });
+    pick.addEventListener('click', function () {
+      // The sheet only moves or removes the photo, which the server refuses
+      // while a read owns the take.
+      if (state.busy) {
+        toast(BUSY_PHOTOS_MESSAGE);
+        return;
+      }
+      openPhotoSheet(photo);
+    });
     li.appendChild(pick);
 
     const seq = document.createElement('span');
@@ -372,7 +382,7 @@ export function renderThumbnails() {
   add.type = 'button';
   add.className = 'thumb-add-btn';
   add.dataset.track = 'capture.add';
-  add.disabled = full;
+  add.disabled = full || state.busy;
   add.setAttribute('aria-label', full ? 'Add photos (max ' + maxPhotos() + ' reached)' : 'Add photos');
   add.innerHTML = icon('plus');
   add.addEventListener('click', openAddSheet);
@@ -395,6 +405,11 @@ export function renderThumbnails() {
 // ----------------------------------------------------------- capture
 export function handleFilePick(files) {
   if (!files || !files.length) return;
+  // Drag-and-drop and the camera input reach here without the add tile.
+  if (state.busy) {
+    toast(BUSY_PHOTOS_MESSAGE);
+    return;
+  }
   // The Capture card is showing a History take's result: its photos aren't in
   // the strip, so a new photo belongs to a new take, not appended to that one.
   if (state.takeAdopted) resetTake();

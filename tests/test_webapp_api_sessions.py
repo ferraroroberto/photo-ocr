@@ -202,3 +202,62 @@ def test_patch_incognito_refused_while_a_job_runs(client: TestClient) -> None:
     r = client.patch(f"/api/sessions/{sid}", json={"incognito": True})
     assert r.status_code == 409
     assert archive.get(sid).meta.incognito is False
+
+
+def _take_with_two_photos_in_phase(client: TestClient, jpeg_bytes: bytes, phase: str) -> str:
+    from src.extract_job import set_extract_progress
+
+    sid = client.post("/api/sessions", json={}).json()["session_id"]
+    files = [("files", (f"{i}.jpg", jpeg_bytes, "image/jpeg")) for i in range(2)]
+    client.post(f"/api/sessions/{sid}/photos", files=files)
+    set_extract_progress(
+        client.app.state.archive.get(sid), phase=phase, chunks_total=2, chunks_done=0
+    )
+    return sid
+
+
+def test_photo_changes_are_refused_while_a_job_runs(
+    client: TestClient, jpeg_bytes: bytes
+) -> None:
+    # A remove or reorder renames the files a running read is opening, and each
+    # write replaces the meta the job is updating.
+    sid = _take_with_two_photos_in_phase(client, jpeg_bytes, "running")
+    before = client.app.state.archive.get(sid).meta.photos
+
+    upload = client.post(
+        f"/api/sessions/{sid}/photos",
+        files=[("files", ("c.jpg", jpeg_bytes, "image/jpeg"))],
+    )
+    reorder = client.post(f"/api/sessions/{sid}/photos/reorder", json={"order": [2, 1]})
+    remove = client.delete(f"/api/sessions/{sid}/photos/1")
+
+    assert [upload.status_code, reorder.status_code, remove.status_code] == [409] * 3
+    assert client.app.state.archive.get(sid).meta.photos == before
+
+
+def test_photo_changes_resume_once_the_job_ends(
+    client: TestClient, jpeg_bytes: bytes
+) -> None:
+    from src.extract_job import set_extract_progress
+
+    sid = _take_with_two_photos_in_phase(client, jpeg_bytes, "running")
+    set_extract_progress(client.app.state.archive.get(sid), phase="merging")
+    set_extract_progress(client.app.state.archive.get(sid), phase="succeeded")
+    assert client.delete(f"/api/sessions/{sid}/photos/1").status_code == 200
+
+
+def test_every_session_mutating_route_refuses_while_extracting() -> None:
+    # A new route that edits a take under the session lock must take the same
+    # 409 guard, or it reopens the gap between the photos and the running read.
+    import inspect
+
+    from app.webapp.routers import sessions
+
+    unguarded = [
+        route.endpoint.__name__
+        for route in sessions.router.routes
+        if route.methods & {"POST", "PATCH", "DELETE"}
+        and "session_lock(" in inspect.getsource(route.endpoint)
+        and "refuse_while_extracting(" not in inspect.getsource(route.endpoint)
+    ]
+    assert unguarded == []

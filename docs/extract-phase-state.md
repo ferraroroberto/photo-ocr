@@ -60,7 +60,7 @@ A phase may always repeat (a progress tick). Between different phases:
 | `extract_status_payload` (every status body, the History summary) | `phase`, plus the derived `in_flight`, `failed` and `has_text` |
 | `POST /extract` and `/redo` | `extract_phase` and `ACTIVE_PHASES` to return the running job instead of starting another |
 | `POST /retry-missing` | the same check, `409` while active |
-| `PATCH /api/sessions/{id}` | the same check, `409` while active |
+| `PATCH /api/sessions/{id}` and the photo routes (upload, reorder, remove) | the same check (`refuse_while_extracting`), `409` while active |
 | boot sweep and crash handler (`settle_interrupted_extracts`, `settle_interrupted`) | `extract_phase` and `ACTIVE_PHASES` |
 | History (`sessions.js`) | the payload's `in_flight`, `failed` and `has_text`; it does not spell phase names |
 

@@ -56,6 +56,19 @@ def session_lock(app: Any, session_id: str) -> asyncio.Lock:
     return lock
 
 
+def refuse_while_extracting(session: Session) -> None:
+    """409 while an extract, redo or retry owns the take.
+
+    The job reads the photo files by path and rewrites the whole meta as it
+    goes, so a photo change or incognito flip landing meanwhile would renumber
+    files under the read or be overwritten by the next progress write.
+    """
+    if extract_phase(session) in ACTIVE_PHASES:
+        raise HTTPException(
+            status_code=409, detail="extraction in progress; try again when it ends"
+        )
+
+
 def _photo_dict(pm: PhotoMeta) -> Dict[str, Any]:
     return {
         "sequence_index": pm.sequence_index,
@@ -312,6 +325,7 @@ async def upload_photos(
         session = archive.get(session_id)
         if session is None:
             raise HTTPException(status_code=404, detail=f"unknown session {session_id}")
+        refuse_while_extracting(session)
         if not files:
             raise HTTPException(status_code=400, detail="no files in upload")
 
@@ -341,6 +355,7 @@ async def reorder_photos(session_id: str, request: Request) -> Dict[str, Any]:
         session = archive.get(session_id)
         if session is None:
             raise HTTPException(status_code=404, detail=f"unknown session {session_id}")
+        refuse_while_extracting(session)
         body = await maybe_json(request)
         order = body.get("order")
         if not isinstance(order, list) or any(
@@ -374,6 +389,7 @@ async def remove_photo(
         session = archive.get(session_id)
         if session is None:
             raise HTTPException(status_code=404, detail=f"unknown session {session_id}")
+        refuse_while_extracting(session)
         if session.meta.extract_succeeded is not None:
             # Allow but warn — the photos list won't match the
             # extracted.txt produced before deletion. The UI should
@@ -631,8 +647,7 @@ async def update_session(session_id: str, request: Request) -> Dict[str, Any]:
         session = archive.get(session_id)
         if session is None:
             raise HTTPException(status_code=404, detail=f"unknown session {session_id}")
-        if extract_phase(session) in ACTIVE_PHASES:
-            raise HTTPException(status_code=409, detail="extraction in progress; try again when it ends")
+        refuse_while_extracting(session)
         archive.set_incognito(session_id, bool(body["incognito"]))
         return {"session_id": session_id, "incognito": bool(body["incognito"])}
 
