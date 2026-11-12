@@ -8,6 +8,12 @@ from pathlib import Path
 
 import pytest
 
+from src.ocr_client import (
+    DEFAULT_CONCURRENCY,
+    DEFAULT_RUN_BUDGET,
+    DEFAULT_TIMEOUT,
+    ExtractPolicy,
+)
 from src.webapp_config import (
     WebappConfig,
     append_auth_token,
@@ -190,6 +196,23 @@ def _write(tmp_path: Path, raw: dict) -> Path:
 
 def test_load_empty_config_equals_dataclass_defaults(tmp_path: Path) -> None:
     assert load_webapp_config(_write(tmp_path, {})) == WebappConfig()
+
+
+def test_extract_defaults_follow_the_ocr_client_constants() -> None:
+    """The webapp (and CLI) run on these defaults, so they must be the OCR
+    client's measured constants, and the shipped sample must show the same."""
+    policy = ExtractPolicy()
+    cfg = WebappConfig()
+    assert cfg.extract_request_timeout_s == policy.request_timeout_s == DEFAULT_TIMEOUT
+    assert cfg.extract_run_budget_s == policy.run_budget_s == DEFAULT_RUN_BUDGET
+    assert cfg.extract_concurrency == policy.concurrency == DEFAULT_CONCURRENCY
+    sample = json.loads(
+        (Path(__file__).resolve().parents[1] / "config" / "webapp_config.sample.json")
+        .read_text(encoding="utf-8")
+    )
+    assert sample["extract_request_timeout_s"] == DEFAULT_TIMEOUT
+    assert sample["extract_run_budget_s"] == DEFAULT_RUN_BUDGET
+    assert sample["extract_concurrency"] == DEFAULT_CONCURRENCY
 
 
 def test_load_full_config_reads_every_field(tmp_path: Path) -> None:

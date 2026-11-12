@@ -24,7 +24,12 @@ from urllib.parse import urlencode, urlparse, urlunparse
 
 # Local imports
 from src import runtime_files
-from src.ocr_client import ExtractPolicy
+from src.ocr_client import (
+    DEFAULT_CONCURRENCY,
+    DEFAULT_RUN_BUDGET,
+    DEFAULT_TIMEOUT,
+    ExtractPolicy,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -76,10 +81,11 @@ class WebappConfig:
     max_photo_dimension_px: int = 2048
     extract_chunk_size: int = 1
     # Per-request hub timeout, whole-run budget, parallel hub calls and the
-    # optional retry model for one extraction (see src/ocr_client.py).
-    extract_request_timeout_s: float = 420.0
-    extract_run_budget_s: float = 900.0
-    extract_concurrency: int = 4
+    # optional retry model for one extraction. The defaults are the OCR
+    # client's named constants, where the reasoning behind each value lives.
+    extract_request_timeout_s: float = DEFAULT_TIMEOUT
+    extract_run_budget_s: float = DEFAULT_RUN_BUDGET
+    extract_concurrency: int = DEFAULT_CONCURRENCY
     # Model a failed unit retries on. Empty = retry on the same model.
     extract_fallback_model: str = ""
     # Cap on photos accepted by the synchronous single-shot POST /api/extract
