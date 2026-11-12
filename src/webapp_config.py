@@ -25,6 +25,7 @@ from urllib.parse import urlencode, urlparse, urlunparse
 # Local imports
 from src import runtime_files
 from src.ocr_client import (
+    DEFAULT_CHUNK_SIZE,
     DEFAULT_CONCURRENCY,
     DEFAULT_RUN_BUDGET,
     DEFAULT_TIMEOUT,
@@ -79,7 +80,7 @@ class WebappConfig:
     history_retention_days: int = 30
     max_photos_per_session: int = 50
     max_photo_dimension_px: int = 2048
-    extract_chunk_size: int = 1
+    extract_chunk_size: int = DEFAULT_CHUNK_SIZE
     # Per-request hub timeout, whole-run budget, parallel hub calls and the
     # optional retry model for one extraction. The defaults are the OCR
     # client's named constants, where the reasoning behind each value lives.
