@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 
 from app.webapp import middleware as middleware_module
 from app.webapp.server import create_app
+from src import password
 from src.archive import SessionArchive
 from src.webapp_config import WebappConfig
 
@@ -114,3 +115,12 @@ def test_login_200_returns_token(app_with_archive) -> None:
         r = client.post("/api/login", json={"password": "hunter2"})
         assert r.status_code == 200
         assert r.json()["token"] == "secret"
+
+
+def test_stored_hash_replaces_the_legacy_password(app_with_archive, tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv(password.ENV_VAR, str(tmp_path / "app_password.json"))
+    password.set_password("4321")
+    _set_token(app_with_archive, token="secret", password="hunter2")
+    with TestClient(app_with_archive) as client:
+        assert client.post("/api/login", json={"password": "4321"}).json()["token"] == "secret"
+        assert client.post("/api/login", json={"password": "hunter2"}).status_code == 401

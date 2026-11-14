@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Request
 
 # Local imports
+from src import password
 from src.ocr_client import OcrClient
 from src.ocr_prompts import OcrPrompt, load_ocr_prompts
 from src.webapp_config import WebappConfig, update_webapp_config
@@ -33,7 +34,7 @@ def _config_response(
         "extract_chunk_size": cfg.extract_chunk_size,
         "search_enabled": cfg.search_enabled,
         "quality_gate_enabled": cfg.quality_gate_enabled,
-        "auth_password_set": bool(cfg.auth_password),
+        "auth_password_set": password.is_configured(legacy=cfg.auth_password),
     }
     if prompts is not None:
         response["ocr_prompts"] = [

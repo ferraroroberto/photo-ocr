@@ -37,3 +37,6 @@ webapp/e2e-junit.xml
 webapp/certificates/
 webapp/cloudflared.yml
 .proof/
+
+# The app password hash (src/password.py)
+config/app_password.json
