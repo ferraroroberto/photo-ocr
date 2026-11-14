@@ -20,9 +20,9 @@ The bearer-token gate keeps its existing loopback bypass; only the login route u
 
 ## The alert
 
-Three wrong passwords in a row from one client raise one alert per streak, with a global five-minute cooldown (held-back alerts are counted into the next). The text names the app, the client address and the count, never a password or the token. It is sent from a thread through the vendored `src/notify` Telegram notifier, so a login never waits on Telegram.
+Three wrong passwords in a row from one client raise one alert per streak, with a global five-minute cooldown (held-back alerts are counted into the next). The text names the app, the client address and the count, never a password or the token. The vendored `src/login_alert.py`, the same in every fleet app, sends it from a thread through the vendored `src/notify` Telegram notifier, so a login never waits on Telegram.
 
-Configure it in the gitignored `config/webapp_config.json`: `telegram_bot_token` and `telegram_alert_chat_id` (the fleet's coding-alerts chat). Either empty leaves the alert in the log only. Neither value is returned by `/api/config`.
+Configure it in the gitignored `config/webapp_config.json`: `telegram_bot_token` and `telegram_alert_chat_id` (the fleet's coding-alerts chat). Either empty logs the alert as `unconfigured` at warning level instead of sending it. Neither value is returned by `/api/config`.
 
 ## Tests
 

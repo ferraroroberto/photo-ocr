@@ -4,6 +4,7 @@ no real Telegram."""
 
 from __future__ import annotations
 
+import logging
 import threading
 from typing import List
 
@@ -170,3 +171,33 @@ def test_unparseable_tunnel_header_is_not_exempt(app, monkeypatch) -> None:
             for _ in range(FREE_WRONG + 1)
         ]
     assert statuses == [401] * FREE_WRONG + [429]
+
+
+class _Outcome(logging.Handler):
+    """Sets ``seen`` when the alert thread logs its outcome."""
+
+    def __init__(self) -> None:
+        super().__init__(logging.WARNING)
+        self.seen = threading.Event()
+        self.messages: list[str] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.messages.append(record.getMessage())
+        self.seen.set()
+
+
+def test_no_alert_channel_is_reported_unconfigured(clock: FakeClock) -> None:
+    app = create_app()
+    app.state.webapp_config = WebappConfig(auth_token=TOKEN, auth_password=PASSWORD)
+    app.state.login_lockout = LoginLockout(on_alert=make_alert_owner(None), clock=clock)
+    outcome = _Outcome()
+    alert_log = logging.getLogger("src.login_alert")
+    alert_log.addHandler(outcome)
+    try:
+        with TestClient(app, client=("198.51.100.4", 50000)) as client:
+            for _ in range(3):
+                _wrong(client)
+        assert outcome.seen.wait(5)
+    finally:
+        alert_log.removeHandler(outcome)
+    assert "unconfigured" in outcome.messages[0] and "3 wrong passwords" in outcome.messages[0]
