@@ -561,8 +561,9 @@ html, body {
 
 /* ---------- cards ----------
    Base .card + header row come from _vendored/card/card.css. App-side
-   extras only. */
-.card { margin: var(--gap) 0; }
+   extras only: the gap between stacked cards, none above the first, so the
+   first card starts where every fleet app's does. */
+.card { margin: 0 0 var(--gap); }
 
 .text-out {
   width: 100%;
