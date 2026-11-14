@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 # Standard library imports
-import hmac
 import logging
 from pathlib import Path
 from typing import Any, Dict
@@ -14,7 +13,7 @@ from fastapi import APIRouter, HTTPException, Request
 # Local imports
 from app.webapp.middleware import client_address, is_pc_itself
 from app.webapp.routers._helpers import PROJECT_ROOT, maybe_json
-from src import runtime_files
+from src import password, runtime_files
 from src.login_lockout import LoginLockout, retry_after_header
 from src.webapp_config import WebappConfig
 
@@ -66,9 +65,9 @@ async def login(request: Request) -> Dict[str, Any]:
             detail="too many attempts",
             headers=retry_after_header(wait),
         )
-    if not cfg.auth_password:
+    if not password.is_configured(legacy=cfg.auth_password):
         auth_logger.info(
-            f"⚠️  Login attempt from {client_host} but no auth_password "
+            f"⚠️  Login attempt from {client_host} but no password "
             "configured — password auth disabled"
         )
         raise HTTPException(
@@ -86,7 +85,7 @@ async def login(request: Request) -> Dict[str, Any]:
         )
     body = await maybe_json(request)
     presented = str(body.get("password") or "")
-    if not presented or not hmac.compare_digest(presented, cfg.auth_password):
+    if not password.check_password(presented, legacy=cfg.auth_password):
         auth_logger.warning(
             f"🚨 Failed password attempt from {client_host} "
             f"(presented: {len(presented)} chars)"

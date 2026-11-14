@@ -163,7 +163,7 @@ on the PC itself is `http://localhost:8444`.)
 device can use the app. To require a token + password:
 ```powershell
 .\.venv\Scripts\python.exe scripts\gen_token.py
-.\.venv\Scripts\python.exe scripts\set_password.py "your-password"
+.\.venv\Scripts\python.exe -m src.password set
 ```
 Tailscale IPs are *not* in the loopback bypass; the phone will see the vendored sign-in
 sheet on first visit and swap the password for a bearer token that's stashed
@@ -264,6 +264,7 @@ photo-ocr/
 │   ├── static_versioning.py     cache-busting query param
 │   ├── compression.py           stream-safe gzip middleware for compressible responses
 │   ├── login_lockout.py         vendored per-client login lock-out
+│   ├── password.py              vendored app password hash + setter
 │   ├── usage_log.py             vendored local-only view/tap log router (SQLite; see Usage log)
 │   └── runtime_data.py          resolves the SQLite data-root path (machine-level, not hardcoded)
 ├── app/
@@ -289,7 +290,6 @@ photo-ocr/
 │   ├── gen_icons.py             thin caller onto project-scaffolding's shared brand_gen.py (camera master)
 │   ├── gen_tailscale_cert.py    HTTPS via `tailscale cert` (real LE leaf, `--check` auto-renew)
 │   ├── gen_token.py             generate/rotate the bearer token
-│   ├── set_password.py          set/clear the login password
 │   ├── run_named_tunnel.py      uvicorn + cloudflared
 │   ├── verify-before-ship.ps1   pre-ship gate: byte-compile + static ratchet + docs ratchet + structure ratchet + conventions ratchet + comment ratchet + instruction ratchet + doc refs ratchet + dead code ratchet + runtime write ratchet + usage track ratchet + pytest + e2e
 │   ├── box_lock_gate.ps1        holds fleet-config's shared box load lock for the whole gate run
@@ -419,7 +419,7 @@ Created on the first Settings change. Schema lives in
 | `search_enabled` | `true` | Full-text search over the session archive (SQLite FTS5). `false` hides the search box and writes no index. |
 | `quality_gate_enabled` | `true` | On-device pre-flight image quality gate. `false` skips client-side blur/glare/exposure scoring entirely. |
 | `auth_token` | `""` | Empty = auth gate **off**. Set via `scripts/gen_token.py`. |
-| `auth_password` | `""` | Optional companion password — see auth section. |
+| `auth_password` | `""` | Legacy password, used until `python -m src.password set` stores a hash. |
 | `telegram_bot_token`, `telegram_alert_chat_id` | `""` | Guessing-alert Telegram target; empty = log only. |
 
 ### `config/ocr_prompts.json` (committed)
@@ -435,7 +435,7 @@ Run once on the home PC:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\gen_token.py
-.\.venv\Scripts\python.exe scripts\set_password.py "your-password"
+.\.venv\Scripts\python.exe -m src.password set
 ```
 
 - Loopback requests still bypass the gate.
