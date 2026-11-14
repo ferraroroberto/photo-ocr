@@ -259,14 +259,15 @@ photo-ocr/
 │   │                            progress state machine, archive writes, search index
 │   ├── extract_state.py         extraction phases, declared once
 │   ├── cloudflared_runner.py    spawn/monitor the named tunnel
-│   ├── no_window.py             creationflags=NO_WINDOW helper for every subprocess spawn
-│   ├── runtime_files.py         writers for caller-named runtime paths; refuse a code folder at runtime
+│   ├── no_window.py             NO_WINDOW helper for subprocess spawns
+│   ├── runtime_files.py         writers for caller-named runtime paths; refuse a code folder
 │   ├── static_versioning.py     cache-busting query param
 │   ├── compression.py           stream-safe gzip middleware for compressible responses
+│   ├── login_alert.py           vendored login-guessing alert
 │   ├── login_lockout.py         vendored per-client login lock-out
 │   ├── password.py              vendored app password hash + setter
 │   ├── usage_log.py             vendored local-only view/tap log router (SQLite; see Usage log)
-│   └── runtime_data.py          resolves the SQLite data-root path (machine-level, not hardcoded)
+│   └── runtime_data.py          resolves the machine-level SQLite data root
 ├── app/
 │   ├── cli/                     argparse dispatcher
 │   ├── webapp/                  FastAPI app + manager
