@@ -82,6 +82,7 @@ def test_the_ratchet_is_declared_and_its_script_is_vendored() -> None:
         "logging-not-print",
         "no-drive-path",
         "password-input-vendored",
+        "nav-standalone-head",
         "login-lockout",
         "no-pwsh-stub",
         "subprocess-timeout",
