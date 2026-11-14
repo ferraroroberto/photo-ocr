@@ -276,7 +276,7 @@ photo-ocr/
 │   │   ├── manager.py
 │   │   └── static/              PWA: index.html, ES-module JS, styles.css, icons
 │   │       └── _vendored/       fleet components (nav · home-head · icons · card ·
-│   │                            button · toast · empty-state · base · text-size ·
+│   │                            button · toast · build-watch · empty-state · base · text-size ·
 │   │                            action-row · modal · sign-in · switch · icon-button · select-native ·
 │   │                            segmented · page-foot · usage-log),
 │   │                            copied verbatim from project-scaffolding

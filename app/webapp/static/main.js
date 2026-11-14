@@ -42,6 +42,7 @@ import { initNavTabs } from './_vendored/nav/nav-tabs.js';
 import { initUsageLog } from './_vendored/usage-log/usage-log.js';
 import { bindTextSize } from './_vendored/text-size/text-size.js';
 import { switchEl, setSwitch } from './_vendored/switch/switch.js';
+import { initBuildWatch } from './_vendored/build-watch/build-watch.js';
 
 // --------------------------------------------------------------- theme toggle
 // Same feature as home-automation / app-launcher: the pre-paint script in
@@ -206,6 +207,7 @@ els.extracted.addEventListener('input', function () {
   els.copyExtracted.disabled = !state.extracted;
 });
 
+initBuildWatch({ fetchJson: jsonApi });
 initSettings();
 els.cleanAll.addEventListener('click', cleanAllHistory);
 els.loadMoreHistory.addEventListener('click', function () {
