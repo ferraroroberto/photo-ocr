@@ -639,14 +639,15 @@ html, body {
   white-space: nowrap;
 }
 .settings-row .settings-chevron { width: var(--icon-inline); height: var(--icon-inline); color: var(--muted); flex: none; }
-.settings-link,
-.settings-danger { cursor: pointer; }
-.settings-link:active,
-.settings-danger:active { background: var(--neutral-soft); }
-/* The destructive row: last in its group, danger text, never a filled
-   button (it opens the confirm sheet). */
-.settings-danger,
-.settings-danger > .icon { color: var(--danger-text); }
+.settings-link { cursor: pointer; }
+.settings-link:active { background: var(--neutral-soft); }
+/* A group's labelled action (the vendored outlined danger button): across the
+   card under the rows, off the row rhythm. */
+.settings-action {
+  padding: var(--space-sm) 0;
+  border-top: 1px solid var(--line-muted);
+}
+.settings-action > .button-tint { width: 100%; }
 .settings-segmented { flex: 0 1 60%; }
 
 /* Settings sheets: a note or one field, an error line in danger text. */
