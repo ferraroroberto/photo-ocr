@@ -214,6 +214,15 @@ def _text_size_large_survives_reload(page: Page) -> None:
     expect(page.locator("html")).to_have_attribute("data-textsize", "large")
 
 
+def _expect_delete_all_is_the_outlined_danger_button(pane) -> None:
+    """Delete all is the vendored `.button-tint.danger`, last in Storage, opening a dialog."""
+    delete_all = pane.locator(".settings-group").last.locator(".settings-action").last.locator("button")
+    expect(delete_all).to_have_id("cleanAll")
+    expect(delete_all).to_have_class(re.compile(r"\bbutton-tint\b"))
+    expect(delete_all).to_have_class(re.compile(r"\bdanger\b"))
+    expect(delete_all).to_have_attribute("aria-haspopup", "dialog")
+
+
 def test_settings_groups_save_as_they_change(
     authed_page: Page, base_url: str
 ) -> None:
@@ -247,7 +256,7 @@ def test_settings_groups_save_as_they_change(
     expect(pane.locator(".settings-overline")).to_have_text(["Display", "Reading", "Storage"])
     surface(authed_page, "settings.pane")
     expect(pane.locator(".card-title, #saveSettings, #ocrPromptPreview")).to_have_count(0)
-    expect(pane.locator(".settings-group").last.locator(".settings-row").last).to_have_id("cleanAll")
+    _expect_delete_all_is_the_outlined_danger_button(pane)
 
     # Default model: a picker sheet; the pick saves at once, with a toast,
     # and survives a reload (the store is what GET /api/config serves).
