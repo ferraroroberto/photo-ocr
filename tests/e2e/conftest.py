@@ -206,7 +206,10 @@ def browser_context_args(
 ) -> dict:
     # The cert on 8444 is for the .ts.net name, not 127.0.0.1 — the SPA
     # won't load otherwise.
-    args = {**browser_context_args, "ignore_https_errors": True}
+    # Service workers blocked: a controlled page's requests pass through the
+    # share-target worker, where page.route mocks no longer see them. The
+    # share test opens its own context that allows them.
+    args = {**browser_context_args, "ignore_https_errors": True, "service_workers": "block"}
     if browser_name == "webkit":
         # Project the WebKit engine onto an iPhone 14 — viewport,
         # user_agent, has_touch, is_mobile, device_scale_factor — so the

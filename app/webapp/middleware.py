@@ -21,10 +21,12 @@ _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
 # probes, the page boot (so the JS can pick up the token from ?token=
 # and attach it to subsequent calls), /api/login so a device with no
 # token can swap a password for the bearer token, and /api/version so
-# the build line renders before the user has authenticated.
+# the build line renders before the user has authenticated. /sw.js is a
+# static script, and /share-target only redirects (it reads no body), so
+# the share sheet, which sends no token, still lands in the app.
 _AUTH_EXEMPT_PREFIXES = ("/static/", "/healthz")
 _AUTH_EXEMPT_EXACT = frozenset(
-    {"/", "/healthz", "/api/login", "/api/version"}
+    {"/", "/healthz", "/api/login", "/api/version", "/sw.js", "/share-target"}
 )
 
 
@@ -80,7 +82,8 @@ class BearerTokenMiddleware:
 
     - Empty configured token → short-circuit, no gate.
     - Loopback callers bypass.
-    - `/`, `/static/*`, `/healthz`, `/api/login`, `/api/version` exempt.
+    - `/`, `/static/*`, `/healthz`, `/api/login`, `/api/version`, `/sw.js`,
+      `/share-target` exempt.
     - Otherwise accept token from `Authorization: Bearer …` header or
       `?token=…` query string.
 

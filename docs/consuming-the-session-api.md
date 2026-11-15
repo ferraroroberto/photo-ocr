@@ -38,7 +38,7 @@ Same-host callers need no auth and `verify=False` on the loopback cert.
 - `Authorization: Bearer <token>` header (preferred for API clients), or
 - `?token=<token>` query string.
 
-Exempt paths that never need the token: `/`, `/static/*`, `/healthz`, `/api/login`, `/api/version`.
+Exempt paths that never need the token: `/`, `/static/*`, `/healthz`, `/api/login`, `/api/version`, plus the PWA's own `/sw.js` (the share-target service worker) and `POST /share-target` (the share sheet's no-worker fallback, which reads no body and only redirects to the app; it is not an upload route).
 
 ---
 

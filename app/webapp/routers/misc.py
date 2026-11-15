@@ -1,22 +1,29 @@
-"""Unauthenticated entry points: page boot, liveness probe, and the
-build-identity endpoint."""
+"""Unauthenticated entry points: page boot, liveness probe, the
+build-identity endpoint, and the share-sheet target's worker and fallback."""
 
 from __future__ import annotations
 
 # Standard library imports
 import hashlib
+import logging
 from typing import Any, Dict
 
 # Third-party imports
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 # Local imports
 from app.webapp.routers._helpers import BUILD_INFO, STATIC_DIR
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 
 _INDEX_CACHE_CONTROL = "no-cache, must-revalidate"
+
+# The manifest's share_target action. sw.js answers this POST in the browser;
+# the route below only sees it when no worker was active to take it.
+SHARE_TARGET_PATH = "/share-target"
 
 
 def _entry_etag(html: str) -> str:
@@ -74,3 +81,29 @@ async def version() -> Dict[str, str]:
     """Build identity so the phone (and tests) can confirm which build
     is loaded."""
     return BUILD_INFO.as_dict()
+
+
+@router.get("/sw.js")
+async def service_worker() -> Response:
+    """The share-target worker, served from the root so its scope covers
+    ``/`` and the share action (a worker under ``/static/`` could not)."""
+    sw_path = STATIC_DIR / "sw.js"
+    if not sw_path.exists():
+        raise HTTPException(status_code=404, detail="sw.js missing")
+    return Response(
+        sw_path.read_text(encoding="utf-8"),
+        media_type="text/javascript",
+        headers={"Cache-Control": _INDEX_CACHE_CONTROL},
+    )
+
+
+@router.post(SHARE_TARGET_PATH)
+async def share_target_fallback() -> RedirectResponse:
+    """A share the worker never saw: send the phone to the app with a notice.
+
+    Unauthenticated (the share sheet sends no bearer token), so the body is
+    never read or stored: the photos only ever enter a take through the
+    page's own authenticated upload.
+    """
+    logger.info("ℹ️  share-target POST reached the server: no service worker took it")
+    return RedirectResponse("/?share-target=missed", status_code=303)

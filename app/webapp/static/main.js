@@ -43,6 +43,12 @@ import { initUsageLog } from './_vendored/usage-log/usage-log.js';
 import { bindTextSize } from './_vendored/text-size/text-size.js';
 import { switchEl, setSwitch } from './_vendored/switch/switch.js';
 import { initBuildWatch } from './_vendored/build-watch/build-watch.js';
+import {
+  SHARE_PROBLEMS,
+  collectSharedFiles,
+  registerShareWorker,
+  takeShareOutcome,
+} from './share_inbox.js';
 
 // --------------------------------------------------------------- theme toggle
 // Same feature as home-automation / app-launcher: the pre-paint script in
@@ -117,6 +123,35 @@ function openSettings() {
 }
 for (const gear of els.settingsGears) gear.addEventListener('click', openSettings);
 
+// ------------------------------------------------------- share-sheet target
+// Read (and stripped from the URL) before boot, which can stop at the sign-in
+// sheet; the photos stay parked until a boot gets the config and the token.
+let shareOutcome = takeShareOutcome();
+
+async function receiveShare() {
+  const outcome = shareOutcome;
+  shareOutcome = null;
+  if (outcome === null) return;
+  navTabs.setTab('capture');
+  if (outcome !== 'photos') {
+    toast(SHARE_PROBLEMS[outcome] || SHARE_PROBLEMS.unreadable, 'error');
+    return;
+  }
+  let files = [];
+  try {
+    files = await collectSharedFiles();
+  } catch (exc) {
+    toast(SHARE_PROBLEMS.unreadable, 'error');
+    return;
+  }
+  if (!files.length) {
+    toast(SHARE_PROBLEMS.empty, 'error');
+    return;
+  }
+  usage.track('capture.share');
+  handleFilePick(files);
+}
+
 // ----------------------------------------------------------- boot
 async function boot() {
   // Pick up ?token=…
@@ -139,6 +174,7 @@ async function boot() {
   renderTakeOptions();
   renderThumbnails();
   renderExtracted();
+  await receiveShare();
 }
 
 // ----------------------------------------------------------- wire up
@@ -218,4 +254,5 @@ if (els.historySearch) {
 }
 
 setupDragDrop();
+registerShareWorker();
 boot();
