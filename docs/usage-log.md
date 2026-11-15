@@ -1,0 +1,5 @@
+# Usage log
+
+The app keeps a small local log of which views and controls get used and on which device class (phone, tablet, desktop), so a design review reads frequency instead of guessing. It is the vendored `usage-log` component (`src/usage_log.py` plus `app/webapp/static/_vendored/usage-log/`): the page posts batches to this app's own `POST /api/usage/events`, behind the same bearer-token gate as the rest of the API, and they land in `usage.sqlite3` under the runtime-data directory (`PHOTO_OCR_DATA_DIR` overrides it), outside the repo. Nothing is sent to any other origin.
+
+What is stored per event: its kind, view id, control id, a random per-visit session id, device class, OS class and a UTC timestamp. Never photo contents, extracted text, search queries, file names, IP addresses or the user-agent. Control ids are constants in `data-track` attributes (and `dataset.track` in the row and tile builders), never derived from text. Rows older than 365 days are pruned on insert. `GET /api/usage/summary` returns the rollup.
