@@ -207,7 +207,13 @@ with backoff (5s / 15s / 30s) instead of giving up after one attempt, and a
 background health watchdog polls `/healthz` every 60s — a webapp that's
 crashed and stopped listening is auto-respawned; one that's listening but not
 answering (wedged) only alerts, since auto-killing a stuck process could mask
-what's actually wrong (use **🔄 Restart webapp** for that case). Every
+what's actually wrong (use **🔄 Restart webapp** for that case). Every spawn
+goes through one respawn guard that owns the single webapp child the tray
+started: while that child is alive inside its 5-minute startup window (longer
+after a child that never got healthy), a failing probe means "still starting"
+and nothing is spawned, and a later respawn stops the previous child and its
+process tree first, so a slow boot never leaves several copies sharing the port.
+**🔄 Restart webapp** is refused with a toast while the child is still starting. Every
 start/retry/wedge/respawn/recovery event is logged to `webapp/watchdog.log`
 (gitignored) — the tray's own `logging` output goes nowhere useful under
 `pythonw` (no console), so this file is the actual diagnostic trail.

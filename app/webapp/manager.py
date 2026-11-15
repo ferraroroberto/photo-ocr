@@ -179,6 +179,15 @@ class WebappManager:
             pass
 
     @property
+    def spawned_pid(self) -> Optional[int]:
+        """Pid of the child this manager spawned, or None when none is alive.
+
+        Available the moment ``start(wait=False)`` returns, before the port binds
+        (``status().pid`` is None until then); None for an adopted external webapp."""
+        proc = self._proc
+        return proc.pid if proc is not None and proc.poll() is None else None
+
+    @property
     def base_url(self) -> str:
         scheme = "https" if cert_paths() else "http"
         return _probe_url(scheme, self.config.host, self.config.port)
