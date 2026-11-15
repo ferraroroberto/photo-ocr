@@ -83,7 +83,7 @@ webapp_serve = { src = "app/webapp/serve.py", sha = "6d779b94b028a898aa87200174a
 instruction_frontmatter = { src = "scripts/instruction_frontmatter.py", sha = "c5535ac326c398df8f44486f386ff0e0b6d4c61c", dest = "scripts/instruction_frontmatter.py" }
 instruction_repeats = { src = "scripts/instruction_repeats.py", sha = "c5535ac326c398df8f44486f386ff0e0b6d4c61c", dest = "scripts/instruction_repeats.py" }
 single_instance = { src = "app/tray/single_instance.py", sha = "da2e9350daee6ab9d25d399daca21663aa509030", dest = "app/tray/single_instance.py" }
-tray_watchdog = { src = "app/tray/watchdog.py", sha = "fe8cc1bdbd038ed65947186248df13072eceb25a", dest = "app/tray/watchdog.py" }
+tray_watchdog = { src = "app/tray/watchdog.py", sha = "072d7355da45001255c3d53db00f80c3a3393900", dest = "app/tray/watchdog.py" }
 no_window = { src = "src/no_window.py", sha = "ade32f799c9102daf72535b4899ab2843f65910b", dest = "src/no_window.py" }
 
 # [static_ratchet] -- the scaffold's baseline-and-ratchet static analysis. The gate

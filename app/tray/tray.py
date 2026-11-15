@@ -18,25 +18,30 @@ Menu:
 from __future__ import annotations
 
 # Standard library imports
-import datetime
 import json
 import logging
 import subprocess
 import sys
 import threading
-import time
 import webbrowser
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 from app.tray.single_instance import SingleInstance
-from app.tray.watchdog import HealthWatchdog
+from app.tray.watchdog import (
+    DEFAULT_STARTUP_RETRY_DELAYS_S,
+    BreadcrumbLog,
+    HealthWatchdog,
+    RespawnGuard,
+    RespawnOutcome,
+    retry_with_backoff,
+)
 from app.webapp.manager import (
     WebappManager,
     cert_paths,
     load_config,
 )
-from src import AppConfig, cloudflared_runner, runtime_files
+from src import AppConfig, cloudflared_runner
 from src.no_window import NO_WINDOW
 from src.webapp_config import append_auth_token, load_webapp_config
 
@@ -48,54 +53,13 @@ TUNNEL_CONFIG_PATH = PROJECT_ROOT / "webapp" / "cloudflared.yml"
 
 # The tray's own logger writes to sys.stderr via
 # logging.basicConfig(), which doesn't exist under pythonw — so a boot-time
-# failure was previously captured nowhere. This breadcrumb file is the actual
+# failure would be captured nowhere. This breadcrumb file is the actual
 # persistent record of webapp start/retry/watchdog activity.
 WATCHDOG_LOG = PROJECT_ROOT / "webapp" / "watchdog.log"
-
-# Backoff between retries of the *initial* webapp spawn at tray boot, so a
-# transient race (port not free yet, cert renewal still in flight, hub not
-# up yet) doesn't permanently kill the webapp for the tray's lifetime.
-STARTUP_RETRY_DELAYS_S = (5.0, 15.0, 30.0)
 
 # `clip` copies a short URL and answers in well under a second, so a child still
 # alive after 10 s is wedged and must not stall the tray menu thread.
 CLIP_TIMEOUT_S = 10
-
-
-def _breadcrumb(path: Path, msg: str) -> None:
-    try:
-        runtime_files.make_dirs(path.parent)
-        stamp = datetime.datetime.now().isoformat(timespec="seconds")
-        with runtime_files.open_for_write(path, "a", encoding="utf-8") as fh:
-            fh.write(f"{stamp} {msg}\n")
-    except OSError:
-        pass
-
-
-def _wd_log(msg: str) -> None:
-    """Append a breadcrumb to the watchdog log (best-effort)."""
-    logger.debug(f"watchdog: {msg}")
-    _breadcrumb(WATCHDOG_LOG, msg)
-
-
-def _retry_with_backoff(fn, delays, on_attempt_failed=None) -> None:
-    """Call ``fn()`` until it returns normally or every delay in ``delays``
-    has been used. Sleeps ``delays[i]`` seconds after the ``(i+1)``-th
-    failure before retrying. Re-raises the last exception once attempts are
-    exhausted. ``on_attempt_failed(attempt_number, exc)`` — 1-indexed — fires
-    after each failure, before sleeping/raising, so the caller can log."""
-    attempt = 0
-    while True:
-        try:
-            fn()
-            return
-        except Exception as exc:  # noqa: BLE001 — deliberately generic retry
-            attempt += 1
-            if on_attempt_failed is not None:
-                on_attempt_failed(attempt, exc)
-            if attempt > len(delays):
-                raise
-            time.sleep(delays[attempt - 1])
 
 
 def _build_icon():
@@ -177,16 +141,47 @@ def _notify(title: str, message: str) -> None:
         logger.debug(f"winotify failed: {exc}")
 
 
-def _start_webapp_in_background(manager: WebappManager) -> dict:
+class _NothingSpawned(Exception):
+    """``manager.start`` returned without launching a child: the webapp is
+    disabled in config, or an external copy already holds the port and was adopted."""
+
+
+def _spawn_webapp(manager: WebappManager) -> int:
+    """Launch the webapp and return its pid without waiting for readiness.
+
+    Waiting would raise on a readiness timeout with the child still running and
+    lose its pid; readiness is the watchdog probe's job.
+    """
+    manager.start(wait=False)
+    pid = manager.spawned_pid
+    if pid is None:
+        raise _NothingSpawned("no child spawned (webapp disabled or external copy adopted)")
+    return pid
+
+
+def _respawn(manager: WebappManager, guard: RespawnGuard) -> Optional[RespawnOutcome]:
+    """Spawn through the guard so a second copy never stacks on a live first one.
+
+    Returns None when nothing was spawned by design (see :class:`_NothingSpawned`).
+    """
+    try:
+        return guard.respawn(lambda: _spawn_webapp(manager))
+    except _NothingSpawned:
+        return None
+
+
+def _start_webapp_in_background(
+    manager: WebappManager, guard: RespawnGuard, wd_log: BreadcrumbLog
+) -> dict:
     """Start the webapp on a background thread so the tray comes up quickly
     even if uvicorn takes a second to start. The returned dict's ``exc`` is
     set when every attempt failed."""
     starter_error: dict = {"exc": None}
 
-    def _on_start_attempt_failed(attempt: int, exc: Exception) -> None:
-        _wd_log(f"webapp start attempt {attempt} failed: {exc}")
-        if attempt <= len(STARTUP_RETRY_DELAYS_S):
-            delay = STARTUP_RETRY_DELAYS_S[attempt - 1]
+    def _on_start_attempt_failed(attempt: int, exc: BaseException) -> None:
+        wd_log(f"webapp start attempt {attempt} failed: {exc}")
+        if attempt <= len(DEFAULT_STARTUP_RETRY_DELAYS_S):
+            delay = DEFAULT_STARTUP_RETRY_DELAYS_S[attempt - 1]
             logger.warning(
                 f"⚠️  webapp start attempt {attempt} failed, "
                 f"retrying in {delay:.0f}s: {exc}"
@@ -194,16 +189,18 @@ def _start_webapp_in_background(manager: WebappManager) -> dict:
 
     def _start():
         try:
-            _retry_with_backoff(
-                lambda: manager.start(wait=True),
-                STARTUP_RETRY_DELAYS_S,
+            retry_with_backoff(
+                lambda: _respawn(manager, guard),
+                DEFAULT_STARTUP_RETRY_DELAYS_S,
                 _on_start_attempt_failed,
             )
-            _notify("Photo OCR webapp ready", manager.base_url)
+            wd_log("webapp start requested")
         except Exception as exc:  # noqa: BLE001
             starter_error["exc"] = exc
+            wd_log(f"webapp start FAILED permanently: {exc}")
             logger.error(
-                f"❌ webapp start failed after {len(STARTUP_RETRY_DELAYS_S) + 1} attempts: {exc}"
+                f"❌ webapp start failed after "
+                f"{len(DEFAULT_STARTUP_RETRY_DELAYS_S) + 1} attempts: {exc}"
             )
             _notify("Photo OCR start failed", str(exc))
 
@@ -211,46 +208,70 @@ def _start_webapp_in_background(manager: WebappManager) -> dict:
     return starter_error
 
 
-def _start_health_watchdog(
-    manager: WebappManager, watchdog_stop: threading.Event
+def _handle_wedge(
+    count: int,
+    manager: WebappManager,
+    guard: RespawnGuard,
+    wd_log: BreadcrumbLog,
+    rearm: Callable[[], None],
 ) -> None:
-    """Health watchdog: a probe covers both "crashed and not listening" (safe
-    to auto-respawn) and "listening but not answering /healthz" (wedged —
-    recovery stays manual via the tray menu until the failure mode is
-    understood, as app-launcher does for that riskier case; auto-killing a
-    stuck process could mask what's actually wrong)."""
+    """Act on ``count`` consecutive failed health probes.
+
+    Starting (our own child still inside its startup window): back off, never
+    spawn or alert. Listening but not answering: alert only, recovery stays
+    manual via the tray menu, since auto-killing a stuck process could mask
+    what's actually wrong. Not listening: respawn through the guard, which
+    stops the child we spawned last first. Either way ``rearm`` asks the
+    watchdog to re-evaluate next interval instead of waiting on a recovery a
+    dead process never produces.
+    """
+    if guard.is_starting():
+        logger.info(f"ℹ️  webapp pid {guard.pid} still starting ({count} failed probes)")
+        wd_log(f"webapp pid {guard.pid} still starting ({count} failed probes)")
+        rearm()
+        return
+
+    if manager.is_port_in_use():
+        logger.error(
+            f"❌ webapp appears wedged ({count} consecutive health-check failures)"
+        )
+        wd_log(f"webapp wedged ({count} consecutive failures) — listening but not answering")
+        _notify(
+            "Photo OCR webapp wedged",
+            "Listening but not responding — use Restart webapp",
+        )
+        return
+
+    logger.warning(
+        f"⚠️  webapp not listening ({count} consecutive checks) — respawning"
+    )
+    wd_log(f"webapp not listening ({count} consecutive failures) — respawning")
+    try:
+        _respawn(manager, guard)
+    except Exception as exc:  # noqa: BLE001
+        logger.error(f"❌ webapp respawn failed: {exc}")
+        wd_log(f"webapp respawn failed: {exc}")
+        _notify("Photo OCR respawn failed", str(exc))
+    rearm()
+
+
+def _start_health_watchdog(
+    manager: WebappManager,
+    guard: RespawnGuard,
+    wd_log: BreadcrumbLog,
+    watchdog_stop: threading.Event,
+) -> None:
+    """Health watchdog: a probe covers "starting", "crashed and not listening"
+    (safe to auto-respawn) and "listening but not answering /healthz" (wedged);
+    :func:`_handle_wedge` owns the response to each."""
 
     def _on_webapp_wedge(count: int) -> None:
-        if manager.is_port_in_use():
-            logger.error(
-                f"❌ webapp appears wedged ({count} consecutive health-check failures)"
-            )
-            _wd_log(f"webapp wedged ({count} consecutive failures) — listening but not answering")
-            _notify(
-                "Photo OCR webapp wedged",
-                "Listening but not responding — use Restart webapp",
-            )
-            return
-
-        logger.warning(
-            f"⚠️  webapp not listening ({count} consecutive checks) — respawning"
-        )
-        _wd_log(f"webapp not listening ({count} consecutive failures) — respawning")
-        try:
-            manager.start(wait=True)
-            _notify("Photo OCR webapp respawned", manager.base_url)
-            _wd_log("webapp respawned successfully")
-        except Exception as exc:  # noqa: BLE001
-            logger.error(f"❌ webapp respawn failed: {exc}")
-            _wd_log(f"webapp respawn failed: {exc}")
-            _notify("Photo OCR respawn failed", str(exc))
-            # Still down — ask the watchdog to try again next interval
-            # instead of staying silently alerted forever.
-            watchdog.rearm()
+        _handle_wedge(count, manager, guard, wd_log, watchdog.rearm)
 
     def _on_webapp_recover() -> None:
+        guard.mark_healthy()
         logger.info("✅ webapp health recovered")
-        _wd_log("webapp health recovered")
+        wd_log("webapp health recovered")
         _notify("Photo OCR webapp recovered", manager.base_url)
 
     watchdog = HealthWatchdog(
@@ -367,8 +388,13 @@ def _copy_tunnel_url() -> None:
     _notify_copied(url, "Copied Cloudflare URL", "Cloudflare URL")
 
 
-def _restart_webapp_in_background(manager: WebappManager) -> None:
+def _restart_webapp_in_background(manager: WebappManager, guard: RespawnGuard) -> None:
     def _do_restart():
+        # A booting child is not "running" to the manager, so a restart now would
+        # spawn a second copy beside it instead of replacing it.
+        if guard.is_starting():
+            _notify("Photo OCR", "Webapp is still starting — try again shortly")
+            return
         try:
             _notify("Photo OCR", "Restarting webapp…")
             manager.restart(wait=True)
@@ -376,6 +402,12 @@ def _restart_webapp_in_background(manager: WebappManager) -> None:
         except Exception as exc:  # noqa: BLE001
             logger.error(f"❌ webapp restart failed: {exc}")
             _notify("Restart failed", str(exc))
+        finally:
+            # The guard owns the one child: report the spawn made here, even a
+            # restart whose readiness wait timed out with the child still alive.
+            pid = manager.spawned_pid
+            if pid is not None:
+                guard.track(pid)
 
     threading.Thread(target=_do_restart, daemon=True).start()
 
@@ -412,9 +444,11 @@ def run_tray(app_config: AppConfig) -> int:
     manager = WebappManager(mgr_cfg)
 
     tunnel = _Tunnel()
-    starter_error = _start_webapp_in_background(manager)
+    wd_log = BreadcrumbLog(WATCHDOG_LOG)
+    guard = RespawnGuard(wd_log)
+    starter_error = _start_webapp_in_background(manager, guard, wd_log)
     watchdog_stop = threading.Event()
-    _start_health_watchdog(manager, watchdog_stop)
+    _start_health_watchdog(manager, guard, wd_log, watchdog_stop)
     tunnel.start_in_background()
 
     def quit_app(icon, item):  # noqa: ARG001
@@ -437,7 +471,7 @@ def run_tray(app_config: AppConfig) -> int:
         MenuItem("📋 Copy Tailscale URL", lambda icon, item: _copy_tailscale_url(manager)),
         MenuItem("📋 Copy Cloudflare URL", lambda icon, item: _copy_tunnel_url()),
         Menu.SEPARATOR,
-        MenuItem("🔄 Restart webapp", lambda icon, item: _restart_webapp_in_background(manager)),
+        MenuItem("🔄 Restart webapp", lambda icon, item: _restart_webapp_in_background(manager, guard)),
         MenuItem("ℹ️ Status", lambda icon, item: _show_status(manager)),
         Menu.SEPARATOR,
         MenuItem("🚪 Quit", quit_app),
