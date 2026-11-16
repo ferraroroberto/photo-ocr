@@ -218,6 +218,14 @@ def _assert_meta_figures_whole(row) -> None:
     ), "tail is cut"
 
 
+def _assert_meta_figures_whole_in_both_schemes(page: Page, rows) -> None:
+    for scheme in ("light", "dark"):
+        page.emulate_media(color_scheme=scheme)
+        for row in rows:
+            _assert_meta_figures_whole(row)
+    page.emulate_media(color_scheme="light")
+
+
 def _open_first_take_sheet(page: Page, first):
     # The kebab opens the take sheet: the text, Copy, no Retry (fully read),
     # Redo with…, Delete last in danger text.
@@ -332,11 +340,7 @@ def test_history_rows_take_sheet_and_deletes(authed_page: Page, base_url: str) -
     expect(first.locator(".action-row-meta-text")).to_have_text("Gemini Flash")
     expect(first.locator(".action-row-meta-tail")).to_have_text(re.compile(r"· 1 photo$"))
     _assert_kebab_is_unpainted_44px(first)
-    for scheme in ("light", "dark"):
-        page.emulate_media(color_scheme=scheme)
-        for row in (first, second, redo_failed, reading, old):
-            _assert_meta_figures_whole(row)
-    page.emulate_media(color_scheme="light")
+    _assert_meta_figures_whole_in_both_schemes(page, (first, second, redo_failed, reading, old))
 
     # Tapping the row copies the full text, not the preview.
     first.locator(".action-row-main").click()
