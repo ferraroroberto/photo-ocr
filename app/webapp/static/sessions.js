@@ -176,7 +176,7 @@ function photosText(n) {
 // Shared row for the browse list and the search results — one DOM shape, two
 // data sources. One take is one action-row (design.md): tap the row to copy
 // it, one trailing ⋯ for the take sheet. The text (or the failure) leads; the
-// meta line is when, the exception chips, then photos and model.
+// meta line is when and model, the exception chips, then the photo count.
 function makeSessionRow(take, titleText, isSnippet) {
   const li = document.createElement('li');
   li.className = 'action-row history-item';
@@ -196,14 +196,21 @@ function makeSessionRow(take, titleText, isSnippet) {
     title.textContent = titleText;
   }
 
+  // Split meta: the words (when, model) truncate on one line, the exception
+  // chips sit beside them whole, and the photo count is the non-shrinking tail.
   const meta = document.createElement('span');
   meta.className = 'action-row-meta';
-  meta.append(rowWhen(take.created_at));
-  takeChips(take).forEach(function (chip) { meta.append(' ', chip); });
-  const rest = [];
-  if (take.photos !== undefined) rest.push(photosText(take.photos));
-  rest.push(take.model ? modelLabel(take.model) : '—');
-  meta.append(' · ' + rest.join(' · '));
+  const metaText = document.createElement('span');
+  metaText.className = 'action-row-meta-text';
+  metaText.textContent = rowWhen(take.created_at) + ' · ' + (take.model ? modelLabel(take.model) : '—');
+  meta.append(metaText);
+  takeChips(take).forEach(function (chip) { meta.append(chip); });
+  if (take.photos !== undefined) {
+    const tail = document.createElement('span');
+    tail.className = 'action-row-meta-tail';
+    tail.textContent = photosText(take.photos);
+    meta.append(tail);
+  }
   main.append(title, meta);
 
   const more = document.createElement('button');

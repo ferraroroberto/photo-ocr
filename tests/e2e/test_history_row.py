@@ -199,6 +199,20 @@ def _assert_kebab_is_unpainted_44px(row) -> None:
     assert is_unpainted(row.locator(".action-row-kebab"))
 
 
+def _assert_meta_figures_whole(row) -> None:
+    # The photo count sits whole inside the main button (never ellipsized or
+    # cut by the truncating words), and the meta stays on one line.
+    main = row.locator(".action-row-main").bounding_box()
+    tail = row.locator(".action-row-meta-tail").bounding_box()
+    meta = row.locator(".action-row-meta").bounding_box()
+    assert main and tail and meta, (main, tail, meta)
+    assert tail["x"] + tail["width"] <= main["x"] + main["width"] + 0.5, (main, tail)
+    assert meta["height"] <= 24, meta  # one body-sm line, not a two-line wrap
+    assert not row.locator(".action-row-meta-tail").evaluate(
+        "el => el.scrollWidth > el.clientWidth"
+    ), "tail is cut"
+
+
 def _open_first_take_sheet(page: Page, first):
     # The kebab opens the take sheet: the text, Copy, no Retry (fully read),
     # Redo with…, Delete last in danger text.
@@ -310,8 +324,10 @@ def test_history_rows_take_sheet_and_deletes(authed_page: Page, base_url: str) -
     expect(reading.locator(".chip[data-tone='accent']")).to_have_text("Reading")
     expect(reading.locator(".action-row-title")).to_have_text("Reading…")
     surface(page, "history.list")
-    expect(first.locator(".action-row-meta")).to_contain_text("1 photo · Gemini Flash")
+    expect(first.locator(".action-row-meta-text")).to_contain_text("· Gemini Flash")
+    expect(first.locator(".action-row-meta-tail")).to_have_text("1 photo")
     _assert_kebab_is_unpainted_44px(first)
+    _assert_meta_figures_whole(first)
 
     # Tapping the row copies the full text, not the preview.
     first.locator(".action-row-main").click()
