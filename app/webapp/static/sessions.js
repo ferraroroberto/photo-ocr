@@ -176,7 +176,7 @@ function photosText(n) {
 // Shared row for the browse list and the search results — one DOM shape, two
 // data sources. One take is one action-row (design.md): tap the row to copy
 // it, one trailing ⋯ for the take sheet. The text (or the failure) leads; the
-// meta line is when and model, the exception chips, then the photo count.
+// meta line is the model, then the tail: when, the exception chips and the photo count.
 function makeSessionRow(take, titleText, isSnippet) {
   const li = document.createElement('li');
   li.className = 'action-row history-item';
@@ -196,21 +196,27 @@ function makeSessionRow(take, titleText, isSnippet) {
     title.textContent = titleText;
   }
 
-  // Split meta: the words (when, model) truncate on one line, the exception
-  // chips sit beside them whole, and the photo count is the non-shrinking tail.
+  // Split meta: the model and the caller chip (words) truncate; the time, the
+  // status chips and the photo count ride the non-shrinking tail, so no figure
+  // or status is cut.
   const meta = document.createElement('span');
   meta.className = 'action-row-meta';
   const metaText = document.createElement('span');
   metaText.className = 'action-row-meta-text';
-  metaText.textContent = rowWhen(take.created_at) + ' · ' + (take.model ? modelLabel(take.model) : '—');
+  metaText.textContent = take.model ? modelLabel(take.model) : '—';
   meta.append(metaText);
-  takeChips(take).forEach(function (chip) { meta.append(chip); });
-  if (take.photos !== undefined) {
-    const tail = document.createElement('span');
-    tail.className = 'action-row-meta-tail';
-    tail.textContent = photosText(take.photos);
-    meta.append(tail);
-  }
+  const tail = document.createElement('span');
+  tail.className = 'action-row-meta-tail';
+  tail.append(rowWhen(take.created_at));
+  const chips = takeChips(take);
+  chips.forEach(function (chip) {
+    if (chip.dataset.tone === 'neutral') meta.append(chip);
+    else tail.append(' ', chip);
+  });
+  // The dot only joins two plain figures; after a chip it costs width.
+  const afterChip = chips.some(function (chip) { return chip.dataset.tone !== 'neutral'; });
+  if (take.photos !== undefined) tail.append((afterChip ? ' ' : ' · ') + photosText(take.photos));
+  meta.append(tail);
   main.append(title, meta);
 
   const more = document.createElement('button');

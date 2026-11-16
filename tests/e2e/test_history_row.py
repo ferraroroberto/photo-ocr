@@ -12,6 +12,7 @@ the real SPA and the real vendored ``action-row`` / ``modal`` CSS.
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -208,6 +209,8 @@ def _assert_meta_figures_whole(row) -> None:
     tail = row.locator(".action-row-meta-tail").bounding_box()
     meta = row.locator(".action-row-meta").bounding_box()
     assert main and tail and meta, (main, tail, meta)
+    # The meta line clips its children, so the tail must end inside it.
+    assert tail["x"] + tail["width"] <= meta["x"] + meta["width"] + 0.5, (meta, tail)
     assert tail["x"] + tail["width"] <= main["x"] + main["width"] + 0.5, (main, tail)
     assert meta["height"] <= 24, meta  # one body-sm line, not a two-line wrap
     assert not row.locator(".action-row-meta-tail").evaluate(
@@ -326,8 +329,8 @@ def test_history_rows_take_sheet_and_deletes(authed_page: Page, base_url: str) -
     expect(reading.locator(".chip[data-tone='accent']")).to_have_text("Reading")
     expect(reading.locator(".action-row-title")).to_have_text("Reading…")
     surface(page, "history.list")
-    expect(first.locator(".action-row-meta-text")).to_contain_text("· Gemini Flash")
-    expect(first.locator(".action-row-meta-tail")).to_have_text("1 photo")
+    expect(first.locator(".action-row-meta-text")).to_have_text("Gemini Flash")
+    expect(first.locator(".action-row-meta-tail")).to_have_text(re.compile(r"· 1 photo$"))
     _assert_kebab_is_unpainted_44px(first)
     for scheme in ("light", "dark"):
         page.emulate_media(color_scheme=scheme)
