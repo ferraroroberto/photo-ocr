@@ -26,6 +26,7 @@ Where new code goes, and why each top-level folder exists. The structure ratchet
 | `app/webapp/static/` | the PWA: HTML, ES-module JS, CSS, icons |
 | `app/webapp/static/_vendored/` | fleet components copied verbatim from project-scaffolding; never edited, excluded from the ratchet |
 | `tests/e2e/` | browser tests on Chromium and WebKit/iPhone against a disposable webapp |
+| `tests/e2e_harness/` | unit tests of the e2e harness itself (the port-pool failure naming), run in the non-e2e leg |
 
 New backend logic goes in `src/` as a module, not in a router; a router stays a thin HTTP adapter over it. A module that would push a directory past 40 files goes in a domain subpackage.
 

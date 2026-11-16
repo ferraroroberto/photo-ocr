@@ -30,6 +30,7 @@ import pytest
 import requests
 from playwright.sync_api import Page, Route, expect
 
+from tests.e2e._http import SESSION
 from tests.e2e._surface import surface
 
 pytestmark = pytest.mark.smoke
@@ -47,9 +48,7 @@ def _jpeg_bytes() -> bytes:
 
 
 def _sessions_by_id(base_url: str) -> dict[str, dict]:
-    res = requests.get(
-        f"{base_url}/api/sessions?limit=50&offset=0", verify=False, timeout=5
-    )
+    res = SESSION.get(f"{base_url}/api/sessions?limit=50&offset=0", timeout=5)
     res.raise_for_status()
     return {s["session_id"]: s for s in res.json().get("sessions", [])}
 
@@ -168,7 +167,7 @@ def _delete_new_sessions(base_url: str, before: set[str]) -> None:
     """Don't leave test sessions in the archive."""
     for sid in set(_sessions_by_id(base_url)) - before:
         try:
-            requests.delete(f"{base_url}/api/sessions/{sid}", verify=False, timeout=5)
+            SESSION.delete(f"{base_url}/api/sessions/{sid}", timeout=5)
         except requests.RequestException:
             pass
 
@@ -189,83 +188,83 @@ def _assert_photos_row_then_new_take(page: Page, result) -> None:
 
 
 def test_photo_upload_then_extract_progress(
-    authed_page: Page, base_url: str
+    isolated_page: Page, base_url: str
 ) -> None:
     before = set(_sessions_by_id(base_url))
     extract_bodies: list[dict] = []
 
     try:
-        authed_page.route("**/api/config", _handle_config)
-        authed_page.route("**/api/sessions/*/extract", _extract_handler(extract_bodies))
-        authed_page.route("**/api/sessions/*/extract/status", _status_handler())
-        authed_page.clock.install()
+        isolated_page.route("**/api/config", _handle_config)
+        isolated_page.route("**/api/sessions/*/extract", _extract_handler(extract_bodies))
+        isolated_page.route("**/api/sessions/*/extract/status", _status_handler())
+        isolated_page.clock.install()
         # Capture the clipboard write (permissions differ per engine).
-        authed_page.add_init_script(
+        isolated_page.add_init_script(
             "Object.defineProperty(navigator, 'clipboard', {value: "
             "{writeText: t => { window.__copied = t; return Promise.resolve(); }}})"
         )
-        authed_page.goto(f"{base_url}/", wait_until="domcontentloaded")
-        authed_page.wait_for_selector("#extractBtn", state="attached", timeout=5_000)
+        isolated_page.goto(f"{base_url}/", wait_until="domcontentloaded")
+        isolated_page.wait_for_selector("#extractBtn", state="attached", timeout=5_000)
 
-        _upload_one_photo(authed_page)
+        _upload_one_photo(isolated_page)
 
         # This take's model and style come from the chips' picker sheets,
         # which mark the current choice; Extract must post what was picked.
-        model_chip = authed_page.locator("#takeModel")
+        model_chip = isolated_page.locator("#takeModel")
         expect(model_chip).to_contain_text("Gemini Flash")
         model_chip.click()
-        picker = authed_page.locator("dialog.sheet")
+        picker = isolated_page.locator("dialog.sheet")
         expect(picker.locator("[aria-current='true']")).to_have_text("Gemini Flash")
-        surface(authed_page, "capture.model-picker")
+        surface(isolated_page, "capture.model-picker")
         picker.get_by_role("button", name="Claude Opus").click()
         expect(picker).to_have_count(0)
         expect(model_chip).to_contain_text("Claude Opus")
-        authed_page.locator("#takeStyle").click()
-        surface(authed_page, "capture.style-picker")
-        authed_page.locator("dialog.sheet").get_by_role("button", name="Invented style").click()
-        expect(authed_page.locator("#takeStyle")).to_contain_text("Invented style")
+        isolated_page.locator("#takeStyle").click()
+        surface(isolated_page, "capture.style-picker")
+        isolated_page.locator("dialog.sheet").get_by_role("button", name="Invented style").click()
+        expect(isolated_page.locator("#takeStyle")).to_contain_text("Invented style")
 
 
         _assert_one_new_session(base_url, before)
 
-        authed_page.locator("#extractBtn").click()
+        isolated_page.locator("#extractBtn").click()
 
         # In flight: the meter counts job parts (never photos) and the header
         # names the exception; the outcome line stays empty until the end.
-        meter = authed_page.locator("#extractMeter")
-        headline = authed_page.locator("#captureHeadline")
-        result = authed_page.locator("#takeResult")
+        meter = isolated_page.locator("#extractMeter")
+        headline = isolated_page.locator("#captureHeadline")
+        result = isolated_page.locator("#takeResult")
         expect(meter).to_contain_text("part 1 of 2", timeout=5_000)
         expect(headline).to_contain_text("Reading")
         expect(result).to_be_hidden()
         assert extract_bodies == [{"model": "claude_opus", "prompt_id": "invented-style"}], extract_bodies
-        surface(authed_page, "capture.extracting")
+        surface(isolated_page, "capture.extracting")
         # The SPA waits POLL_INTERVAL_MS between status polls; fast-forward
         # its clock instead of sleeping the real second twice.
-        authed_page.clock.run_for(_POLL_INTERVAL_MS)
+        isolated_page.clock.run_for(_POLL_INTERVAL_MS)
         expect(meter).to_contain_text("part 2 of 2", timeout=5_000)
         expect(meter.locator(".meter")).to_have_attribute("aria-valuenow", "50")
-        authed_page.clock.run_for(_POLL_INTERVAL_MS)
-        expect(authed_page.locator("#extracted")).to_have_value(
+        isolated_page.clock.run_for(_POLL_INTERVAL_MS)
+        expect(isolated_page.locator("#extracted")).to_have_value(
             "done text", timeout=5_000
         )
         # The result takes the card: meta line, Copy text as the primary,
         # the photos folded to one row; no Retry on a fully read take.
         expect(result).to_be_visible()
-        expect(authed_page.locator("#takeBuild")).to_be_hidden()
-        expect(authed_page.locator("#resultMeta")).to_contain_text("3.2 s")
-        expect(authed_page.locator("#resultMeta")).to_contain_text("saved to History")
-        expect(authed_page.locator("#retryMissing")).to_be_hidden()
+        expect(isolated_page.locator("#takeBuild")).to_be_hidden()
+        expect(isolated_page.locator("#resultMeta")).to_contain_text("3.2 s")
+        expect(isolated_page.locator("#resultMeta")).to_contain_text("saved to History")
+        expect(isolated_page.locator("#retryMissing")).to_be_hidden()
         expect(meter).to_be_hidden()
         expect(headline).not_to_contain_text("Reading")
-        copy = authed_page.locator("#copyExtracted")
+        copy = isolated_page.locator("#copyExtracted")
         expect(copy).to_have_class(re.compile(r"\bbutton-primary\b"))
-        surface(authed_page, "capture.result")
+        surface(isolated_page, "capture.result")
         copy.click()
         expect(copy).to_contain_text("Copied")
-        assert authed_page.evaluate("window.__copied") == "done text"
+        assert isolated_page.evaluate("window.__copied") == "done text"
 
 
-        _assert_photos_row_then_new_take(authed_page, result)
+        _assert_photos_row_then_new_take(isolated_page, result)
     finally:
         _delete_new_sessions(base_url, before)
