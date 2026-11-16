@@ -202,6 +202,8 @@ def _assert_kebab_is_unpainted_44px(row) -> None:
 def _assert_meta_figures_whole(row) -> None:
     # The photo count sits whole inside the main button (never ellipsized or
     # cut by the truncating words), and the meta stays on one line.
+    if row.locator(".action-row-meta-tail").count() == 0:
+        return
     main = row.locator(".action-row-main").bounding_box()
     tail = row.locator(".action-row-meta-tail").bounding_box()
     meta = row.locator(".action-row-meta").bounding_box()
@@ -327,7 +329,11 @@ def test_history_rows_take_sheet_and_deletes(authed_page: Page, base_url: str) -
     expect(first.locator(".action-row-meta-text")).to_contain_text("· Gemini Flash")
     expect(first.locator(".action-row-meta-tail")).to_have_text("1 photo")
     _assert_kebab_is_unpainted_44px(first)
-    _assert_meta_figures_whole(first)
+    for scheme in ("light", "dark"):
+        page.emulate_media(color_scheme=scheme)
+        for row in (first, second, redo_failed, reading, old):
+            _assert_meta_figures_whole(row)
+    page.emulate_media(color_scheme="light")
 
     # Tapping the row copies the full text, not the preview.
     first.locator(".action-row-main").click()
