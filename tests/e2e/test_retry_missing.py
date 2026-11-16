@@ -18,6 +18,7 @@ import pytest
 import requests
 from playwright.sync_api import Page, Route, expect
 
+from tests.e2e._http import SESSION
 from tests.e2e._surface import surface
 
 pytestmark = pytest.mark.smoke
@@ -34,9 +35,7 @@ def _jpeg_bytes() -> bytes:
 
 
 def _session_ids(base_url: str) -> set:
-    res = requests.get(
-        f"{base_url}/api/sessions?limit=50&offset=0", verify=False, timeout=5
-    )
+    res = SESSION.get(f"{base_url}/api/sessions?limit=50&offset=0", timeout=5)
     res.raise_for_status()
     return {s["session_id"] for s in res.json().get("sessions", [])}
 
@@ -131,9 +130,7 @@ def test_retry_missing_appears_only_when_photos_are_missing_and_fills_the_gap(
     finally:
         for sid in _session_ids(base_url) - before:
             try:
-                requests.delete(
-                    f"{base_url}/api/sessions/{sid}", verify=False, timeout=5
-                )
+                SESSION.delete(f"{base_url}/api/sessions/{sid}", timeout=5)
             except requests.RequestException:
                 pass
 
@@ -194,8 +191,6 @@ def test_retry_missing_is_hidden_once_the_strip_is_reordered(
     finally:
         for sid in _session_ids(base_url) - before:
             try:
-                requests.delete(
-                    f"{base_url}/api/sessions/{sid}", verify=False, timeout=5
-                )
+                SESSION.delete(f"{base_url}/api/sessions/{sid}", timeout=5)
             except requests.RequestException:
                 pass

@@ -56,15 +56,18 @@ def wait_healthz(
 ) -> bool:
     """Poll ``/healthz`` until it answers 200, ``timeout`` passes or ``proc`` exits."""
     deadline = time.time() + timeout
-    while time.time() < deadline:
-        if proc is not None and proc.poll() is not None:
-            return False
-        try:
-            if requests.get(f"{base}/healthz", timeout=2, verify=False).status_code == 200:
-                return True
-        except requests.RequestException:
-            pass
-        time.sleep(HEALTHZ_POLL_INTERVAL_S)
+    # One session so the polls reuse a connection instead of opening (and
+    # leaving in TIME_WAIT) a socket per attempt.
+    with requests.Session() as session:
+        while time.time() < deadline:
+            if proc is not None and proc.poll() is not None:
+                return False
+            try:
+                if session.get(f"{base}/healthz", timeout=2, verify=False).status_code == 200:
+                    return True
+            except requests.RequestException:
+                pass
+            time.sleep(HEALTHZ_POLL_INTERVAL_S)
     return False
 
 

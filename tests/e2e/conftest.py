@@ -42,10 +42,14 @@ from pathlib import Path
 from typing import Iterator, List
 
 import pytest
-from playwright.sync_api import BrowserContext, Page
+from playwright.sync_api import Browser, BrowserContext, Page
 
 from scripts.disposable_webapp import WebappBootError, disposable_webapp, wait_healthz
 from tests.e2e._e2e_live_guard import require_disposable_instance
+from tests.e2e._port_pool import (  # noqa: F401 — port-pool report hooks
+    pytest_runtest_makereport,
+    pytest_terminal_summary,
+)
 from tests.e2e._surface import pytest_collection_modifyitems  # noqa: F401
 
 logger = logging.getLogger(__name__)
@@ -152,17 +156,26 @@ def _skip_desktop_only_on_webkit(
         pytest.skip("desktop_only — not run on the WebKit/iPhone projection")
 
 
-@pytest.fixture(autouse=True)
-def _bound_default_timeouts(context: BrowserContext) -> None:
-    """Cap Playwright's implicit action + navigation timeout (issue #45).
-
-    Pages created from this context inherit the cap, so a stuck
-    wait_for_selector / click / goto with no explicit timeout= fails at
-    _DEFAULT_TIMEOUT_MS and names the locator — instead of silently
-    stacking toward Playwright's opaque 30 s default.
-    """
+def _bound_timeouts(context: BrowserContext) -> None:
     context.set_default_timeout(_DEFAULT_TIMEOUT_MS)
     context.set_default_navigation_timeout(_DEFAULT_TIMEOUT_MS)
+
+
+@pytest.fixture(autouse=True)
+def _bound_default_timeouts(request: pytest.FixtureRequest) -> None:
+    """Cap Playwright's implicit action + navigation timeout (issue #45).
+
+    Pages created from the context inherit the cap, so a stuck
+    wait_for_selector / click / goto with no explicit timeout= fails at
+    _DEFAULT_TIMEOUT_MS and names the locator — instead of silently
+    stacking toward Playwright's opaque 30 s default. Applies to
+    pytest-playwright's own ``context`` / ``page`` only when a test asks for
+    one: an autouse dependency on ``context`` would build a fresh browser
+    context for every test, which is the connection churn ``_shared_context``
+    exists to avoid.
+    """
+    if {"context", "page"} & set(request.fixturenames):
+        _bound_timeouts(request.getfixturevalue("context"))
 
 
 @pytest.fixture(scope="session")
@@ -226,10 +239,70 @@ def _seed_token_init_script(token: str) -> str:
     return f"window.localStorage.setItem({safe_key}, {safe});"
 
 
+@pytest.fixture(scope="session")
+def _shared_context(
+    browser: Browser, browser_context_args: dict, auth_token: str
+) -> Iterator[BrowserContext]:
+    """One browser context per engine for every ``authed_page`` test.
+
+    A fresh context starts with an empty HTTP cache and closes its connections
+    to the app on teardown; each closed connection parks a loopback ephemeral
+    port in TIME_WAIT, and a drained pool fails the next page load with
+    ``net::ERR_ADDRESS_IN_USE`` (see ``_port_pool.py``). Isolation between
+    tests is kept by ``_reset_context``, not by a new context.
+    """
+    context = browser.new_context(**browser_context_args)
+    _bound_timeouts(context)
+    if auth_token:
+        context.add_init_script(_seed_token_init_script(auth_token))
+    try:
+        yield context
+    finally:
+        context.close()
+
+
+def _reset_context(context: BrowserContext, page: Page) -> None:
+    """Return the shared context to a first-visit state for the next test.
+
+    Everything a test can leave behind that the next one could read: the
+    page's own storage and routes, and the context's cookies and permissions.
+    A step that fails is logged and skipped, never raised, so one broken page
+    cannot mask the test's own result.
+    """
+    steps = (
+        lambda: page.evaluate(
+            "() => { try { localStorage.clear(); sessionStorage.clear(); } catch (e) {} }"
+        ),
+        lambda: page.unroute_all(behavior="ignore_errors"),
+        context.clear_cookies,
+        context.clear_permissions,
+    )
+    for step in steps:
+        try:
+            step()
+        except Exception as exc:  # best effort
+            logger.warning("⚠️  shared context reset step failed: %s", exc)
+
+
 @pytest.fixture
-def authed_page(
+def authed_page(_shared_context: BrowserContext, base_url: str) -> Iterator[Page]:
+    page = _shared_context.new_page()
+    try:
+        yield page
+    finally:
+        _reset_context(_shared_context, page)
+        page.close()
+
+
+@pytest.fixture
+def isolated_page(
     context: BrowserContext, base_url: str, auth_token: str
 ) -> Iterator[Page]:
+    """A page in its own fresh context, for a test that changes context-wide state.
+
+    ``page.clock.install()`` fakes time for the whole context and cannot be
+    undone, so a test that installs it must not leave it on ``_shared_context``.
+    """
     if auth_token:
         context.add_init_script(_seed_token_init_script(auth_token))
     page = context.new_page()

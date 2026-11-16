@@ -552,6 +552,8 @@ The runtime write ratchet (`scripts/runtime_write_ratchet.py` with its resolver 
 
 Each surface the suite opens (a tab, sheet, picker, empty or error state) is tagged `surface(page, "<tab>.<surface>")` from the vendored `tests/e2e/_surface.py`. The call is inert on every normal run; `/design-review photo-ocr --e2e` arms it against the throwaway webapp `scripts/design_review_synthetic.py` boots (never the live tray) to inventory those surfaces in light and dark for the design review. A new sheet or state a test opens takes one `surface(...)` call.
 
+The suite keeps off the loopback ephemeral-port pool, and a drained pool fails as its own `PORT POOL EXHAUSTED` (see [docs/e2e-loopback-ports.md](docs/e2e-loopback-ports.md)).
+
 ```powershell
 powershell.exe -File scripts/verify-before-ship.ps1
 ```
