@@ -300,7 +300,7 @@ photo-ocr/
 │   ├── gen_tailscale_cert.py    HTTPS via `tailscale cert` (real LE leaf, `--check` auto-renew)
 │   ├── gen_token.py             generate/rotate the bearer token
 │   ├── run_named_tunnel.py      uvicorn + cloudflared
-│   ├── verify-before-ship.ps1   pre-ship gate: byte-compile + static ratchet + docs ratchet + structure ratchet + conventions ratchet + comment ratchet + instruction ratchet + doc refs ratchet + dead code ratchet + runtime write ratchet + usage track ratchet + pytest + e2e
+│   ├── verify-before-ship.ps1   pre-ship gate: byte-compile + the ratchets + pytest + e2e
 │   ├── box_lock_gate.ps1        holds fleet-config's shared box load lock for the whole gate run
 │   ├── static_ratchet.py        vendored baseline-and-ratchet detector (jscpd + ruff)
 │   ├── static_ratchet_gate.py   gate wrapper: only exit 0 passes, exit 3 = NOT CONFIRMED
@@ -318,6 +318,7 @@ photo-ocr/
 │   ├── runtime_write_resolve.py vendored sibling of the runtime write ratchet: the static path resolver
 │   ├── usage_track_ratchet.py   vendored baseline-and-ratchet on untracked controls/sheets and built ids in the web UI, + the usage-log wiring
 │   ├── usage_track_scan.py      vendored sibling of the usage track ratchet: the HTML and JS readers
+│   ├── ux_surface_ratchet.py    vendored ratchet on `data-surface` ids vs the map; `ux_surface_map.py` renders the page
 │   ├── run-e2e.ps1              e2e leg runner (used by the pre-ship gate)
 │   ├── design_review_synthetic.py  throwaway webapp for /design-review's synthetic and e2e runs
 │   ├── disposable_webapp.py     free-port throwaway webapp shared by the e2e autoboot and the synthetic run
@@ -503,7 +504,7 @@ The `smoke` marker is the slow live-tray bucket — see the Playwright section b
 
 ### Playwright browser smoke tests
 
-A `pytest-playwright` suite under `tests/e2e/` catches SPA boot regressions (JS errors, empty `<select>`s, broken settings toggle, sign-in sheet not opening) plus regression nets for past iPhone-only bugs (photo upload; the cache-header contract is pinned by the unit test `tests/test_webapp_cache_headers.py`, and the 398-day Apple cert cap by `tests/test_cert_lifetime.py`, which `cert_paths()` enforces) and the Capture photo sheet (move left/right, Retake/Keep on a quality-warned photo, Remove, all real 44px targets). Instance selection is guarded by the vendor-verbatim `tests/e2e/_e2e_live_guard.py` (adopted fleet-wide, byte-identical across every adopter): a bare `pytest tests/e2e` with the tray up **refuses to run** with a guard message rather than silently adopting it; with the tray down it boots its own disposable instance instead. Set `PHOTO_OCR_E2E_LIVE=1` (`scripts/run-e2e.ps1` does) to explicitly *adopt* the live tray on `https://127.0.0.1:8444` for read-only smoke checks — this repo never kills it to satisfy the opt-in (`tray.bat --restart` owns that).
+A `pytest-playwright` suite under `tests/e2e/` catches SPA boot regressions (JS errors, empty `<select>`s, broken settings toggle, sign-in sheet not opening) plus regression nets for past iPhone-only bugs (photo upload; the cache-header contract is pinned by the unit test `tests/test_webapp_cache_headers.py`, and the 398-day Apple cert cap by `tests/test_cert_lifetime.py`, which `cert_paths()` enforces) and the Capture photo sheet (move left/right, Retake/Keep on a quality-warned photo, Remove, all real 44px targets). Instance selection is guarded by the vendor-verbatim `tests/e2e/_e2e_live_guard.py` (byte-identical across every adopter): a bare `pytest tests/e2e` with the tray up **refuses to run** with a guard message rather than silently adopting it; with the tray down it boots its own disposable instance instead. Set `PHOTO_OCR_E2E_LIVE=1` (`scripts/run-e2e.ps1` does) to explicitly *adopt* the live tray on `https://127.0.0.1:8444` for read-only smoke checks — this repo never kills it to satisfy the opt-in (`tray.bat --restart` owns that).
 
 By default the suite runs in **two projections**: Chromium desktop and WebKit projected onto an iPhone 14 (viewport, user-agent, touch). WebKit is iOS Mobile Safari's engine family, so the second projection catches most "Safari is unhappy" regressions on Windows. Pin one engine with `--browser chromium` for a faster dev loop; a test tagged `@pytest.mark.desktop_only` skips the WebKit projection.
 
@@ -527,7 +528,7 @@ Without a tray, a bare run already boots its own disposable webapp on a free por
 
 ### Verifying changes before ship
 
-`scripts/verify-before-ship.ps1` is the single pre-ship gate. It byte-compiles `app`/`src`/`tests`, runs the static, docs, structure, conventions, comment, instruction, doc refs, dead code, runtime write and usage track ratchets, runs the non-e2e pytest suite, then runs the Playwright e2e suite (Chromium + WebKit/iPhone) against a **disposable webapp it boots itself on a free port** — so a forgotten tray can't let a regression slip through as a skipped suite.
+`scripts/verify-before-ship.ps1` is the single pre-ship gate. It byte-compiles `app`/`src`/`tests`, runs the static, docs, structure, conventions, comment, instruction, doc refs, dead code, runtime write, usage track and ux surface ratchets, runs the non-e2e pytest suite, then runs the Playwright e2e suite (Chromium + WebKit/iPhone) against a **disposable webapp it boots itself on a free port** — so a forgotten tray can't let a regression slip through as a skipped suite.
 
 The e2e leg is proportionate to the diff: `scripts/classify_e2e.py` classifies the branch's changed files against `origin/main` (rules in `.fleet.toml` `[e2e]`). A docs-only branch **skips** the leg and the gate prints the tier and reason; a static-image change runs only the smoke slice; anything under `app/webapp/`, `src/`, or any path no rule names runs the **full** suite. A classifier that errors, prints no tier, or returns an unknown one also runs the full suite, and says so — the gate never skips on doubt.
 
@@ -550,7 +551,9 @@ The dead code ratchet (`scripts/dead_code_ratchet.py`, rules in `.fleet.toml` `[
 
 The runtime write ratchet (`scripts/runtime_write_ratchet.py` with its resolver `scripts/runtime_write_resolve.py`, rules in `.fleet.toml` `[runtime_write_ratchet]`) fails the gate when a file's count of write targets (open for writing, `Path.write_*`, `mkdir`, a log handler, `sqlite3.connect`) resolving under a code folder rises above `.runtime-write-ratchet-baseline.json`; a new target it cannot resolve fails as NOT CONFIRMED. Its `--snapshot`/`--probe` pair brackets the pytest and e2e runs and fails on any untracked or ignored file they leave under a code folder. Runtime output belongs under the runtime root (`src/runtime_data.py`). A write to a path a parameter or config names goes through `src/runtime_files.py`, which raises at runtime when the path resolves under `src/`, `app/` or `scripts/`; only that module (plus the search index connection) carries runtime-write exempt markers.
 
-Each surface the suite opens (a tab, sheet, picker, empty or error state) is tagged `surface(page, "<tab>.<surface>")` from the vendored `tests/e2e/_surface.py`. The call is inert on every normal run; `/design-review photo-ocr --e2e` arms it against the throwaway webapp `scripts/design_review_synthetic.py` boots (never the live tray) to inventory those surfaces in light and dark for the design review. A new sheet or state a test opens takes one `surface(...)` call.
+Each surface the suite opens is tagged `surface(page, "<id>")` from the vendored `tests/e2e/_surface.py` (inert on every normal run), with its id from the map below or a state name for a variant. `/design-review photo-ocr --e2e` arms it against the throwaway webapp `scripts/design_review_synthetic.py` boots, never the live tray.
+
+The UX surface map ([`docs/ux-surface-map.md`](docs/ux-surface-map.md), source `docs/ux-surfaces.yaml`) lists every surface under the id its root carries as `data-surface`; the ux surface ratchet (`scripts/ux_surface_ratchet.py`) holds the two together.
 
 The suite keeps off the loopback ephemeral-port pool, and a drained pool fails as its own `PORT POOL EXHAUSTED` (see [docs/e2e-loopback-ports.md](docs/e2e-loopback-ports.md)).
 

@@ -28,6 +28,11 @@ STAGES: dict[str, tuple[str, dict[str, bytes]]] = {
     "doc_refs": ("$docRefsExit", {"README.md": b"\xff\xfe not utf-8\n"}),
     "dead_code": ("$deadCodeExit", {"broken.py": b"def f(:\n"}),
     "usage_track": ("$usageTrackExit", {"app/webapp/static/broken.js": b"const s = 'never closed;\n"}),
+    # The map must exist and parse before the code is read, so a bare one rides along.
+    "ux_surface": ("$uxSurfaceExit", {
+        "app/webapp/static/broken.js": b"const s = 'never closed;\n",
+        "docs/ux-surfaces.yaml": b"app: t\nareas:\n  - id: a\n    title: A\nsurfaces: []\n",
+    }),
 }
 
 # Rules a table must name to be valid at all; the other ratchets run on `enabled` alone.

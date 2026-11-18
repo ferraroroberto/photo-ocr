@@ -82,7 +82,7 @@ function followDefault(key, before, after) {
 function openModelSheet() {
   const models = (state.config && state.config.ocr_models_available) || [];
   const current = defaultModel();
-  openSheet({
+  const sheet = openSheet({
     title: 'Default model',
     track: 'settings.model-sheet',
     actions: models.map(function (m) {
@@ -99,11 +99,12 @@ function openModelSheet() {
       };
     }),
   });
+  sheet.dialog.dataset.surface = 'settings.model-sheet';
 }
 
 function openStyleSheet() {
   const current = defaultPromptId();
-  openSheet({
+  const sheet = openSheet({
     title: 'Style',
     track: 'settings.style-sheet',
     actions: (state.prompts || []).map(function (p) {
@@ -120,6 +121,7 @@ function openStyleSheet() {
       };
     }),
   });
+  sheet.dialog.dataset.surface = 'settings.style-sheet';
 }
 
 // The prompt the default style sends, read-only.
@@ -138,9 +140,10 @@ function openPromptSheet() {
   text.setAttribute('aria-label', 'Prompt');
   text.textContent = prompt ? prompt.system : '';
   body.append(meta, text);
-  openSheet({
+  const sheet = openSheet({
     title: 'Prompt', track: 'settings.prompt-sheet', body: body, className: 'prompt-sheet-dialog',
   });
+  sheet.dialog.dataset.surface = 'settings.prompt-sheet';
 }
 
 // "Keep takes for": four presets as one segmented control. A pick saves; the
@@ -180,7 +183,8 @@ function openRetentionSheet() {
     group.appendChild(btn);
   });
   body.append(group, note);
-  openSheet({ title: 'Keep takes for', track: 'settings.retention-sheet', body: body });
+  const sheet = openSheet({ title: 'Keep takes for', track: 'settings.retention-sheet', body: body });
+  sheet.dialog.dataset.surface = 'settings.retention-sheet';
   paint();
 }
 
@@ -225,7 +229,8 @@ function openMaxPhotosSheet() {
       input.value = String(saved);
     }
   });
-  openSheet({ title: 'Max photos per take', track: 'settings.max-photos-sheet', body: body });
+  const sheet = openSheet({ title: 'Max photos per take', track: 'settings.max-photos-sheet', body: body });
+  sheet.dialog.dataset.surface = 'settings.max-photos-sheet';
 }
 
 // Wire the rows once; they read the config when tapped.

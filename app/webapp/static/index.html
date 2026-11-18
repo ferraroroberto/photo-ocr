@@ -186,7 +186,7 @@
        Body-level sibling of <main class="app">, never nested inside the
        scroller: iOS installed PWAs can capture fixed descendants of scroll
        containers and anchor them to scrolled content. -->
-  <nav class="tabs" role="tablist" aria-label="Sections" data-active-tab="capture">
+  <nav class="tabs" role="tablist" aria-label="Sections" data-active-tab="capture" data-surface="chrome.nav">
     <button id="tabCapture" type="button" class="tab active" data-tab="capture"
             role="tab" aria-selected="true" aria-controls="paneCapture">
       <svg class="tab-icon" aria-hidden="true" focusable="false"><use href="#i-camera"></use></svg>
@@ -200,7 +200,7 @@
   </nav>
 
   <main class="app">
-    <section id="paneCapture" class="pane" role="tabpanel" aria-labelledby="tabCapture" aria-label="Capture">
+    <section id="paneCapture" class="pane" data-surface="capture.pane" role="tabpanel" aria-labelledby="tabCapture" aria-label="Capture">
       <div class="card home-head">
         <span class="home-title"><svg class="icon" aria-hidden="true"><use href="#i-camera"></use></svg> Capture</span>
         <!-- Exceptions only (design.md page-header): a quality warning, a
@@ -216,7 +216,7 @@
              primary and Camera the second. Labels for the hidden file inputs
              (the most reliable picker trigger on iOS), made keyboard-operable
              by main.js. -->
-        <div id="takeEmpty" class="empty-state take-empty">
+        <div id="takeEmpty" class="empty-state take-empty" data-surface="capture.empty">
           <svg class="icon empty-state-icon" aria-hidden="true"><use href="#i-scan-text"></use></svg>
           <p class="empty-state-message">Add photos of a page, a screen or a document</p>
           <div class="take-starts">
@@ -232,7 +232,7 @@
         <!-- Building a take: the strip (tap a photo for its sheet; the last
              tile adds more), the take-options line, then Extract. With a
              result, a row leads back to the text. -->
-        <div id="takeBuild" class="take-build" hidden>
+        <div id="takeBuild" class="take-build" data-surface="capture.take-photos" hidden>
           <button id="showText" type="button" data-track="capture.show-text" class="take-link" hidden>
             <svg class="icon" aria-hidden="true"><use href="#i-file-text"></use></svg>
             <span class="take-link-label">Show the text</span>
@@ -266,7 +266,7 @@
         <!-- The result: the take's photos fold to one row, then the meta line,
              the text (editable; edits are what Copy copies), Copy text as the
              primary, New take, and Retry missing on a partly read take. -->
-        <div id="takeResult" class="take-result" hidden>
+        <div id="takeResult" class="take-result" data-surface="capture.result" hidden>
           <button id="showPhotos" type="button" data-track="result.show-photos" class="take-link">
             <svg class="icon" aria-hidden="true"><use href="#i-image"></use></svg>
             <span id="showPhotosLabel" class="take-link-label"></span>
@@ -292,7 +292,7 @@
 
         <!-- Progress while a job reads (Extract here, Redo / Retry from
              History): the meter, by job parts, never by photos. -->
-        <div id="extractMeter" class="take-meter" hidden>
+        <div id="extractMeter" class="take-meter" data-surface="capture.extracting" hidden>
           <div class="meter" role="progressbar" aria-label="Reading" aria-valuemin="0" aria-valuemax="100">
             <span class="meter-fill"></span>
           </div>
@@ -300,11 +300,11 @@
         </div>
         <!-- A failed job, in its own words (with its toast): the server's
              hub-down and still-working messages arrive unchanged. -->
-        <p id="takeError" class="take-error" role="alert" hidden></p>
+        <p id="takeError" class="take-error" data-surface="capture.error" role="alert" hidden></p>
       </section>
     </section>
 
-    <section id="paneHistory" class="pane" role="tabpanel" aria-labelledby="tabHistory" aria-label="History" hidden>
+    <section id="paneHistory" class="pane" data-surface="history.pane" role="tabpanel" aria-labelledby="tabHistory" aria-label="History" hidden>
       <div class="card home-head">
         <span class="home-title"><svg class="icon" aria-hidden="true"><use href="#i-history"></use></svg> History</span>
         <!-- Exceptions only: "N partly read" among the loaded takes. -->
@@ -316,14 +316,14 @@
            overlines. The list reloads whenever the tab opens. -->
       <section class="card history-card">
         <input id="historySearch" type="search" data-track="history.search" class="input-native history-search" placeholder="Search extracted text…" aria-label="Search saved takes" autocomplete="off" hidden>
-        <ul id="historyList" class="history-list action-rows"></ul>
+        <ul id="historyList" class="history-list action-rows" data-surface="history.list"></ul>
         <button id="loadMoreHistory" type="button" data-track="history.load-more" class="ghost-btn load-more-btn" hidden><svg class="icon" aria-hidden="true"><use href="#i-chevron-down"></use></svg> <span id="loadMoreLabel">Load more</span></button>
       </section>
     </section>
 
     <!-- Settings is never a tab (fleet NAV-03): every pane's header gear opens
          it, so it carries no tabpanel role and no nav button. -->
-    <section id="paneSettings" class="pane" aria-label="Settings" hidden>
+    <section id="paneSettings" class="pane" data-surface="settings.pane" aria-label="Settings" hidden>
       <div class="card home-head">
         <span class="home-title"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg> Settings</span>
         <button type="button" class="icon-button home-toggle theme-toggle" data-track="head.theme" title="Toggle theme" aria-label="Toggle dark mode"><svg class="icon" aria-hidden="true"><use href="#i-moon"></use></svg></button>
@@ -333,7 +333,7 @@
            each row saves to the server as it changes, with a toast. A row
            opens its sheet; Text size, changed often, stays inline. -->
       <h2 class="settings-overline">Display</h2>
-      <section class="card settings-group">
+      <section class="card settings-group" data-surface="settings.display">
         <div class="settings-row">
           <svg class="icon" aria-hidden="true"><use href="#i-type"></use></svg>
           <span class="settings-label" id="textSizeLabel">Text size</span>
@@ -346,7 +346,7 @@
       </section>
 
       <h2 class="settings-overline">Reading</h2>
-      <section class="card settings-group">
+      <section class="card settings-group" data-surface="settings.reading">
         <button id="setModel" type="button" data-track="settings.model" class="settings-row settings-link" aria-haspopup="dialog">
           <svg class="icon" aria-hidden="true"><use href="#i-scan-text"></use></svg>
           <span class="settings-label">Default model</span>
@@ -368,7 +368,7 @@
       </section>
 
       <h2 class="settings-overline">Storage</h2>
-      <section class="card settings-group">
+      <section class="card settings-group" data-surface="settings.storage">
         <button id="setRetention" type="button" data-track="settings.retention" class="settings-row settings-link" aria-haspopup="dialog">
           <svg class="icon" aria-hidden="true"><use href="#i-history"></use></svg>
           <span class="settings-label">Keep takes for</span>
@@ -389,11 +389,11 @@
 
     <!-- Build identity (vendored page-foot): which build the PWA is running,
          under every tab. Filled by settings.js loadVersion(). -->
-    <footer class="page-foot">
+    <footer class="page-foot" data-surface="chrome.page-foot">
       <p id="buildReadout"></p>
     </footer>
 
-    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+    <div id="toast" class="toast" data-surface="chrome.toast" role="status" aria-live="polite" hidden></div>
   </main>
 
   <script type="module" src="/static/main.js"></script>
