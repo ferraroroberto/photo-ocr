@@ -86,6 +86,7 @@ def test_the_ratchet_is_declared_and_its_script_is_vendored() -> None:
         "login-lockout",
         "no-pwsh-stub",
         "subprocess-timeout",
+        "browser-per-iteration",
         "state-literal",
         "state-set-repeat",
         "state-write",
