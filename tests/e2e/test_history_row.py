@@ -292,7 +292,7 @@ def _delete_flows(page: Page, mock, rows, sheet) -> None:
     page.locator("#paneHistory .home-settings").click()
     page.locator("#cleanAll").click()
     expect(confirm.locator("h2")).to_have_text("Delete all saved takes?")
-    surface(page, "history.confirm-delete-all")
+    surface(page, "settings.confirm-delete-all")
     confirm.get_by_role("button", name="Cancel").click()
     expect(confirm).to_have_count(0)
     page.locator("#cleanAll").click()

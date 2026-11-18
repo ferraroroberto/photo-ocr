@@ -172,6 +172,18 @@ try {
     if ($usageTrackExit -eq 3) { Fail "usage track ratchet NOT CONFIRMED (a file could not be read, or JS never closes)." }
     if ($usageTrackExit -ne 0) { Fail "usage track ratchet failed (an untracked control or sheet, a built id, the usage log not wired, or a bad table or baseline)." }
 
+    # UX surface ratchet: fails when the web UI gains a surface root with no constant data-surface id,
+    # an id with no entry in docs/ux-surfaces.yaml, a map entry no element carries, one id on two
+    # surfaces, a link to no entry, or a docs/ux-surface-map.md page not regenerated from the map,
+    # beyond .ux-surface-ratchet-baseline.json. Exit 3 (a file that cannot be read, or JS that never
+    # closes) is its own failure, never a pass or a skip. It reads the whole tree, so it is not
+    # path-routed.
+    Write-Host "==> ux surface ratchet..." -ForegroundColor Cyan
+    & $python "scripts/ux_surface_ratchet.py"
+    $uxSurfaceExit = $LASTEXITCODE
+    if ($uxSurfaceExit -eq 3) { Fail "ux surface ratchet NOT CONFIRMED (a file could not be read, or JS never closes)." }
+    if ($uxSurfaceExit -ne 0) { Fail "ux surface ratchet failed (a surface root with no id, an id and a map entry that disagree, a stale generated page, or a bad table or baseline)." }
+
     # Runtime write probe, first half: what already sits untracked or ignored under the
     # code folders, so the probe after the test runs names only what they wrote.
     $runtimeSnapshot = Join-Path ([IO.Path]::GetTempPath()) "runtime-write-snapshot-$PID.json"

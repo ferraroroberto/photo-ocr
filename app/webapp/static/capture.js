@@ -167,7 +167,7 @@ export function renderTakeOptions() {
 
 export function openModelPicker() {
   const models = (state.config && state.config.ocr_models_available) || [];
-  openSheet({
+  const sheet = openSheet({
     title: 'Model for this take',
     track: 'take.model-sheet',
     actions: models.map(function (m) {
@@ -179,10 +179,11 @@ export function openModelPicker() {
       };
     }),
   });
+  sheet.dialog.dataset.surface = 'capture.model-picker';
 }
 
 export function openStylePicker() {
-  openSheet({
+  const sheet = openSheet({
     title: 'Style for this take',
     track: 'take.style-sheet',
     actions: (state.prompts || []).map(function (p) {
@@ -194,11 +195,12 @@ export function openStylePicker() {
       };
     }),
   });
+  sheet.dialog.dataset.surface = 'capture.style-picker';
 }
 
 // The strip's + tile and the take's ⋯ each open one sheet.
 function openAddSheet() {
-  openSheet({
+  const sheet = openSheet({
     title: 'Add photos',
     track: 'take.add-sheet',
     actions: [
@@ -206,10 +208,11 @@ function openAddSheet() {
       { label: 'Camera', track: 'take.add-camera', icon: 'camera', onSelect: function () { els.cameraInput.click(); } },
     ],
   });
+  sheet.dialog.dataset.surface = 'capture.add-sheet';
 }
 
 export function openTakeMoreSheet() {
-  openSheet({
+  const sheet = openSheet({
     title: 'This take',
     track: 'take.more-sheet',
     actions: [
@@ -217,6 +220,7 @@ export function openTakeMoreSheet() {
       { label: 'Start over', track: 'take.start-over', icon: 'eraser', onSelect: resetTake },
     ],
   });
+  sheet.dialog.dataset.surface = 'capture.take-more-sheet';
 }
 
 // ----------------------------------------------------------- photo sheet
@@ -297,6 +301,7 @@ function openPhotoSheet(photo) {
     className: 'photo-sheet-dialog',
     onClose: function () { focusTile(photo, Math.max(0, startIdx)); },
   });
+  sheet.dialog.dataset.surface = 'capture.photo-sheet';
   const title = sheet.dialog.querySelector('h2');
 
   function sync() {

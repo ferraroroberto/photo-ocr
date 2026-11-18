@@ -277,6 +277,7 @@ function renderHistory() {
       actionLabel: 'Capture a take',
       onAction: function () { document.getElementById('tabCapture').click(); },
     });
+    empty.dataset.surface = 'history.empty';
     const days = state.config && state.config.history_retention_days;
     if (days) {
       const hint = document.createElement('p');
@@ -308,16 +309,16 @@ function renderSearchResults() {
   els.historyList.innerHTML = '';
   if (!results.length) {
     const li = document.createElement('li');
-    li.appendChild(
-      emptyStateEl('history', 'No matches for “' + state.searchQuery + '”', {
-        actionLabel: 'Clear search',
-        onAction: function () {
-          clearSearch();
-          renderHistory();
-          if (els.historySearch) els.historySearch.focus();
-        },
-      })
-    );
+    const none = emptyStateEl('history', 'No matches for “' + state.searchQuery + '”', {
+      actionLabel: 'Clear search',
+      onAction: function () {
+        clearSearch();
+        renderHistory();
+        if (els.historySearch) els.historySearch.focus();
+      },
+    });
+    none.dataset.surface = 'history.no-matches';
+    li.appendChild(none);
     els.historyList.appendChild(li);
   } else {
     // Ranked by relevance, so no date overlines.
@@ -471,6 +472,7 @@ function openTakeSheet(take) {
       { label: 'Delete take', track: 'history.delete', icon: 'trash-2', tone: 'danger', onSelect: function () { confirmDelete(take); } },
     ],
   });
+  sheet.dialog.dataset.surface = 'history.take-sheet';
   const retryBtn = sheet.actions[1];
 
   jsonApi('/api/sessions/' + encodeURIComponent(take.session_id) + '/text')
@@ -505,7 +507,7 @@ function openTakeSheet(take) {
 // "Redo with…": the models, the take's own one marked.
 function openRedoPicker(take) {
   const models = (state.config && state.config.ocr_models_available) || [];
-  openSheet({
+  const sheet = openSheet({
     title: 'Redo with',
     track: 'history.redo-sheet',
     actions: models.map(function (m) {
@@ -517,6 +519,7 @@ function openRedoPicker(take) {
       };
     }),
   });
+  sheet.dialog.dataset.surface = 'history.redo-picker';
 }
 
 async function confirmDelete(take) {
@@ -526,6 +529,7 @@ async function confirmDelete(take) {
     message: 'Its photos and text are deleted for good.',
     confirmLabel: 'Delete',
     danger: true,
+    onOpen: function (dialog) { dialog.dataset.surface = 'history.confirm-delete'; },
   });
   if (yes) await deleteHistoryEntry(take);
 }
@@ -550,6 +554,7 @@ export async function cleanAllHistory() {
     message: 'Every saved take, with its photos and text, is deleted for good.',
     confirmLabel: 'Delete all',
     danger: true,
+    onOpen: function (dialog) { dialog.dataset.surface = 'settings.confirm-delete-all'; },
   });
   if (!yes) return;
   try {

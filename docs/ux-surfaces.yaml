@@ -1,0 +1,746 @@
+# UX surface map: the single source for docs/ux-surface-map.md.
+#
+# Every screen, drill-in, sheet, picker, state, gesture and key a person can reach
+# in Photo OCR, one entry per surface. The convention is project-scaffolding's
+# docs/ux-surface-map.md. Edit this file, never the generated page; then run
+# `python scripts/ux_surface_map.py`.
+#
+# A change that adds, removes, renames or reshapes a user-visible surface updates
+# its entry here in the same change, adds or removes the matching `data-surface`
+# attribute in the code, and regenerates the page. Every secondary sheet is opened
+# through app/webapp/static/sheet.js; its call site stamps the sheet's id.
+
+app: photo-ocr
+
+notes: >
+  One single-page app served at `/`. Phone first: a floating bottom-tab pill
+  switches Capture and History, and Settings is the header gear of every pane,
+  never a tab. On a mouse screen of 1100px and wider the same nav becomes a
+  vertical rail. Every secondary choice opens in one sheet (a native dialog
+  built by sheet.js) that a backdrop tap, Escape and the × all dismiss; a confirm
+  stacks over the sheet that asked for it. A take is the unit of work: add
+  photos, read them with one model and style, copy the text. Settings rows save to
+  the server as they change and confirm with a toast. Per-take choices (model,
+  style, Save to history) live on the Capture card; Settings holds the defaults a
+  new take starts from. Nothing here is built from a runtime id, so every
+  `data-surface` is a constant.
+
+walk:
+  date: 2026-11-18
+  build: e2e05dc
+  widths: [390, 1280]
+  themes: [light, dark]
+
+areas:
+  - id: chrome
+    title: Chrome
+    notes: What frames every pane, and the two overlays the app raises on its own.
+  - id: capture
+    title: Capture
+    notes: The default tab. One card shows one of three views of the take, with the sheets it opens.
+  - id: history
+    title: History
+  - id: settings
+    title: Settings
+  - id: keys
+    title: Keys and gestures
+
+surfaces:
+  - id: chrome.nav
+    area: chrome
+    title: Tab navigation
+    root: data-surface
+    reach:
+      - always on screen once a pane shows
+    holds:
+      - a Capture tab and a History tab
+    does:
+      - switches the pane and remembers the tab for the next launch
+      - choosing either tab leaves Settings
+      - opening History reloads its list
+    states:
+      - no tab is selected while Settings is open
+    phone: a floating pill at the bottom of a touch screen; a narrow window with a mouse puts it across the top
+    desktop: a vertical rail on a mouse screen of 1100px or wider
+    why: the fleet navigation contract; Settings is never a tab, so the pill holds only the two working views
+    links:
+      - to: capture.pane
+        via: Capture tab
+      - to: history.pane
+        via: History tab
+
+  - id: chrome.header
+    area: chrome
+    title: Pane header
+    root:
+      none: the same header card sits at the top of each pane and carries no id of its own
+    reach:
+      - the top of the Capture, History and Settings panes
+    holds:
+      - the pane's icon and title
+      - an exception line, empty when nothing is wrong (Capture and History only)
+      - a sun or moon button
+      - a gear button
+    does:
+      - the sun or moon toggles light and dark and remembers the choice
+      - the gear opens Settings
+    states:
+      - "Capture names at most two exceptions: Reading, N failed, Uploading N, N photos unread, N blurry or dark or glare, Not saved to History"
+      - "History names how many loaded takes are partly read"
+    why: the header says only what is out of the ordinary, so a normal take leaves it quiet
+    links:
+      - to: settings.pane
+        via: the gear
+
+  - id: chrome.page-foot
+    area: chrome
+    title: Build readout
+    root: data-surface
+    reach:
+      - the foot of every pane
+    holds:
+      - the git sha and build time the page is running
+    states:
+      - blank when the version call fails
+    why: answers "is the phone running the current code" from any tab
+
+  - id: chrome.toast
+    area: chrome
+    title: Toast
+    root: data-surface
+    reach:
+      - raised by an action's outcome
+    holds:
+      - one line of text
+    does:
+      - confirms a save, a copy or a finished read
+      - names a failure, tinted as an error
+    states:
+      - "errors: upload, delete, save, copy, search, retry and boot failures, a skipped non-image, the photo cap, and the three share problems"
+      - "locked: Photos are locked while a read is running"
+    why: the one fleet toast; only an error tints
+
+  - id: app.update-banner
+    area: chrome
+    title: New version banner
+    root: data-surface
+    reach:
+      - appears when the server runs a newer build than the page
+    holds:
+      - the text New version available
+      - a Reload button
+      - a dismiss button
+    does:
+      - Reload reloads the page, only ever on a tap
+      - dismiss keeps it down until the server moves to yet another build
+    why: a vendored component stamps this id itself
+
+  - id: shared.login
+    area: chrome
+    title: Sign-in sheet
+    root: data-surface
+    reach:
+      - any call the server answers with 401
+    holds:
+      - a password field
+      - an error line
+      - a Sign in button
+    does:
+      - a correct password closes the sheet and boots the app again
+    states:
+      - locked out after repeated wrong passwords
+    why: a vendored component stamps this id itself, so the app has no call site for it
+
+  - id: capture.pane
+    area: capture
+    title: Capture
+    root: data-surface
+    reach:
+      - the Capture tab
+      - the first screen on every launch, unless the last tab was History
+    holds:
+      - the pane header
+      - one take card showing the empty, photos or result view
+      - the build readout
+    does:
+      - holds the take until Start over or New take, across tab switches
+    why: Capture is the phone's landing view, so the empty take offers its two starts at once
+    links:
+      - to: capture.empty
+        via: no photos and no result
+      - to: capture.take-photos
+        via: photos added
+      - to: capture.result
+        via: a read finished
+      - to: settings.pane
+        via: the gear
+
+  - id: capture.empty
+    area: capture
+    title: Empty take
+    root: data-surface
+    reach:
+      - a fresh launch
+      - after Start over or New take
+    holds:
+      - the empty-state block saying Add photos of a page, a screen or a document
+      - Choose photos as the primary
+      - Camera as the second start
+    does:
+      - Choose photos opens the device's photo picker (multiple)
+      - Camera opens the camera
+    states:
+      - a pick or a drop that is not an image is skipped with a toast
+    why: takes mostly start from screenshots, so Choose photos leads and Camera follows
+    links:
+      - to: capture.take-photos
+        via: photos picked, dropped or shared
+
+  - id: capture.take-photos
+    area: capture
+    title: Photos in this take
+    root: data-surface
+    reach:
+      - the first photo added
+      - the N photos row on the result
+    holds:
+      - a Show the text row when a result exists
+      - the photo strip, one tile per photo, then a plus tile
+      - this take's model chip and style chip
+      - the Save to history switch
+      - the Extract text button (Extract again with a result) and a more button
+    does:
+      - a tile opens that photo's sheet
+      - the plus tile opens the Add photos sheet
+      - the chips open the model and style pickers
+      - the switch saves or withholds the take from History, and puts itself back if the server refuses
+      - Extract text starts a read
+      - the more button opens the This take sheet
+    states:
+      - "a tile shows its upload state: uploading, ready or failed"
+      - "a tile carries a Blurry, Dark or Glare chip when the on-device check warns; the warning is advice and never blocks Extract"
+      - "while a read runs, the plus tile, Extract and the switch are disabled and a tile tap only toasts"
+      - "at the take's photo cap the plus tile is disabled"
+      - Extract is hidden until a photo is ready
+    why: the strip is the take's only list, so the add tile ends it instead of a separate button
+    links:
+      - to: capture.photo-sheet
+        via: a photo tile
+      - to: capture.add-sheet
+        via: the plus tile
+      - to: capture.model-picker
+        via: the model chip
+      - to: capture.style-picker
+        via: the style chip
+      - to: capture.take-more-sheet
+        via: the more button
+      - to: capture.extracting
+        via: Extract text
+      - to: capture.result
+        via: Show the text
+
+  - id: capture.extracting
+    area: capture
+    title: Reading progress
+    root: data-surface
+    reach:
+      - Extract text, Retry missing or Redo from History
+    holds:
+      - a progress meter measured in job parts, never photos
+      - a label naming the step
+    states:
+      - the label starts as Reading, Redo or Retry followed by starting
+    why: a job is measured in parts so a slow photo never makes the bar run backwards
+    links:
+      - to: capture.result
+        via: the read finishes
+      - to: capture.error
+        via: the read fails
+
+  - id: capture.error
+    area: capture
+    title: Read failed line
+    root: data-surface
+    reach:
+      - a failed Extract, Redo or Retry
+    holds:
+      - the server's own message
+    states:
+      - the hub being down and the hub still working past the timeout read differently
+      - cleared when the next job starts
+    why: a failed job is told in the server's words, with a toast beside it
+
+  - id: capture.result
+    area: capture
+    title: Result
+    root: data-surface
+    reach:
+      - a finished read
+      - Show the text on the photos view
+      - Redo or Retry from a History take adopts that take here
+    holds:
+      - an N photos row that leads back to the photos
+      - a meta line with the model, time, whether it was cached and whether it was saved to History
+      - the text, editable
+      - Copy text as the primary
+      - New take
+      - Retry N unread on a partly read take
+    does:
+      - editing the text changes what Copy copies
+      - Copy text copies, then shows Copied for a moment
+      - New take drops the photos and the text
+      - Retry N unread re-reads only the photos that failed
+    states:
+      - "no readable text: a line says so and Copy is hidden"
+      - "partly read: the header counts N photos unread and Retry N unread shows"
+      - Retry is withheld once the photos changed since the read, because the server refuses it then
+      - "a History take has no photos here, so the N photos row is absent"
+    why: a result takes the card until the person asks for the photos, so the text is the first thing they see
+    links:
+      - to: capture.take-photos
+        via: the N photos row
+      - to: capture.empty
+        via: New take
+      - to: capture.extracting
+        via: Retry N unread
+
+  - id: capture.add-sheet
+    area: capture
+    title: Add photos sheet
+    root: data-surface
+    reach:
+      - the strip's plus tile
+    holds:
+      - Choose photos
+      - Camera
+    does:
+      - each closes the sheet and opens the matching picker
+    links:
+      - to: capture.take-photos
+        via: photos picked
+
+  - id: capture.take-more-sheet
+    area: capture
+    title: This take sheet
+    root: data-surface
+    reach:
+      - the more button beside Extract
+    holds:
+      - Start over
+    does:
+      - Start over drops the photos and the text at once, with no confirm
+    why: the result's New take does the same, so neither asks
+
+  - id: capture.photo-sheet
+    area: capture
+    title: Photo sheet
+    root: data-surface
+    reach:
+      - a photo tile
+    holds:
+      - the title Photo N of M
+      - the photo whole, in a box reserved before it loads
+      - a warning line for a warned photo
+      - Move left and Move right
+      - Retake and Keep it, for a warned photo
+      - Remove photo, last, in the danger tint
+    does:
+      - Move left and Move right reorder the take and keep the sheet open on the same photo
+      - Retake removes the photo and opens the camera
+      - Keep it dismisses the warning
+      - Remove photo deletes the photo
+    states:
+      - the move buttons disable at the strip's ends
+      - closing returns focus to the photo's tile, or to its neighbour once it is gone
+    why: moving a photo keeps the sheet open so a photo can be walked along the strip
+    links:
+      - to: capture.take-photos
+        via: close
+
+  - id: capture.model-picker
+    area: capture
+    title: Model for this take
+    root: data-surface
+    reach:
+      - the model chip
+    holds:
+      - one row per model the hub offers, the take's own marked with a check
+    does:
+      - a row sets this take's model and closes the sheet
+    why: the choice is per take; Settings keeps the default
+
+  - id: capture.style-picker
+    area: capture
+    title: Style for this take
+    root: data-surface
+    reach:
+      - the style chip
+    holds:
+      - one row per prompt style, the take's own marked with a check
+    does:
+      - a row sets this take's style and closes the sheet
+    why: the choice is per take; Settings keeps the default
+
+  - id: history.pane
+    area: history
+    title: History
+    root: data-surface
+    reach:
+      - the History tab
+    holds:
+      - the pane header
+      - the saved takes under date overlines
+      - the build readout
+    does:
+      - the list reloads every time the tab opens
+    why: there is no Refresh button because opening the tab is the refresh
+    links:
+      - to: history.list
+        via: saved takes
+      - to: history.empty
+        via: nothing saved
+      - to: settings.pane
+        via: the gear
+
+  - id: history.list
+    area: history
+    title: Saved takes
+    root: data-surface
+    reach:
+      - the History tab
+    holds:
+      - a search field, when the server has search on
+      - takes under date overlines, newest first
+      - each row with a snippet, the model, the time, any exception chip and the photo count
+      - a kebab on each row
+      - Load more, with the count left
+    does:
+      - a tap on a row copies that take's text and toasts the length
+      - the kebab opens the take's sheet
+      - typing searches the saved text after a short pause
+      - Load more appends the next page
+    states:
+      - "a search shows ranked hits with snippets and no date overlines, and no Load more"
+      - "chips mark a partly read, failed or still reading take"
+    why: the row tap copies because copying is what a saved take is for; the kebab holds the rest
+    links:
+      - to: history.take-sheet
+        via: the row's kebab
+      - to: history.no-matches
+        via: a search with no hits
+
+  - id: history.empty
+    area: history
+    title: Nothing saved
+    root: data-surface
+    reach:
+      - History with no saved takes
+    holds:
+      - the empty-state block saying No saved takes
+      - how many days takes are kept, when Save to history is on
+      - a Capture a take button
+    does:
+      - Capture a take switches to the Capture tab
+    links:
+      - to: capture.pane
+        via: Capture a take
+
+  - id: history.no-matches
+    area: history
+    title: No matches
+    root: data-surface
+    reach:
+      - a search that finds nothing
+    holds:
+      - the empty-state block naming the query
+      - a Clear search button
+    does:
+      - Clear search empties the field and returns to the list
+    links:
+      - to: history.list
+        via: Clear search
+
+  - id: history.take-sheet
+    area: history
+    title: Take sheet
+    root: data-surface
+    reach:
+      - a History row's kebab
+    holds:
+      - the take's date and time as the title
+      - a meta line with the photo count, model, duration and exception chips
+      - the take's text, read-only, in a box reserved before it arrives
+      - Copy text as the primary
+      - Retry N unread
+      - Redo with…
+      - Delete take, last, in the danger tint
+    does:
+      - Copy text copies the take's text
+      - Retry N unread re-reads the photos that failed and shows the result on Capture
+      - Redo with… opens the model picker
+      - Delete take asks first
+    states:
+      - "loading: the text box reads Loading the text…"
+      - "a failed redo keeps the last good text and says why the last read failed"
+      - "a search hit does not know its unread photos, so Retry stays hidden until the server answers"
+    why: the take's actions live in one sheet so a row stays a single tap target
+    links:
+      - to: history.redo-picker
+        via: Redo with…
+      - to: history.confirm-delete
+        via: Delete take
+      - to: capture.result
+        via: Retry N unread
+
+  - id: history.redo-picker
+    area: history
+    title: Redo with
+    root: data-surface
+    reach:
+      - Redo with… on the take sheet
+    holds:
+      - one row per model, the take's own marked with a check
+    does:
+      - a row re-reads the take with that model and its own style, then shows the result on Capture
+    links:
+      - to: capture.extracting
+        via: a model row
+
+  - id: history.confirm-delete
+    area: history
+    title: Delete this take
+    root: data-surface
+    reach:
+      - Delete take on the take sheet
+    holds:
+      - the question Delete this take?
+      - a line saying the photos and text are deleted for good
+      - Cancel and Delete
+    does:
+      - Delete removes the take and reloads the list
+      - Cancel, the ×, a backdrop tap and Escape all keep it
+    why: focus lands on Cancel so an Enter on an unread question cannot delete; this stacks over the take sheet
+
+  - id: settings.pane
+    area: settings
+    title: Settings
+    root: data-surface
+    reach:
+      - the gear in any pane's header
+    holds:
+      - the pane header, with its own sun or moon and gear
+      - the Display, Reading and Storage groups
+      - the build readout
+    does:
+      - each row saves to the server as it changes and toasts the result
+    states:
+      - a failed save toasts and puts the row back
+    why: Settings is a pane over the tabs, not a tab, so the nav leaves no tab selected
+    links:
+      - to: settings.display
+        via: Display
+      - to: settings.reading
+        via: Reading
+      - to: settings.storage
+        via: Storage
+      - to: capture.pane
+        via: the Capture tab
+      - to: history.pane
+        via: the History tab
+
+  - id: settings.display
+    area: settings
+    title: Display group
+    root: data-surface
+    reach:
+      - Settings
+    holds:
+      - Text size as a Small, Default, Large control
+    does:
+      - a choice applies at once and is remembered on this device
+    why: changed often, so it stays inline instead of opening a sheet
+
+  - id: settings.reading
+    area: settings
+    title: Reading group
+    root: data-surface
+    reach:
+      - Settings
+    holds:
+      - Default model with its current value
+      - Style with its current value
+      - Prompt, which reads View
+    does:
+      - each row opens its sheet
+    links:
+      - to: settings.model-sheet
+        via: Default model
+      - to: settings.style-sheet
+        via: Style
+      - to: settings.prompt-sheet
+        via: Prompt
+
+  - id: settings.storage
+    area: settings
+    title: Storage group
+    root: data-surface
+    reach:
+      - Settings
+    holds:
+      - Keep takes for with its current value
+      - Max photos per take with its current value
+      - Delete all saved takes…, in the danger tint
+    does:
+      - the first two rows open their sheets
+      - Delete all saved takes… asks first
+    links:
+      - to: settings.retention-sheet
+        via: Keep takes for
+      - to: settings.max-photos-sheet
+        via: Max photos per take
+      - to: settings.confirm-delete-all
+        via: Delete all saved takes…
+
+  - id: settings.model-sheet
+    area: settings
+    title: Default model
+    root: data-surface
+    reach:
+      - the Default model row
+    holds:
+      - one row per model the hub offers, the default marked with a check
+    does:
+      - a row saves the default and toasts it
+      - a take still on the old default follows the new one; a take whose chip was changed keeps its choice
+    why: the Capture chip changes one take; this changes where every new take starts
+
+  - id: settings.style-sheet
+    area: settings
+    title: Style
+    root: data-surface
+    reach:
+      - the Style row
+    holds:
+      - one row per prompt style, the default marked with a check
+    does:
+      - a row saves the default and toasts it
+
+  - id: settings.prompt-sheet
+    area: settings
+    title: Prompt
+    root: data-surface
+    reach:
+      - the Prompt row
+    holds:
+      - a line naming the style it shows
+      - the system prompt that style sends, read-only
+    why: read-only, so what the model is told is never a mystery and never editable by accident
+
+  - id: settings.retention-sheet
+    area: settings
+    title: Keep takes for
+    root: data-surface
+    reach:
+      - the Keep takes for row
+    holds:
+      - four presets as one segmented control
+      - a note under it
+    does:
+      - a preset saves, and the raised segment moves only once the server has it
+    states:
+      - a stored value outside the presets raises no segment and is named in the note until a preset replaces it
+    why: presets, not a free number, because retention is a few clear choices
+
+  - id: settings.max-photos-sheet
+    area: settings
+    title: Max photos per take
+    root: data-surface
+    reach:
+      - the Max photos per take row
+    holds:
+      - a number field for photos per take
+      - an error line
+    does:
+      - the number saves when the field is left, or on Enter
+    states:
+      - "a value that is not a whole number from 1 to 100 is refused in place, with the error line, and the field returns to the saved value"
+
+  - id: settings.confirm-delete-all
+    area: settings
+    title: Delete all saved takes
+    root: data-surface
+    reach:
+      - Delete all saved takes… in Settings
+    holds:
+      - the question Delete all saved takes?
+      - a line saying every take, with its photos and text, is deleted for good
+      - Cancel and Delete all
+    does:
+      - Delete all clears History and toasts
+      - Cancel, the ×, a backdrop tap and Escape keep everything
+    why: the same confirm as one take's, with focus on Cancel
+
+  - id: capture.drop
+    area: capture
+    title: Drop photos
+    root:
+      none: a drop is handled on the whole page and shows no element of its own
+    reach:
+      - dragging image files onto the page, on a desktop
+    does:
+      - adds them to the take as if picked
+    states:
+      - locked with a toast while a read runs, and refused at the photo cap
+      - a History take showing on Capture is replaced by a new take first
+    phone: not reachable
+    links:
+      - to: capture.take-photos
+        via: files dropped
+
+  - id: capture.shared
+    area: capture
+    title: Shared photos
+    root:
+      none: photos shared from the Android share sheet arrive on Capture and draw no surface of their own
+    reach:
+      - the installed app chosen in the Android share sheet
+    does:
+      - a service worker parks the photos, the page switches to Capture and adds them to the take
+    states:
+      - "a share with no photos, one that arrived before the app was ready, and one that could not be read each end in an error toast"
+    phone: Android installed app only
+    links:
+      - to: capture.take-photos
+        via: shared photos added
+
+  - id: keys.start-labels
+    area: keys
+    title: Start buttons by keyboard
+    root:
+      none: a key path on the empty take's two starts
+    reach:
+      - Enter or Space on Choose photos or Camera
+    does:
+      - opens the same picker a tap does
+    why: the starts are labels for hidden file inputs, the most reliable picker trigger on iOS, so they need their own key handling
+
+  - id: keys.nav
+    area: keys
+    title: Tab keys
+    root:
+      none: a key path on the tab navigation
+    reach:
+      - focus on a tab
+    does:
+      - the arrow keys move between tabs, and Home and End jump to the first and last
+
+  - id: keys.sheet-dismiss
+    area: keys
+    title: Dismissing a sheet
+    root:
+      none: every sheet dismisses the same way, so the paths are listed once here
+    reach:
+      - Escape, a tap on the backdrop or the ×
+    does:
+      - closes the sheet and returns focus to what opened it
+      - a confirm treats each as Cancel

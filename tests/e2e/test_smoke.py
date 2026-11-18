@@ -92,7 +92,7 @@ def test_boot_renders_spa(authed_page: Page, base_url: str) -> None:
     pw.fill("dummy")
     expect(pw).to_have_value("dummy")
     expect(sheet.locator("[data-track=sign-in-submit]")).to_be_enabled()
-    surface(authed_page, "sign-in.sheet")
+    surface(authed_page, "shared.login")
 
 
 class _ConfigStore:

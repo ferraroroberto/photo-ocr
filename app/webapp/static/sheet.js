@@ -38,6 +38,7 @@ export function openSheet(o) {
   const titleId = 'sheetTitle' + (++sheetSeq);
   let reason = 'dismiss';
 
+  // unmarked-surface-exempt: each call site stamps its own constant id on the dialog it gets back.
   const dialog = document.createElement('dialog');
   dialog.className = 'detail-dialog sheet' + (o.className ? ' ' + o.className : '');
   dialog.setAttribute('aria-labelledby', titleId);
@@ -131,6 +132,8 @@ export function openSheet(o) {
  * @param {string} [o.message]      one sentence saying what happens
  * @param {string} o.confirmLabel   the verb ("Delete")
  * @param {boolean} [o.danger]      draw the verb in the danger tint
+ * @param {(dialog: HTMLDialogElement) => void} [o.onOpen]  called once the sheet is up, so the
+ *                                  caller can stamp its constant `data-surface` on the dialog
  * @returns {Promise<boolean>}
  */
 export function confirmSheet(o) {
@@ -168,6 +171,7 @@ export function confirmSheet(o) {
       className: 'confirm-sheet',
       onClose: function () { resolve(yes); },
     });
+    if (o.onOpen) o.onOpen(sheet.dialog);
     cancel.addEventListener('click', function () { sheet.close(); });
     go.addEventListener('click', function () { yes = true; sheet.close(); });
     // Land on Cancel: Enter on an unread question must not delete.
