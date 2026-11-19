@@ -219,11 +219,13 @@ async def _bombard_with_aborts(rounds: int, burst: int) -> None:
         await server.wait_closed()
 
 
+@pytest.mark.windows_only
 @pytest.mark.skipif(sys.platform != "win32", reason="proactor-loop bug is Windows-only")
 def test_selector_loop_survives_aborted_connections():
     asyncio.run(_bombard_with_aborts(rounds=10, burst=20), loop_factory=asyncio.SelectorEventLoop)
 
 
+@pytest.mark.windows_only
 @pytest.mark.skipif(sys.platform != "win32", reason="proactor-loop bug is Windows-only")
 def test_proactor_loop_dies_on_aborted_connections():
     """Documents the bug this issue fixes — the shim exists because this

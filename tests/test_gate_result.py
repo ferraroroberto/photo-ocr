@@ -61,6 +61,7 @@ def _last_line(run: subprocess.CompletedProcess[str]) -> str:
     return lines[-1]
 
 
+@pytest.mark.windows_only
 @windows_only
 def test_pass_ends_with_pass_and_exits_zero() -> None:
     run = _run_scenario("Complete-Gate 0")
@@ -68,6 +69,7 @@ def test_pass_ends_with_pass_and_exits_zero() -> None:
     assert _last_line(run) == "GATE-RESULT: PASS"
 
 
+@pytest.mark.windows_only
 @windows_only
 def test_failed_stage_ends_with_fail_and_exits_one() -> None:
     run = _run_scenario('Fail "static ratchet failed."')
@@ -76,6 +78,7 @@ def test_failed_stage_ends_with_fail_and_exits_one() -> None:
     assert "[X] static ratchet failed." in run.stdout
 
 
+@pytest.mark.windows_only
 @windows_only
 def test_early_terminating_error_reports_on_stdout_then_fails() -> None:
     run = _run_scenario('throw "boom before any stage"')
@@ -84,6 +87,7 @@ def test_early_terminating_error_reports_on_stdout_then_fails() -> None:
     assert "boom before any stage" in run.stdout, "the error must reach stdout, not only stderr"
 
 
+@pytest.mark.windows_only
 @windows_only
 def test_missing_venv_ends_with_fail_and_exits_one(tmp_path: Path) -> None:
     """The real script, copied beside no `.venv`, fails before running any stage."""

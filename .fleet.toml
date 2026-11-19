@@ -279,6 +279,20 @@ theme_storage_key = "photo-ocr.theme"
 command = ["scripts/design_review_synthetic.py"]
 startup_timeout_s = 60
 
+# The Mac Mini nightly (project-scaffolding docs/mac-runner.md, "The [ci.nightly]
+# table"): a fresh .venv from the two requirements files, the committed config
+# samples seeded, the unit suite without the windows_only tests, the e2e suite on
+# the iPhone WebKit projection, and the simulator smoke of "/" against the
+# throwaway instance [design.review.synthetic] declares. The Windows pre-ship gate
+# stays the contract and keeps running every test.
+[ci.nightly]
+python       = "3.14"
+requirements = ["requirements.txt", "requirements-dev.txt"]
+samples      = "config"
+unit         = ["tests", "--ignore=tests/e2e"]
+e2e          = ["tests/e2e", "--e2e-autoboot"]
+views        = ["/"]
+
 # Diff-proportionate e2e routing (project-scaffolding docs/e2e-routing.md).
 # `scripts/classify_e2e.py` maps this branch's changed files to a tier; rules
 # are tried in declaration order, first match wins. Only plainly inert paths
