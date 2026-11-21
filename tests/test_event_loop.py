@@ -1,10 +1,10 @@
-"""Selector event-loop shim (issue #82) — root cause of the ":8444 wedge".
+"""Selector event loop — root cause of the ":8444 wedge".
 
 asyncio's default Windows proactor event loop closes its listening socket
 on any aborted client connection (WinError 64); the selector loop's accept
 path doesn't. These tests cover the wiring (every uvicorn spawn of
-``app.webapp.server:app`` picks the shim) and the actual accept-loop
-resilience the shim buys.
+``app.webapp.server:app`` takes ``serve``'s default loop) and the actual accept-loop
+resilience the selector loop buys.
 """
 
 from __future__ import annotations
@@ -17,8 +17,8 @@ from pathlib import Path
 
 import pytest
 
-from app.webapp.event_loop import LOOP_FACTORY, selector_loop_factory
 from app.webapp.manager import WebappManager, WebappManagerConfig
+from app.webapp.serve import selector_loop_factory
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -38,10 +38,9 @@ def test_selector_loop_factory_defers_on_other_platforms(monkeypatch):
 
 
 def test_selector_loop_factory_is_zero_arg_and_returns_an_instance():
-    """Regression pin: uvicorn imports a *custom* --loop target and calls
-    it as a bare Callable[[], AbstractEventLoop] -- no use_subprocess kwarg,
-    and it must return an instantiated loop, not a loop class (original
-    bug: returning the class left Runner calling unbound methods)."""
+    """Regression pin: asyncio.Runner calls the factory bare, so it must
+    return an instantiated loop, not a loop class (original bug: returning
+    the class left Runner calling unbound methods)."""
     loop = selector_loop_factory()
     try:
         assert isinstance(loop, asyncio.AbstractEventLoop)
@@ -57,14 +56,12 @@ def test_manager_build_command_launches_serve_module():
     assert fallback[fallback.index("--server") + 1] == "uvicorn"
 
 
-def test_manager_build_command_passes_loop_factory():
-    mgr = WebappManager(WebappManagerConfig(port=18444))
-    cmd = mgr._build_command()
-    assert "--loop" in cmd
-    assert cmd[cmd.index("--loop") + 1] == LOOP_FACTORY
+def test_manager_build_command_leaves_loop_to_serve_default():
+    cmd = WebappManager(WebappManagerConfig(port=18444))._build_command()
+    assert "--loop" not in cmd
 
 
-def test_webapp_cmd_passes_loop_factory(monkeypatch):
+def test_webapp_cmd_leaves_loop_to_serve_default(monkeypatch):
     import argparse
 
     from app.cli.commands.webapp_cmd import WebappCommand
@@ -82,7 +79,7 @@ def test_webapp_cmd_passes_loop_factory(monkeypatch):
 
     config = AppConfig(webapp={"host": "127.0.0.1", "port": 18444})
     WebappCommand(config=config).execute(argparse.Namespace(host=None, port=None))
-    assert captured.get("loop_factory") is selector_loop_factory
+    assert "loop_factory" not in captured
     assert captured.get("server") == "hypercorn"
 
 
@@ -111,7 +108,7 @@ def test_disposable_webapp_reuses_manager_command(monkeypatch):
         assert base.startswith(("http://127.0.0.1:", "https://127.0.0.1:"))
 
     cmd = captured["cmd"]
-    assert cmd[cmd.index("--loop") + 1] == LOOP_FACTORY
+    assert "--loop" not in cmd
     assert cmd[cmd.index("--host") + 1] == "127.0.0.1"
     assert not captured["data_dir"].exists(), "temp data dir must be removed on exit"
 
@@ -144,13 +141,12 @@ def test_webapp_bat_delegates_to_webapp_subcommand():
     assert "uvicorn" not in src.replace("REM", "")
 
 
-def test_run_named_tunnel_wires_loop_factory(monkeypatch):
+def test_run_named_tunnel_reuses_manager_command(monkeypatch):
     """scripts/run_named_tunnel.py backs webapp_tunnel_named.bat (headless/
     no-tray use) — the one uvicorn entrypoint the proactor-loop fix
-    (commit 5750f6c) didn't originally reach. It now reuses
-    WebappManager._build_command (covered by
-    test_manager_build_command_passes_loop_factory above) instead of a
-    second hand-rolled argv, so pin that it actually gets wired through."""
+    wedge fix didn't originally reach. It reuses WebappManager._build_command
+    instead of a second hand-rolled argv, so pin that the serve argv gets
+    through and carries no loop override."""
     from scripts import run_named_tunnel
 
     captured = {}
@@ -163,8 +159,8 @@ def test_run_named_tunnel_wires_loop_factory(monkeypatch):
     run_named_tunnel._spawn_uvicorn(18444)
 
     cmd = captured["cmd"]
-    assert "--loop" in cmd
-    assert cmd[cmd.index("--loop") + 1] == LOOP_FACTORY
+    assert cmd[cmd.index("-m") + 1] == "app.webapp.serve"
+    assert "--loop" not in cmd
     assert cmd[cmd.index("--host") + 1] == "127.0.0.1"
     assert cmd[cmd.index("--port") + 1] == "18444"
 
@@ -213,7 +209,7 @@ async def _bombard_with_aborts(rounds: int, burst: int) -> None:
             await asyncio.sleep(0.02)
             assert await _still_accepting(
                 port
-            ), "listener died on an aborted client connection (issue #82)"
+            ), "listener died on an aborted client connection"
     finally:
         server.close()
         await server.wait_closed()
@@ -228,9 +224,9 @@ def test_selector_loop_survives_aborted_connections():
 @pytest.mark.windows_only
 @pytest.mark.skipif(sys.platform != "win32", reason="proactor-loop bug is Windows-only")
 def test_proactor_loop_dies_on_aborted_connections():
-    """Documents the bug this issue fixes — the shim exists because this
-    fails. If a future CPython/uvicorn release fixes the proactor loop
-    itself, this test (not the shim) is what should be revisited."""
+    """Documents the bug the selector loop avoids — it is the default because
+    this fails. If a future CPython release fixes the proactor loop itself,
+    this test (not the default) is what should be revisited."""
     with pytest.raises(AssertionError):
         asyncio.run(
             _bombard_with_aborts(rounds=10, burst=20), loop_factory=asyncio.ProactorEventLoop
@@ -262,6 +258,21 @@ def test_serve_argv_has_one_home():
         if p not in allowed and pattern.search(p.read_text(encoding="utf-8", errors="replace"))
     ]
     assert not offenders, f"hand-built serve argv outside the manager: {offenders}"
+
+
+def test_selector_loop_factory_has_one_home():
+    """The loop choice lives only in the vendored serve.py: a second copy under
+    app/ or src/ would not receive an upstream fix delivered by re-vendoring."""
+    import re
+
+    pattern = re.compile(r"^\s*def selector_loop_factory\(", re.MULTILINE)
+    homes = [
+        str(p.relative_to(_REPO_ROOT)).replace("\\", "/")
+        for r in (_REPO_ROOT / "app", _REPO_ROOT / "src")
+        for p in r.rglob("*.py")
+        if pattern.search(p.read_text(encoding="utf-8", errors="replace"))
+    ]
+    assert homes == ["app/webapp/serve.py"], homes
 
 
 def test_disposable_webapp_isolates_archive_and_data(monkeypatch):
