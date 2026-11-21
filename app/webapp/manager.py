@@ -31,7 +31,6 @@ from cryptography import x509
 
 # Local imports
 from app.tray.single_instance import cross_process_lock
-from app.webapp.event_loop import LOOP_FACTORY
 from src.cloudflared_runner import stop_process
 from src.no_window import NEW_GROUP_NO_WINDOW, NO_WINDOW
 
@@ -346,8 +345,6 @@ class WebappManager:
             str(port if port is not None else self.config.port),
             "--log-level",
             "warning",
-            "--loop",
-            LOOP_FACTORY,
             "--server",
             self.config.server,
         ]
