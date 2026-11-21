@@ -1,5 +1,4 @@
-"""Configuration + status routes: read/patch webapp config, llm_hub
-reachability."""
+"""Configuration routes: read and patch the webapp config."""
 
 from __future__ import annotations
 
@@ -11,7 +10,6 @@ from fastapi import APIRouter, HTTPException, Request
 
 # Local imports
 from src import password
-from src.ocr_client import OcrClient
 from src.ocr_prompts import OcrPrompt, load_ocr_prompts
 from src.webapp_config import WebappConfig, update_webapp_config
 
@@ -72,14 +70,3 @@ async def patch_config(request: Request) -> Dict[str, Any]:
         raise HTTPException(status_code=400, detail=str(exc))
     request.app.state.webapp_config = new_cfg
     return {"ok": True, "config": _config_response(new_cfg)}
-
-
-@router.get("/api/status")
-async def status(request: Request) -> Dict[str, Any]:
-    ocr: OcrClient = request.app.state.ocr_client
-    return {
-        "llm_hub": {
-            "reachable": ocr.is_reachable(),
-            "base_url": ocr.base_url,
-        },
-    }

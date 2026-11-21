@@ -664,12 +664,3 @@ async def delete_one_session(session_id: str, request: Request) -> Dict[str, Any
     if not archive.delete_session(session_id):
         raise HTTPException(status_code=404, detail=f"unknown session {session_id}")
     return {"removed": session_id}
-
-
-@router.delete("/api/sessions/older-than/{days}")
-async def delete_old_sessions(days: int, request: Request) -> Dict[str, Any]:
-    if days < 1:
-        raise HTTPException(status_code=400, detail="days must be >= 1")
-    archive: SessionArchive = request.app.state.archive
-    removed = archive.cleanup_older_than(days)
-    return {"removed": removed}

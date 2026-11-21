@@ -1,4 +1,4 @@
-"""Tests for the FastAPI app — /healthz, /api/config, /api/status."""
+"""Tests for the FastAPI app — /healthz, /api/config, /api/version."""
 
 from __future__ import annotations
 
@@ -45,15 +45,6 @@ def test_get_config_returns_prompts_and_models(app_factory) -> None:
         assert "ocr_models_available" in body
         assert isinstance(body["ocr_prompts"], list)
         assert any(p["id"] == "verbatim-merge" for p in body["ocr_prompts"])
-
-
-def test_status_returns_hub_block(app_factory) -> None:
-    with TestClient(app_factory()) as client:
-        r = client.get("/api/status")
-        assert r.status_code == 200
-        body = r.json()
-        assert "llm_hub" in body
-        assert "reachable" in body["llm_hub"]
 
 
 class TestBuildVersion:

@@ -173,7 +173,7 @@ tunnel in the background so the public URL is up alongside the webapp.
     tunnel comes up).
   - **🔄 Restart webapp** — stop + start the webapp so a fresh pull is
     picked up without quitting the tray.
-  - **ℹ️ Status** — popup with hub + webapp state.
+  - **ℹ️ Status** — popup with webapp state.
   - **🚪 Quit** — stops cloudflared (if running) and the webapp.
 
 **Self-heal:** the initial webapp spawn at tray boot retries
