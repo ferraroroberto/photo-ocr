@@ -10,7 +10,7 @@ Menu:
     Copy Tailscale URL         — clipboard https://<tailscale-host>:8444?token=…
     Copy Cloudflare URL        — clipboard the public URL with ?token=…
     Restart webapp             — stop + start so a new pull is picked up
-    Status                     — popup with hub + webapp state
+    Status                     — popup with webapp state
     --
     Quit                       — stop the webapp and exit
 """
