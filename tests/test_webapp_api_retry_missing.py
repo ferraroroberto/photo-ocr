@@ -135,6 +135,24 @@ def test_retry_missing_wait_returns_the_single_shot_shape(client: TestClient) ->
     assert hub.calls == [[2]]
 
 
+def test_retry_missing_saves_the_recollated_chars_duration_and_model(
+    client: TestClient,
+) -> None:
+    sid, hub = _partial_session(client)
+    first = client.app.state.archive.get(sid).meta
+    first_duration = first.extract_duration_s
+    hub.failing = set()
+    with patch.object(client.app.state.ocr_client._session, "post", side_effect=hub):
+        r = client.post(f"/api/sessions/{sid}/retry-missing", params={"wait": "true"})
+    assert r.status_code == 200
+
+    text = "page 1\npage 2\npage 3"
+    meta = client.app.state.archive.get(sid).meta
+    assert r.json()["chars"] == len(text)
+    assert meta.extracted_chars == len(text)
+    assert meta.extract_duration_s > first_duration
+
+
 def test_retry_missing_nothing_missing_is_400(
     client: TestClient, jpeg_bytes: bytes
 ) -> None:

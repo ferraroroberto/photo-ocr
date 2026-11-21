@@ -296,6 +296,49 @@ def _record_extract_success(
     _index_session_best_effort(cfg, archive, current)
 
 
+def _record_retry_success(
+    cfg: WebappConfig,
+    archive: SessionArchive,
+    session: Session,
+    result: OcrResult,
+    *,
+    total_units: int,
+    started: float,
+    recovered: int,
+    missing_before: int,
+) -> None:
+    """Write a recollated retry and mark the take succeeded.
+
+    One ``Session`` object runs the whole merge: ``_settle`` reloads the take
+    from disk, which would drop the chars, duration and model that
+    ``write_extracted`` sets in memory."""
+    current = archive.get(session.session_id) or session
+    set_extract_progress(current, phase=ExtractPhase.MERGING, chunks_done=total_units)
+    current.write_extracted(
+        result.extracted_text,
+        model=result.model,
+        request_payload=result.request_payload,
+        response_payload=result.response_payload,
+        prompt_id=current.meta.prompt_id,
+        duration_s=(current.meta.extract_duration_s or 0.0)
+        + (time.monotonic() - started),
+    )
+    set_extract_progress(
+        current,
+        phase=ExtractPhase.SUCCEEDED,
+        chunks_done=total_units,
+        model=result.model,
+        error=None,
+        retry_error=None,
+        missing_photos=result.missing_photos,
+    )
+    logger.info(
+        f"✅ Retry recovered {recovered} of {missing_before} missing photo(s) "
+        f"for {current.session_id}"
+    )
+    _index_session_best_effort(cfg, archive, current)
+
+
 def execute_retry_missing_job(app: Any, session_id: str) -> None:
     """Re-read only the photos a finished take left unread, then re-collate.
 
@@ -361,27 +404,8 @@ def execute_retry_missing_job(app: Any, session_id: str) -> None:
             _settle(phase=ExtractPhase.SUCCEEDED, retry_error=str(exc))
             return
 
-        current = archive.get(session_id) or session
-        _settle(phase=ExtractPhase.MERGING, chunks_done=total_units)
-        current.write_extracted(
-            result.extracted_text,
-            model=result.model,
-            request_payload=result.request_payload,
-            response_payload=result.response_payload,
-            prompt_id=current.meta.prompt_id,
-            duration_s=(current.meta.extract_duration_s or 0.0)
-            + (time.monotonic() - t0),
+        _record_retry_success(
+            cfg, archive, session, result, total_units=total_units,
+            started=t0, recovered=len(before) - len(result.missing_photos),
+            missing_before=len(before),
         )
-        _settle(
-            phase=ExtractPhase.SUCCEEDED,
-            chunks_done=total_units,
-            model=result.model,
-            error=None,
-            retry_error=None,
-            missing_photos=result.missing_photos,
-        )
-        logger.info(
-            f"✅ Retry recovered {len(before) - len(result.missing_photos)} of "
-            f"{len(before)} missing photo(s) for {session_id}"
-        )
-        _index_session_best_effort(cfg, archive, current)
