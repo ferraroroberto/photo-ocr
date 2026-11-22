@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "entries": [
+    {"key": "app/webapp/manager.py", "counts": {"unwatched-loop": 1}},
+    {"key": "app/webapp/routers/sessions.py", "counts": {"default-pool": 4}},
+    {"key": "app/webapp/server.py", "counts": {"timing-middleware": 1}}
+  ]
+}

@@ -104,6 +104,19 @@ or config names goes through `src/runtime_files.py`, which raises at runtime whe
 path resolves under `src/`, `app/` or `scripts/`; only that module (plus the search
 index connection) carries runtime-write exempt markers.
 
+The request budget ratchet (`scripts/request_budget_ratchet.py` with its sibling
+`request_budget_scan.py`, rules in `.fleet.toml` `[request_budget_ratchet]`) reads browser
+JS and server Python and counts, per file, fixed-rate polls that reach the server, polls
+under the 2 s floor, server loops that sleep under 5 s or run an outside program,
+directory scans in `app/webapp/routers`, `asyncio.to_thread` and `run_in_executor(None, ...)`
+default-pool use, and a web app that never installs `RequestTimingMiddleware`. A count
+above `.request-budget-ratchet-baseline.json` fails the gate, naming the file and rule; a
+file it cannot read or parse fails as NOT CONFIRMED rather than passing. The baseline only
+shrinks (`--update-baseline`); a background loop that must run while nobody views the app
+is declared in `[[request_budget.loops]]` with its reason, and a single hit that must stay
+carries `request-budget-exempt: <reason>`. The vendored `_vendored/poll` helper and
+`src/request_timing.py` are what the burn-down moves callers onto.
+
 ## Surfaces and loopback ports
 
 Each surface the suite opens is tagged `surface(page, "<id>")` from the vendored
