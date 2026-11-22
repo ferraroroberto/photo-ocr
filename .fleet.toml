@@ -53,7 +53,7 @@ icon-button = { src = "app/webapp/static/_vendored/icon-button", sha = "5d460bd1
 card = { src = "app/webapp/static/_vendored/card", sha = "8f15c49560adbc076d24a8a63dd671868ffa7a4e", dest = "app/webapp/static/_vendored/card" }
 empty-state = { src = "app/webapp/static/_vendored/empty-state", sha = "a04abc7b3af872cbac974401dd0945587eac6cef", dest = "app/webapp/static/_vendored/empty-state" }
 segmented = { src = "app/webapp/static/_vendored/segmented", sha = "5d460bd1d9d44eed955c5357d1c9f622f2550ad8", dest = "app/webapp/static/_vendored/segmented" }
-page-foot = { src = "app/webapp/static/_vendored/page-foot", sha = "fe8cc1bdbd038ed65947186248df13072eceb25a", dest = "app/webapp/static/_vendored/page-foot" }
+page-foot = { src = "app/webapp/static/_vendored/page-foot", sha = "3f1dcc76d5ba40c8b3d12a80a99659816ce1dd0e", dest = "app/webapp/static/_vendored/page-foot" }
 usage-log = { src = "app/webapp/static/_vendored/usage-log", sha = "bfc660da641a05baf818d6ff7302bdd91b7d9a78", dest = "app/webapp/static/_vendored/usage-log" }
 usage_log = { src = "src/usage_log.py", sha = "78635aa74a92b9622326cb53992e0634fbaf6246", dest = "src/usage_log.py" }
 usage_track_ratchet = { src = "scripts/usage_track_ratchet.py", sha = "4a06ca84fc9c5005d4be7fa505c9d0e7c0472dba", dest = "scripts/usage_track_ratchet.py" }
@@ -98,6 +98,7 @@ no_window = { src = "src/no_window.py", sha = "ade32f799c9102daf72535b4899ab2843
 # that cannot run exits 3, which fails the gate. Vendored copies are duplicates by
 # design, so they are excluded. Procedure + limits: project-scaffolding
 # docs/static-ratchet.md.
+self_restart = { src = "src/self_restart.py", sha = "3f1dcc76d5ba40c8b3d12a80a99659816ce1dd0e", dest = "src/self_restart.py" }
 [static_ratchet]
 enabled  = true
 baseline = ".static-ratchet-baseline.json"

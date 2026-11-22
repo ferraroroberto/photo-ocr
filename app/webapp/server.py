@@ -27,7 +27,7 @@ from starlette.types import Scope
 
 # Local imports
 from app.webapp.login_alert import build_login_lockout
-from app.webapp.middleware import BearerTokenMiddleware
+from app.webapp.middleware import BearerTokenMiddleware, require_authenticated
 from app.webapp.routers import auth, config, misc, search, sessions
 from app.webapp.routers._helpers import BUILD_INFO, STATIC_DIR
 from src.app_config import load_app_config
@@ -35,7 +35,8 @@ from src.archive import SessionArchive
 from src.compression import StreamSafeGZipMiddleware
 from src.extract_job import settle_interrupted_extracts
 from src.ocr_client import OcrClient
-from src.runtime_data import runtime_db_path
+from src.runtime_data import runtime_data_dir, runtime_db_path
+from src.self_restart import TRAY_RESTART, RestartTarget, restart_router
 from src.usage_log import usage_router
 from src.webapp_config import WebappConfig, load_webapp_config
 
@@ -134,6 +135,18 @@ async def _lifespan(app: FastAPI):
         pass
 
 
+def _mount_restart(app: FastAPI) -> None:
+    """The build readout's restart sheet: runs this repo's own `tray.bat --restart`.
+
+    Behind the same bearer gate as every other /api write (loopback bypasses it).
+    """
+    app.include_router(restart_router(
+        targets=[RestartTarget("app", "Restart app", TRAY_RESTART)],
+        status_dir=runtime_data_dir("photo-ocr") / "restart",
+        guard=require_authenticated,
+    ))
+
+
 def create_app() -> FastAPI:
     """Build the FastAPI app — wired with all dependencies."""
     app_config = load_app_config()
@@ -192,6 +205,7 @@ def create_app() -> FastAPI:
     app.include_router(
         usage_router(runtime_db_path("photo-ocr", "usage.sqlite3", create=True))
     )
+    _mount_restart(app)
 
     return app
 

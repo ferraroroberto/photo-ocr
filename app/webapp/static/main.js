@@ -17,7 +17,8 @@ import {
   TAB_KEY,
   HISTORY_PAGE_SIZE,
 } from './state.js';
-import { jsonApi, setSignInHandler } from './api.js';
+import { api, jsonApi, setSignInHandler } from './api.js';
+import { initRestartSheet } from './_vendored/page-foot/restart-sheet.js';
 import {
   handleFilePick,
   renderThumbnails,
@@ -152,6 +153,20 @@ async function receiveShare() {
   handleFilePick(files);
 }
 
+// The sheet's POST reads the status itself (a refusal is an answer, not an error).
+async function postRestart(url, body) {
+  let res;
+  try {
+    res = await api(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  } catch (exc) {
+    if (exc && exc.message === 'auth required') return { status: 401, body: null };
+    throw exc;
+  }
+  let data = null;
+  try { data = await res.json(); } catch (_) { data = null; }
+  return { status: res.status, body: data };
+}
+
 // ----------------------------------------------------------- boot
 async function boot() {
   // Pick up ?token=…
@@ -159,6 +174,7 @@ async function boot() {
   if (fromUrl) writeToken(fromUrl);
 
   loadVersion();
+  initRestartSheet({ fetchJson: jsonApi, postJson: postRestart });
 
   try {
     await fetchConfig();
