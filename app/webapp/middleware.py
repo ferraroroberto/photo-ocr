@@ -8,7 +8,7 @@ import ipaddress
 from typing import Callable
 
 # Third-party imports
-from fastapi import Request
+from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
@@ -24,6 +24,19 @@ _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
 # the build line renders before the user has authenticated. /sw.js is a
 # static script, and /share-target only redirects (it reads no body), so
 # the share sheet, which sends no token, still lands in the app.
+def require_authenticated(request: Request) -> None:
+    """Route dependency: refuse unless :class:`BearerTokenMiddleware` let this call in.
+
+    The middleware marks a request it admitted by auth (no token configured,
+    loopback, or a matching token); the exempt paths (``/``, ``/static/*``,
+    login) are admitted without that mark. A route that must never be reachable
+    on an exempt path, such as the restart, depends on this so it cannot be
+    mounted open, and an app built without the middleware refuses it too.
+    """
+    if not getattr(request.state, "auth_passed", False):
+        raise HTTPException(status_code=401, detail="missing or invalid bearer token")
+
+
 _AUTH_EXEMPT_PREFIXES = ("/static/", "/healthz")
 _AUTH_EXEMPT_EXACT = frozenset(
     {"/", "/healthz", "/api/login", "/api/version", "/sw.js", "/share-target"}
@@ -102,7 +115,10 @@ class BearerTokenMiddleware:
             return
 
         request = Request(scope)
-        if self._is_allowed(request):
+        passed = self._passed_auth(request)
+        if passed or self._is_exempt(request.url.path):
+            if passed:
+                request.state.auth_passed = True
             await self.app(scope, receive, send)
             return
 
@@ -113,19 +129,20 @@ class BearerTokenMiddleware:
         )
         await response(scope, receive, send)
 
-    def _is_allowed(self, request: Request) -> bool:
+    @staticmethod
+    def _is_exempt(path: str) -> bool:
+        return path in _AUTH_EXEMPT_EXACT or any(
+            path.startswith(p) for p in _AUTH_EXEMPT_PREFIXES
+        )
+
+    def _passed_auth(self, request: Request) -> bool:
+        """True when auth admits the call: no token configured, loopback, or the token."""
         token = (self._get_token() or "").strip()
         if not token:
             return True
 
         client_host = request.client.host if request.client else ""
         if client_host in _LOOPBACK_HOSTS:
-            return True
-
-        path = request.url.path
-        if path in _AUTH_EXEMPT_EXACT or any(
-            path.startswith(p) for p in _AUTH_EXEMPT_PREFIXES
-        ):
             return True
 
         presented = ""

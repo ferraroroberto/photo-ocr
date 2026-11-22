@@ -249,6 +249,7 @@ photo-ocr/
 │   ├── login_lockout.py         vendored per-client login lock-out
 │   ├── password.py              vendored app password hash + setter
 │   ├── usage_log.py             vendored local-only view/tap log router (SQLite; see Usage log)
+│   ├── self_restart.py          vendored build-readout restart: the /api/restart router and its detached runner
 │   └── runtime_data.py          resolves the machine-level SQLite data root
 ├── app/
 │   ├── cli/                     argparse dispatcher

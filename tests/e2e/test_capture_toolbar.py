@@ -182,7 +182,8 @@ def test_photo_sheet_holds_every_photo_action(authed_page: Page, base_url: str) 
     authed_page.locator("#takeMenuBtn").click()
     surface(authed_page, "capture.take-more-sheet")
     authed_page.keyboard.press("Escape")
-    expect(authed_page.locator("dialog")).to_have_count(0)
+    # The build readout's restart sheet stays in the page once the app offers a restart.
+    expect(authed_page.locator('dialog:not([data-surface="app.restart-sheet"])')).to_have_count(0)
 
     # A tile is one 44px+ button that opens its photo's sheet.
     tiles = authed_page.locator("#thumbStrip .thumb-select")
