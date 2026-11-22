@@ -184,6 +184,18 @@ try {
     if ($uxSurfaceExit -eq 3) { Fail "ux surface ratchet NOT CONFIRMED (a file could not be read, or JS never closes)." }
     if ($uxSurfaceExit -ne 0) { Fail "ux surface ratchet failed (a surface root with no id, an id and a map entry that disagree, a stale generated page, or a bad table or baseline)." }
 
+    # Request budget ratchet: fails when a file's count of fixed-rate polls that reach the server,
+    # polls under the 2 s floor, fast or unfixed server loops, directory scans in request
+    # handlers, default-pool submissions or a missing timing middleware rises above
+    # .request-budget-ratchet-baseline.json. Exit 3 (a file that cannot be read, JS that never
+    # closes, Python that does not parse) is its own failure, never a pass or a skip. It reads
+    # the whole tree, so it is not path-routed.
+    Write-Host "==> request budget ratchet..." -ForegroundColor Cyan
+    & $python "scripts/request_budget_ratchet.py"
+    $requestBudgetExit = $LASTEXITCODE
+    if ($requestBudgetExit -eq 3) { Fail "request budget ratchet NOT CONFIRMED (a file could not be read or parsed, or JS never closes)." }
+    if ($requestBudgetExit -ne 0) { Fail "request budget ratchet failed (a poll, loop, scan or pool use was added, or a bad table or baseline)." }
+
     # Runtime write probe, first half: what already sits untracked or ignored under the
     # code folders, so the probe after the test runs names only what they wrote.
     $runtimeSnapshot = Join-Path ([IO.Path]::GetTempPath()) "runtime-write-snapshot-$PID.json"

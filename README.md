@@ -248,6 +248,7 @@ photo-ocr/
 │   ├── login_alert.py           vendored login-guessing alert
 │   ├── login_lockout.py         vendored per-client login lock-out
 │   ├── password.py              vendored app password hash + setter
+│   ├── request_timing.py        vendored request-timing middleware and timed named pools (not wired in yet)
 │   ├── usage_log.py             vendored local-only view/tap log router (SQLite; see Usage log)
 │   ├── self_restart.py          vendored build-readout restart: the /api/restart router and its detached runner
 │   └── runtime_data.py          resolves the machine-level SQLite data root
@@ -262,7 +263,7 @@ photo-ocr/
 │   │       └── _vendored/       fleet components (nav · home-head · icons · card ·
 │   │                            button · toast · build-watch · empty-state · base · text-size ·
 │   │                            action-row · modal · sign-in · switch · icon-button · select-native ·
-│   │                            segmented · page-foot · usage-log),
+│   │                            segmented · page-foot · usage-log · poll),
 │   │                            copied verbatim from project-scaffolding
 │   └── tray/                    system-tray launcher
 ├── config/
@@ -294,6 +295,7 @@ photo-ocr/
 │   ├── usage_track_ratchet.py   vendored baseline-and-ratchet on untracked controls/sheets and built ids in the web UI, + the usage-log wiring
 │   ├── usage_track_scan.py      vendored sibling of the usage track ratchet: the HTML and JS readers
 │   ├── ux_surface_ratchet.py    vendored ratchet on `data-surface` ids vs the map; `ux_surface_map.py` renders the page
+│   ├── request_budget_ratchet.py  vendored baseline-and-ratchet on polls, background loops, handler scans and default-pool use; sibling request_budget_scan.py holds the readers
 │   ├── run-e2e.ps1              e2e leg runner (used by the pre-ship gate)
 │   ├── design_review_synthetic.py  throwaway webapp for /design-review's synthetic and e2e runs
 │   ├── disposable_webapp.py     free-port throwaway webapp shared by the e2e autoboot and the synthetic run
@@ -503,7 +505,7 @@ Without a tray, a bare run already boots its own disposable webapp on a free por
 
 ### Verifying changes before ship
 
-`scripts/verify-before-ship.ps1` is the single pre-ship gate: it byte-compiles `app`/`src`/`tests`, runs ten ratchets (static, docs, structure, conventions, comment, instruction, doc refs, dead code, runtime write, usage track) plus the ux surface check, runs the non-e2e pytest suite, then runs the Playwright e2e suite (Chromium + WebKit/iPhone, proportionate to the diff) against a disposable webapp it boots itself on a free port. See [docs/gate.md](docs/gate.md) for what each ratchet checks and its config/baseline files.
+`scripts/verify-before-ship.ps1` is the single pre-ship gate: it byte-compiles `app`/`src`/`tests`, runs eleven ratchets (static, docs, structure, conventions, comment, instruction, doc refs, dead code, runtime write, usage track, request budget) plus the ux surface check, runs the non-e2e pytest suite, then runs the Playwright e2e suite (Chromium + WebKit/iPhone, proportionate to the diff) against a disposable webapp it boots itself on a free port. See [docs/gate.md](docs/gate.md) for what each ratchet checks and its config/baseline files.
 
 ```powershell
 powershell.exe -File scripts/verify-before-ship.ps1
