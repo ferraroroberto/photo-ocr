@@ -196,6 +196,17 @@ try {
     if ($requestBudgetExit -eq 3) { Fail "request budget ratchet NOT CONFIRMED (a file could not be read or parsed, or JS never closes)." }
     if ($requestBudgetExit -ne 0) { Fail "request budget ratchet failed (a poll, loop, scan or pool use was added, or a bad table or baseline)." }
 
+    # Windows-only ratchet: fails when a test module gains a test that touches a Windows-only
+    # API (module, attribute, environment variable, planted .exe lookup) without the
+    # windows_only marker the Mac nightly deselects, beyond .windows-only-ratchet-baseline.json.
+    # Exit 3 (git unusable, a test module that cannot be read or parsed) is its own failure,
+    # never a pass or a skip. It reads every test module, so it is not path-routed.
+    Write-Host "==> windows-only ratchet..." -ForegroundColor Cyan
+    & $python "scripts/windows_only_ratchet.py"
+    $windowsOnlyExit = $LASTEXITCODE
+    if ($windowsOnlyExit -eq 3) { Fail "windows-only ratchet NOT CONFIRMED (git unusable, or a test module could not be read or parsed)." }
+    if ($windowsOnlyExit -ne 0) { Fail "windows-only ratchet failed (a test needing Windows lacks the windows_only marker, or a bad table or baseline)." }
+
     # Runtime write probe, first half: what already sits untracked or ignored under the
     # code folders, so the probe after the test runs names only what they wrote.
     $runtimeSnapshot = Join-Path ([IO.Path]::GetTempPath()) "runtime-write-snapshot-$PID.json"

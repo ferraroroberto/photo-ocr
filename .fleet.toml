@@ -92,6 +92,7 @@ request_budget_ratchet = { src = "scripts/request_budget_ratchet.py", sha = "495
 request_budget_scan = { src = "scripts/request_budget_scan.py", sha = "5ba99b0a04b1b5d7b3689f8f7a59bd3fe625a9bc", dest = "scripts/request_budget_scan.py" }
 request_timing = { src = "src/request_timing.py", sha = "4952ab7d1b1528548ebedaff72e2222fb0c27447", dest = "src/request_timing.py" }
 poll = { src = "app/webapp/static/_vendored/poll", sha = "4952ab7d1b1528548ebedaff72e2222fb0c27447", dest = "app/webapp/static/_vendored/poll" }
+windows_only_ratchet = { src = "scripts/windows_only_ratchet.py", sha = "5ba99b0a04b1b5d7b3689f8f7a59bd3fe625a9bc", dest = "scripts/windows_only_ratchet.py" }
 
 # [static_ratchet] -- the scaffold's baseline-and-ratchet static analysis. The gate
 # (scripts/verify-before-ship.ps1) runs scripts/static_ratchet_gate.py, which wraps
@@ -422,3 +423,16 @@ label = "webapp-facing-src"
 [request_budget_ratchet]
 enabled      = true
 handler_dirs = ["app/webapp/routers"]
+
+# [windows_only_ratchet] -- the scaffold's baseline-and-ratchet on unmarked Windows-only tests. The gate
+# (scripts/verify-before-ship.ps1) runs scripts/windows_only_ratchet.py: it fails when a test module
+# gains a test that touches a Windows-only API (module, attribute, environment variable or planted
+# .exe lookup) without the windows_only marker the Mac nightly deselects, beyond
+# .windows-only-ratchet-baseline.json. Exit 3 (git unusable, a test module that cannot be read or
+# parsed) is its own failure, never a pass. Procedure + limits: project-scaffolding
+# docs/windows-only-ratchet.md.
+[windows_only_ratchet]
+enabled    = true
+baseline   = ".windows-only-ratchet-baseline.json"
+marker     = "windows_only"
+test_paths = ["tests/**"]
