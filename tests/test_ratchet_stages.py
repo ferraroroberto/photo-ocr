@@ -27,6 +27,7 @@ STAGES: dict[str, tuple[str, dict[str, bytes]]] = {
     "instruction": ("$instructionExit", {"CLAUDE.md": b"\xff\xfe not utf-8\n"}),
     "doc_refs": ("$docRefsExit", {"README.md": b"\xff\xfe not utf-8\n"}),
     "dead_code": ("$deadCodeExit", {"broken.py": b"def f(:\n"}),
+    "windows_only": ("$windowsOnlyExit", {"tests/test_broken.py": b"def f(:\n"}),
     "usage_track": ("$usageTrackExit", {"app/webapp/static/broken.js": b"const s = 'never closed;\n"}),
     # The map must exist and parse before the code is read, so a bare one rides along.
     "ux_surface": ("$uxSurfaceExit", {

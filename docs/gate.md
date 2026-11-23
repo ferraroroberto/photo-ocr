@@ -117,6 +117,15 @@ is declared in `[[request_budget.loops]]` with its reason, and a single hit that
 carries `request-budget-exempt: <reason>`. The vendored `_vendored/poll` helper and
 `src/request_timing.py` are what the burn-down moves callers onto.
 
+The windows-only ratchet (`scripts/windows_only_ratchet.py`, rules in `.fleet.toml`
+`[windows_only_ratchet]`) reads the test modules and counts, per file and rule, tests that
+import a Windows-only module, read a Windows-only API or environment variable, or plant a
+`.exe` under a Windows install variable without `@pytest.mark.windows_only`, the marker the
+Mac nightly deselects. A count above `.windows-only-ratchet-baseline.json` (empty) fails the
+gate, naming the file and rule; a test module it cannot read or parse fails as NOT CONFIRMED.
+A test that needs Windows takes the marker; a hit the ratchet gets wrong carries
+`windows-only-exempt: <reason>`.
+
 ## Surfaces and loopback ports
 
 Each surface the suite opens is tagged `surface(page, "<id>")` from the vendored
