@@ -13,6 +13,7 @@ from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 
 # Local imports
+from app.webapp.pools import EXTRACT_POOL, run_in_pool
 from app.webapp.routers._helpers import maybe_json
 from src.archive import PhotoMeta, Session, SessionArchive
 from src.extract_job import (
@@ -229,7 +230,8 @@ async def _start_extract(
         )
 
         task = asyncio.create_task(
-            asyncio.to_thread(
+            run_in_pool(
+                EXTRACT_POOL,
                 execute_extract_job,
                 request.app,
                 session_id,
@@ -463,7 +465,9 @@ async def retry_missing_photos(
             retry_error=None,
         )
     if wait:
-        await asyncio.to_thread(execute_retry_missing_job, request.app, session_id)
+        await run_in_pool(
+            EXTRACT_POOL, execute_retry_missing_job, request.app, session_id
+        )
         final = archive.get(session_id)
         if final is None:
             raise HTTPException(
@@ -474,7 +478,7 @@ async def retry_missing_photos(
             raise HTTPException(status_code=502, detail=done["retry_error"])
         return _text_body(final)
     task = asyncio.create_task(
-        asyncio.to_thread(execute_retry_missing_job, request.app, session_id)
+        run_in_pool(EXTRACT_POOL, execute_retry_missing_job, request.app, session_id)
     )
     _store_extract_task(request.app, session_id, task)
     return extract_status_payload(session)
@@ -549,7 +553,8 @@ async def extract_single_shot(
     # Reuse the exact extraction engine the async path uses (chunking,
     # overlap merge, dedup, archival, search index) — run it to completion
     # off the event loop. No duplicate OCR logic.
-    await asyncio.to_thread(
+    await run_in_pool(
+        EXTRACT_POOL,
         execute_extract_job,
         request.app,
         session.session_id,
