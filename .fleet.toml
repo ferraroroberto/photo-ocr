@@ -47,13 +47,13 @@ sign-in = { src = "app/webapp/static/_vendored/sign-in", sha = "dbf47eb1bfe4aa2f
 button = { src = "app/webapp/static/_vendored/button", sha = "53dd76e2d51869055b0abd18e8efe65d12534107", dest = "app/webapp/static/_vendored/button" }
 select-native = { src = "app/webapp/static/_vendored/select-native", sha = "09fe2436b6bf3ee608d43fc8a26165e3e2400840", dest = "app/webapp/static/_vendored/select-native" }
 toast = { src = "app/webapp/static/_vendored/toast", sha = "e56c8330f8500b83635773033a09de6fc3cba342", dest = "app/webapp/static/_vendored/toast" }
-build-watch = { src = "app/webapp/static/_vendored/build-watch", sha = "2d871dd5a6a3ee6fe12a3c5c6439d2c53a93c2c4", dest = "app/webapp/static/_vendored/build-watch" }
+build-watch = { src = "app/webapp/static/_vendored/build-watch", sha = "48602060fffdacbcdcdde66b9886c6471d835ff3", dest = "app/webapp/static/_vendored/build-watch" }
 switch = { src = "app/webapp/static/_vendored/switch", sha = "8f15c49560adbc076d24a8a63dd671868ffa7a4e", dest = "app/webapp/static/_vendored/switch" }
 icon-button = { src = "app/webapp/static/_vendored/icon-button", sha = "5d460bd1d9d44eed955c5357d1c9f622f2550ad8", dest = "app/webapp/static/_vendored/icon-button" }
 card = { src = "app/webapp/static/_vendored/card", sha = "8f15c49560adbc076d24a8a63dd671868ffa7a4e", dest = "app/webapp/static/_vendored/card" }
 empty-state = { src = "app/webapp/static/_vendored/empty-state", sha = "a04abc7b3af872cbac974401dd0945587eac6cef", dest = "app/webapp/static/_vendored/empty-state" }
 segmented = { src = "app/webapp/static/_vendored/segmented", sha = "5d460bd1d9d44eed955c5357d1c9f622f2550ad8", dest = "app/webapp/static/_vendored/segmented" }
-page-foot = { src = "app/webapp/static/_vendored/page-foot", sha = "564864cb95a8b416c16d1a1e1e9f31b9d5b2ec8e", dest = "app/webapp/static/_vendored/page-foot" }
+page-foot = { src = "app/webapp/static/_vendored/page-foot", sha = "48602060fffdacbcdcdde66b9886c6471d835ff3", dest = "app/webapp/static/_vendored/page-foot" }
 usage-log = { src = "app/webapp/static/_vendored/usage-log", sha = "bfc660da641a05baf818d6ff7302bdd91b7d9a78", dest = "app/webapp/static/_vendored/usage-log" }
 usage_log = { src = "src/usage_log.py", sha = "78635aa74a92b9622326cb53992e0634fbaf6246", dest = "src/usage_log.py" }
 usage_track_ratchet = { src = "scripts/usage_track_ratchet.py", sha = "4a06ca84fc9c5005d4be7fa505c9d0e7c0472dba", dest = "scripts/usage_track_ratchet.py" }
@@ -103,9 +103,9 @@ windows_only_ratchet = { src = "scripts/windows_only_ratchet.py", sha = "5ba99b0
 # that cannot run exits 3, which fails the gate. Vendored copies are duplicates by
 # design, so they are excluded. Procedure + limits: project-scaffolding
 # docs/static-ratchet.md.
-self_restart = { src = "src/self_restart.py", sha = "564864cb95a8b416c16d1a1e1e9f31b9d5b2ec8e", dest = "src/self_restart.py" }
+self_restart = { src = "src/self_restart.py", sha = "48602060fffdacbcdcdde66b9886c6471d835ff3", dest = "src/self_restart.py" }
 build_info = { src = "src/build_info.py", sha = "1c1007fcd0b65b54342779250cb66975d57482e8", dest = "src/build_info.py" }
-restart_check = { src = "src/restart_check.py", sha = "1c1007fcd0b65b54342779250cb66975d57482e8", dest = "src/restart_check.py" }
+restart_check = { src = "src/restart_check.py", sha = "48602060fffdacbcdcdde66b9886c6471d835ff3", dest = "src/restart_check.py" }
 [static_ratchet]
 enabled  = true
 baseline = ".static-ratchet-baseline.json"
