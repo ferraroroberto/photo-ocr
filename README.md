@@ -248,7 +248,7 @@ photo-ocr/
 │   ├── login_alert.py           vendored login-guessing alert
 │   ├── login_lockout.py         vendored per-client login lock-out
 │   ├── password.py              vendored app password hash + setter
-│   ├── request_timing.py        vendored request-timing middleware and timed named pools (not wired in yet)
+│   ├── request_timing.py        vendored request-timing middleware and timed named pools
 │   ├── usage_log.py             vendored local-only view/tap log router (SQLite; see Usage log)
 │   ├── self_restart.py          vendored build-readout restart: the /api/restart router and its detached runner
 │   ├── build_info.py            vendored git sha of the checkout, read by restart_check
@@ -259,6 +259,7 @@ photo-ocr/
 │   ├── webapp/                  FastAPI app + manager
 │   │   ├── server.py            app factory, static mount, router includes
 │   │   ├── middleware.py        bearer-token / loopback auth gate
+│   │   ├── pools.py             named worker pool for the long OCR extract jobs
 │   │   ├── routers/             APIRouter per concern (misc, config, auth, sessions, search)
 │   │   ├── manager.py
 │   │   └── static/              PWA: index.html, ES-module JS, styles.css, icons

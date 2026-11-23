@@ -426,6 +426,15 @@ label = "webapp-facing-src"
 enabled      = true
 handler_dirs = ["app/webapp/routers"]
 
+# The one server loop: it runs only while the tray is starting the webapp, ends at
+# startup_timeout_seconds (15 s) or on the first healthy answer, and is never
+# reached by a request.
+[[request_budget.loops]]
+path       = "app/webapp/manager.py"
+function   = "WebappManager._wait_until_ready"
+interval_s = 0.4
+why        = "bounded startup wait: polls the child's loopback health until it answers or 15 s pass, run once per launch by the tray and never while serving"
+
 # [windows_only_ratchet] -- the scaffold's baseline-and-ratchet on unmarked Windows-only tests. The gate
 # (scripts/verify-before-ship.ps1) runs scripts/windows_only_ratchet.py: it fails when a test module
 # gains a test that touches a Windows-only API (module, attribute, environment variable or planted

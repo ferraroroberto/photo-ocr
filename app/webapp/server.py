@@ -11,6 +11,7 @@ search index on every boot.
 from __future__ import annotations
 
 # Standard library imports
+import asyncio
 import logging
 import mimetypes
 import os
@@ -35,6 +36,7 @@ from src.archive import SessionArchive
 from src.compression import StreamSafeGZipMiddleware
 from src.extract_job import settle_interrupted_extracts
 from src.ocr_client import OcrClient
+from src.request_timing import RequestTimingMiddleware, default_executor
 from src.runtime_data import runtime_data_dir, runtime_db_path
 from src.self_restart import TRAY_RESTART, RestartTarget, restart_router
 from src.usage_log import usage_router
@@ -102,6 +104,9 @@ async def _lifespan(app: FastAPI):
     """Startup: prune archive older than retention window. Shutdown: close clients."""
     cfg: WebappConfig = app.state.webapp_config
     archive: SessionArchive = app.state.archive
+    # Same size as the loop's own default pool, but timed: Server-Timing then
+    # shows queueing for work that has no named pool.
+    asyncio.get_running_loop().set_default_executor(default_executor())
     try:
         removed = archive.cleanup_older_than(cfg.history_retention_days)
         if removed:
@@ -168,6 +173,10 @@ def create_app() -> FastAPI:
         BearerTokenMiddleware,
         get_token=lambda: getattr(app.state.webapp_config, "auth_token", ""),
     )
+    # Wraps the auth gate, so Server-Timing and the slow-request log cover a 401
+    # too. It sits just inside compression, which must stay outermost. No budget
+    # classes are declared.
+    app.add_middleware(RequestTimingMiddleware)
     # Registered last so it is the outermost layer: a 401 or a bodyless
     # response from the auth gate passes through it unchanged. The app has no
     # stream endpoint and its photos are image/jpeg, which it skips by type.

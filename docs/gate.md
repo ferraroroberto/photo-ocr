@@ -114,8 +114,9 @@ above `.request-budget-ratchet-baseline.json` fails the gate, naming the file an
 file it cannot read or parse fails as NOT CONFIRMED rather than passing. The baseline only
 shrinks (`--update-baseline`); a background loop that must run while nobody views the app
 is declared in `[[request_budget.loops]]` with its reason, and a single hit that must stay
-carries `request-budget-exempt: <reason>`. The vendored `_vendored/poll` helper and
-`src/request_timing.py` are what the burn-down moves callers onto.
+carries `request-budget-exempt: <reason>`. The baseline is empty: blocking work runs on a
+named pool (`app/webapp/pools.py`), `RequestTimingMiddleware` is installed, and the one
+server loop is declared. The vendored `_vendored/poll` helper stays for any new browser poll.
 
 The windows-only ratchet (`scripts/windows_only_ratchet.py`, rules in `.fleet.toml`
 `[windows_only_ratchet]`) reads the test modules and counts, per file and rule, tests that
