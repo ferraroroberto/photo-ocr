@@ -93,6 +93,7 @@ request_budget_scan = { src = "scripts/request_budget_scan.py", sha = "5ba99b0a0
 request_timing = { src = "src/request_timing.py", sha = "4952ab7d1b1528548ebedaff72e2222fb0c27447", dest = "src/request_timing.py" }
 poll = { src = "app/webapp/static/_vendored/poll", sha = "4952ab7d1b1528548ebedaff72e2222fb0c27447", dest = "app/webapp/static/_vendored/poll" }
 windows_only_ratchet = { src = "scripts/windows_only_ratchet.py", sha = "5ba99b0a04b1b5d7b3689f8f7a59bd3fe625a9bc", dest = "scripts/windows_only_ratchet.py" }
+request_budget_probe = { src = "tests/e2e/budget/_request_budget.py", sha = "2a65b20ee0b426fa8246bfc7ac3dd28e019a39b3", dest = "tests/e2e/budget/_request_budget.py" }
 
 # [static_ratchet] -- the scaffold's baseline-and-ratchet static analysis. The gate
 # (scripts/verify-before-ship.ps1) runs scripts/static_ratchet_gate.py, which wraps
@@ -422,6 +423,12 @@ label = "webapp-facing-src"
 # timing middleware rises above .request-budget-ratchet-baseline.json. Exit 3 (a file that cannot
 # be read, JS that never closes, Python that does not parse) is its own failure, never a pass.
 # Procedure + limits: project-scaffolding docs/request-budget-ratchet.md.
+# What the main page may send in a visible minute on the frozen-clock probe
+# (tests/e2e/test_request_budget.py). Measured: 1, the usage log's one batched
+# send of the boot events; the page has no poll, so any further request is a regression.
+[request_budget]
+visible_requests_per_minute = 1
+
 [request_budget_ratchet]
 enabled      = true
 handler_dirs = ["app/webapp/routers"]

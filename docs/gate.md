@@ -118,6 +118,14 @@ carries `request-budget-exempt: <reason>`. The baseline is empty: blocking work 
 named pool (`app/webapp/pools.py`), `RequestTimingMiddleware` is installed, and the one
 server loop is declared. The vendored `_vendored/poll` helper stays for any new browser poll.
 
+The runtime half of the budget is the e2e test `tests/e2e/test_request_budget.py`. It runs the
+vendored probe `tests/e2e/budget/_request_budget.py` on the main page with a frozen clock
+(`page.clock`) and counts API requests by path: a visible minute against `[request_budget]
+visible_requests_per_minute` in `.fleet.toml` (1, the usage log's batched send of the boot
+events), a hidden minute against zero, and the return to the foreground against one catch-up
+read per path. The one request a hidden page may send is the usage log's flush at the moment
+the tab hides, named in the test. A budget the probe cannot read is NOT CONFIRMED, never a pass.
+
 The windows-only ratchet (`scripts/windows_only_ratchet.py`, rules in `.fleet.toml`
 `[windows_only_ratchet]`) reads the test modules and counts, per file and rule, tests that
 import a Windows-only module, read a Windows-only API or environment variable, or plant a
