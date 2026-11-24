@@ -90,6 +90,7 @@ def test_the_ratchet_is_declared_and_its_script_is_vendored() -> None:
         "state-literal",
         "state-set-repeat",
         "state-write",
+        "path-sep",
     }
     entry = fleet["vendored"]["conventions_ratchet"]
     assert entry["dest"] == "scripts/conventions_ratchet.py"
