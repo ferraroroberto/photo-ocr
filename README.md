@@ -281,6 +281,7 @@ photo-ocr/
 │   ├── run_named_tunnel.py      uvicorn + cloudflared
 │   ├── verify-before-ship.ps1   pre-ship gate: byte-compile + the ratchets + pytest + e2e
 │   ├── box_lock_gate.ps1        holds fleet-config's shared box load lock for the whole gate run
+│   ├── ratchet_baseline.py      vendored sibling every ratchet loads: its baseline in .ratchets/, moved there once
 │   ├── static_ratchet.py        vendored baseline-and-ratchet detector (jscpd + ruff)
 │   ├── static_ratchet_gate.py   gate wrapper: only exit 0 passes, exit 3 = NOT CONFIRMED
 │   ├── docs_ratchet.py          vendored baseline-and-ratchet on README size + docs history markers

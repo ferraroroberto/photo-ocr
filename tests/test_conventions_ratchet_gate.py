@@ -36,7 +36,8 @@ def test_an_unparseable_file_exits_three_not_a_pass(tmp_path: Path) -> None:
     (tmp_path / ".fleet.toml").write_text(
         '[conventions_ratchet]\nenabled = true\nrules = ["no-window"]\n', encoding="utf-8"
     )
-    (tmp_path / ".conventions-ratchet-baseline.json").write_text(
+    (tmp_path / ".ratchets").mkdir(exist_ok=True)
+    (tmp_path / ".ratchets/conventions.json").write_text(
         '{"version": 1, "entries": []}\n', encoding="utf-8"
     )
     (tmp_path / "broken.py").write_text("def f(:\n", encoding="utf-8")
