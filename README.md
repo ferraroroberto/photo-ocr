@@ -252,6 +252,7 @@ photo-ocr/
 │   ├── usage_log.py             vendored local-only view/tap log router (SQLite; see Usage log)
 │   ├── self_restart.py          vendored build-readout restart: the /api/restart router and its detached runner
 │   ├── build_info.py            vendored git sha of the checkout, read by restart_check
+│   ├── health_routes.py         vendored GET /healthz + GET /api/version router
 │   ├── restart_check.py         vendored one-command restart: runs tray.bat by absolute path, fails unless a new process serves HEAD
 │   └── runtime_data.py          resolves the machine-level SQLite data root
 ├── app/
