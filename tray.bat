@@ -63,7 +63,7 @@ REM  is another project's own config key (app-launcher#963).
 set "TRAY_APP_NAME=PhotoOCR"
 REM === ADAPT (2/4): the args python is started with to launch the tray,
 REM     e.g. "launcher.py tray"  or  "-m tray" ===
-set "TRAY_LAUNCH=launcher.py tray"
+set "TRAY_LAUNCH=scripts\launcher.py tray"
 
 set "WANT_RESTART="
 if /i "%~1"=="--restart" set "WANT_RESTART=1"
@@ -115,7 +115,7 @@ if "%SCRIPT_DIR_ARG:~-1%"=="\" set "SCRIPT_DIR_ARG=%SCRIPT_DIR_ARG:~0,-1%"
 set "RESTART_ARG="
 if defined WANT_RESTART set "RESTART_ARG=-Restart"
 
-%PS% -NoProfile -NonInteractive -File "%TRAY_PS%" launch -AppName "%TRAY_APP_NAME%" -ScriptDir "%SCRIPT_DIR_ARG%" -VenvDir "%TRAY_VENV%" -TrayMatch "launcher\.py\s+tray" -Ports "%OWNED_PORTS%" -TrayLaunch "%TRAY_LAUNCH%" -VersionUrl "%VERSION_URL%" !RESTART_ARG!
+%PS% -NoProfile -NonInteractive -File "%TRAY_PS%" launch -AppName "%TRAY_APP_NAME%" -ScriptDir "%SCRIPT_DIR_ARG%" -VenvDir "%TRAY_VENV%" -TrayMatch "(scripts[\/]+)?launcher\.py\s+tray" -Ports "%OWNED_PORTS%" -TrayLaunch "%TRAY_LAUNCH%" -VersionUrl "%VERSION_URL%" !RESTART_ARG!
 exit /b %ERRORLEVEL%
 
 REM  Standalone start (project-scaffolding#345): the shared helper is missing,

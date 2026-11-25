@@ -1,10 +1,10 @@
 """CLI entry point — dispatches subcommands.
 
 Examples:
-    python launcher.py                 # same as `tray`
-    python launcher.py tray
-    python launcher.py webapp
-    python launcher.py extract path/to/photo1.jpg path/to/photo2.jpg
+    python scripts/launcher.py                 # same as `tray`
+    python scripts/launcher.py tray
+    python scripts/launcher.py webapp
+    python scripts/launcher.py extract path/to/photo1.jpg path/to/photo2.jpg
 """
 
 from __future__ import annotations

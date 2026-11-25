@@ -9,7 +9,7 @@ Mirrors voice-transcriber's webapp manager:
   externally started uvicorn is left alone.
 
 Used by the tray so launching ``tray.bat`` brings up the webapp.
-Standalone ``webapp.bat`` is the "server only, no tray" alternative.
+Standalone ``scripts/webapp.bat`` is the "server only, no tray" alternative.
 """
 
 from __future__ import annotations
@@ -127,7 +127,7 @@ def cert_paths(project_root: Optional[Path] = None) -> Optional[tuple[Path, Path
 def _renew_tailscale_cert() -> None:
     """Best-effort auto-renew of the Tailscale (Let's Encrypt) cert before spawn.
 
-    Mirrors the ``webapp.bat`` ``--check`` hook so the tray-owned boot path also
+    Mirrors the ``scripts/webapp.bat`` ``--check`` hook so the tray-owned boot path also
     self-heals a cert expiring within 30 days. No-op when the cert is missing or
     is not a ``.ts.net`` cert; never raises, so a renewal hiccup can't block the
     webapp from starting — a failed renewal is logged instead, so it is

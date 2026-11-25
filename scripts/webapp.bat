@@ -9,7 +9,7 @@ REM  the webapp without the tray icon.
 REM ============================================================================
 
 setlocal
-set "SCRIPT_DIR=%~dp0"
+for %%I in ("%~dp0..") do set "SCRIPT_DIR=%%~fI\"
 set "VENV_PY=%SCRIPT_DIR%.venv\Scripts\python.exe"
 if not exist "%VENV_PY%" (
     echo [ERROR] .venv missing. Run setup.bat first.
@@ -24,6 +24,6 @@ REM when the cert is missing or not a .ts.net cert).
 
 REM Bind address, port, cert flags and loop factory have one home: the
 REM `webapp` subcommand (config/config.json + app/webapp/manager.py).
-"%VENV_PY%" "%SCRIPT_DIR%launcher.py" webapp
+"%VENV_PY%" "%SCRIPT_DIR%scripts\launcher.py" webapp
 
 exit /b %ERRORLEVEL%

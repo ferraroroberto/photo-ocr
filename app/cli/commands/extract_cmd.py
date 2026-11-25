@@ -2,7 +2,7 @@
 
 Useful for scripting / smoke tests:
 
-    python launcher.py extract photo1.jpg photo2.jpg --model gemini_flash
+    python scripts/launcher.py extract photo1.jpg photo2.jpg --model gemini_flash
 """
 
 from __future__ import annotations

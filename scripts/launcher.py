@@ -1,12 +1,12 @@
 """Thin launcher — the only entrypoint meant to be invoked by humans / .bat files.
 
 Usage:
-    python launcher.py                 # same as `tray` — day-to-day default
-    python launcher.py tray
-    python launcher.py webapp
-    python launcher.py extract <photo> [<photo> ...]   # CLI OCR helper
+    python scripts/launcher.py                 # same as `tray` — day-to-day default
+    python scripts/launcher.py tray
+    python scripts/launcher.py webapp
+    python scripts/launcher.py extract <photo> [<photo> ...]   # CLI OCR helper
 
-The launcher puts its own folder on `sys.path` so the top-level packages
+The launcher puts the repo root (its parent folder) on `sys.path` so the top-level packages
 (`src`, `app`, `scripts`) resolve without any outer namespace. That lets
 the folder be the root of its own repository — clone it,
 `pip install -r requirements.txt`, run the launcher.
@@ -17,7 +17,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-HERE = Path(__file__).resolve().parent
+HERE = Path(__file__).resolve().parent.parent
 if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
 

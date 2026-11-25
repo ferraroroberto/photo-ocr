@@ -136,7 +136,7 @@ def test_disposable_webapp_boot_failure_names_the_log(monkeypatch, tmp_path):
 def test_webapp_bat_delegates_to_webapp_subcommand():
     """webapp.bat must not carry its own uvicorn argv: the bind, certs and loop
     factory live in the `webapp` subcommand (covered above)."""
-    src = (_REPO_ROOT / "webapp.bat").read_text(encoding="utf-8")
+    src = (_REPO_ROOT / "scripts" / "webapp.bat").read_text(encoding="utf-8")
     assert "launcher.py" in src and "webapp" in src
     assert "uvicorn" not in src.replace("REM", "")
 
@@ -251,7 +251,7 @@ def test_serve_argv_has_one_home():
     }
     roots = [_REPO_ROOT / "app", _REPO_ROOT / "scripts", _REPO_ROOT / "src", _REPO_ROOT / "tests"]
     candidates = [p for r in roots for p in r.rglob("*") if p.suffix in {".py", ".ps1", ".bat"}]
-    candidates += [p for p in _REPO_ROOT.glob("*.bat")] + [_REPO_ROOT / "launcher.py"]
+    candidates += [p for p in _REPO_ROOT.glob("*.bat")] + [_REPO_ROOT / "scripts" / "launcher.py"]
     offenders = [
         str(p.relative_to(_REPO_ROOT))
         for p in candidates
