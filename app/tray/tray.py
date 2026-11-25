@@ -374,7 +374,7 @@ def _copy_tunnel_url() -> None:
     if not TUNNEL_URL_FILE.exists():
         _notify(
             "No tunnel URL yet",
-            "Run webapp_tunnel_named.bat to bring up the Cloudflare tunnel.",
+            "Run scripts/webapp_tunnel_named.bat to bring up the Cloudflare tunnel.",
         )
         return
     try:

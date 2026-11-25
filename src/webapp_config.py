@@ -7,7 +7,7 @@ of truth.
 
 Bind address and port are *not* here — they live only in
 `config/config.json`'s `webapp` section (`app.webapp.manager.load_config`),
-read by both the tray and `launcher.py webapp`, so a port change is one
+read by both the tray and `scripts/launcher.py webapp`, so a port change is one
 edit instead of two config files that can disagree.
 """
 

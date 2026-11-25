@@ -1,6 +1,6 @@
 """Start uvicorn + cloudflared on a named (persistent) tunnel.
 
-Used by `webapp_tunnel_named.bat` for headless / no-tray use. The
+Used by `scripts/webapp_tunnel_named.bat` for headless / no-tray use. The
 tray already does this same work as part of normal startup — only
 reach for this script when running without the tray.
 
@@ -29,7 +29,7 @@ from typing import Optional
 # This script lives in scripts/, so a plain `python scripts/run_named_tunnel.py`
 # puts scripts/ — not the repo root — on sys.path[0], and `import src` fails.
 # Put the repo root first so the shared src/ helpers resolve under file
-# invocation (the tray gets this for free via launcher.py at the root).
+# invocation (the tray gets this for free via scripts/launcher.py).
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -65,7 +65,7 @@ def _find_python() -> Path:
 def _spawn_uvicorn(port: int) -> subprocess.Popen:
     # Reuse WebappManager's argv builder (and its cert_paths() lookup)
     # instead of hand-rolling a second uvicorn command: one builder keeps this
-    # script, the tray-owned manager and webapp.bat on the same loop-factory,
+    # script, the tray-owned manager and scripts/webapp.bat on the same loop-factory,
     # cert and flags.
     manager = WebappManager()
     cmd = manager._build_command(

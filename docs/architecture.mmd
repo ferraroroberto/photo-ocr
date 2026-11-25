@@ -11,8 +11,8 @@ flowchart TB
   subgraph entry["Entrypoints"]
     LAUNCHER["launcher.py\nputs repo root on sys.path, dispatches to app/cli/main.py"]
     TRAYBAT["tray.bat"]
-    WEBAPPBAT["webapp.bat"]
-    TUNNELBAT["webapp_tunnel_named.bat"]
+    WEBAPPBAT["scripts/webapp.bat"]
+    TUNNELBAT["scripts/webapp_tunnel_named.bat"]
   end
   TRAYBAT --> LAUNCHER
 

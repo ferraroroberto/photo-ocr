@@ -92,7 +92,7 @@ def test_rendered_surface_routes_full(path, config):
     [
         "app/tray/tray_app.py",
         "app/cli/main.py",
-        "launcher.py",
+        "scripts/launcher.py",
         "config/config.json",
         "requirements.txt",
     ],

@@ -119,7 +119,7 @@ New-NetFirewallRule -DisplayName "photo-ocr 8444" -Direction Inbound `
     -Protocol TCP -LocalPort 8444 -Action Allow -Profile Private
 
 # 3. Start the webapp (foreground) — or use tray.bat for resident mode.
-.\.venv\Scripts\python.exe launcher.py webapp
+.\.venv\Scripts\python.exe scripts/launcher.py webapp
 ```
 
 **Open on the phone or laptop** (any device on the same tailnet):
@@ -131,7 +131,7 @@ on the PC itself is `http://localhost:8444`.)
 
 > **Auto-renew (no calendar reminder needed).** A Let's Encrypt leaf is valid
 > ~90 days, so renewal is automated rather than manual: both boot paths
-> (`webapp.bat` and the tray's `WebappManager.start()`) run
+> (`scripts/webapp.bat` and the tray's `WebappManager.start()`) run
 > `gen_tailscale_cert.py --check` on startup, which re-issues the cert only
 > when it is a `.ts.net` cert expiring within 30 days (a no-op otherwise).
 
@@ -195,16 +195,16 @@ start/retry/wedge/respawn/recovery event is logged to `webapp/watchdog.log`
 ### Webapp without the tray
 
 ```powershell
-webapp.bat
+scripts\webapp.bat
 ```
 
-Runs `launcher.py webapp` in the foreground on the `webapp.host`/`webapp.port` from `config/config.json` (`:8444` by default). HTTPS if `webapp/certificates/`
+Runs `scripts/launcher.py webapp` in the foreground on the `webapp.host`/`webapp.port` from `config/config.json` (`:8444` by default). HTTPS if `webapp/certificates/`
 exists, HTTP otherwise. Ctrl+C to stop.
 
 ### CLI (scripting / smoke tests)
 
 ```powershell
-.\.venv\Scripts\python.exe launcher.py extract photo1.jpg photo2.jpg --model gemini_flash
+.\.venv\Scripts\python.exe scripts/launcher.py extract photo1.jpg photo2.jpg --model gemini_flash
 ```
 
 Prints the extracted text to stdout. No archive, no session — quick one-off.
@@ -217,11 +217,8 @@ Where new code goes, and why each top-level folder exists: [`docs/layout.md`](do
 
 ```
 photo-ocr/
-├── launcher.py                  entry point — `python launcher.py <command>`
 ├── setup.bat                    one-shot installer (creates .venv, deps)
 ├── tray.bat                     start the system-tray launcher
-├── webapp.bat                   standalone FastAPI on :8444
-├── webapp_tunnel_named.bat      webapp + named Cloudflare tunnel
 ├── requirements.txt
 ├── requirements-dev.txt
 ├── pytest.ini
@@ -279,6 +276,9 @@ photo-ocr/
 │   ├── gen_icons.py             thin caller onto project-scaffolding's shared brand_gen.py (camera master)
 │   ├── gen_tailscale_cert.py    HTTPS via `tailscale cert` (real LE leaf, `--check` auto-renew)
 │   ├── gen_token.py             generate/rotate the bearer token
+│   ├── launcher.py              entry point — `python scripts/launcher.py <command>`
+│   ├── webapp.bat               standalone FastAPI on :8444
+│   ├── webapp_tunnel_named.bat  webapp + named Cloudflare tunnel
 │   ├── run_named_tunnel.py      uvicorn + cloudflared
 │   ├── verify-before-ship.ps1   pre-ship gate: byte-compile + the ratchets + pytest + e2e
 │   ├── box_lock_gate.ps1        holds fleet-config's shared box load lock for the whole gate run
@@ -379,7 +379,7 @@ photo-ocr/
 }
 ```
 
-The `webapp` section is optional (all three keys default as shown). **This is the one home for the bind address and port** — both the tray/manager path (`tray.bat` → `app/webapp/manager.py`) and the headless `launcher.py webapp` CLI read it. To change the port either launch path listens on, set `webapp.port` here.
+The `webapp` section is optional (all three keys default as shown). **This is the one home for the bind address and port** — both the tray/manager path (`tray.bat` → `app/webapp/manager.py`) and the headless `scripts/launcher.py webapp` CLI read it. To change the port either launch path listens on, set `webapp.port` here.
 
 | Key | Default | Notes |
 |---|---|---|
@@ -457,7 +457,7 @@ if a token is configured) is written to `webapp/last_tunnel_url.txt` so
 the tray's **📋 Copy Cloudflare URL** reads from this file. Quitting the
 tray stops the tunnel.
 
-For headless / no-tray use, `webapp_tunnel_named.bat` does the same thing
+For headless / no-tray use, `scripts/webapp_tunnel_named.bat` does the same thing
 in the foreground (uvicorn + cloudflared, Ctrl+C to stop).
 
 Behind Cloudflare, set up an **Access policy** for the hostname so the
@@ -480,7 +480,7 @@ A local-only log of which views and controls get used, by device class; what it 
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -m "not smoke"
-.\.venv\Scripts\python.exe -m py_compile launcher.py
+.\.venv\Scripts\python.exe -m py_compile scripts/launcher.py
 ```
 
 The `smoke` marker is the slow live-tray bucket — see the Playwright section below. The rest of the suite uses `TestClient` + mocked hub responses.
