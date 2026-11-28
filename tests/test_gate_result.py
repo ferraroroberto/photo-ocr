@@ -6,6 +6,9 @@ part a pipe cannot rewrite. The helper block in the gate (between the
 `gate-verdict` markers) is run for real, over a captured stdout (the same
 anonymous pipe `|` creates), for a pass, a failed stage and an early terminating
 error; the real script is run for the path that needs no stage to execute.
+
+The `webkit-budget` block is run the same way, with a stub in place of Python,
+to pin when the gate gives the request budget a WebKit run of its own.
 """
 
 from __future__ import annotations
@@ -112,3 +115,29 @@ def test_every_exit_goes_through_the_verdict() -> None:
 def test_verdict_block_is_ascii_for_windows_powershell_5_1() -> None:
     """Windows PowerShell 5.1 reads a BOM-less file as ANSI, so the block stays ASCII."""
     _verdict_block().encode("ascii")
+
+
+@pytest.mark.windows_only
+@windows_only
+@pytest.mark.parametrize(
+    ("tier", "browsers", "own_run"),
+    [("full", '"chromium", "webkit"', False), ("full", '"chromium"', True), ("static", '"chromium"', False)],
+)
+def test_request_budget_gets_its_own_webkit_run_only_when_the_suite_had_none(
+    tier: str, browsers: str, own_run: bool
+) -> None:
+    match = re.search(r"# webkit-budget:begin\n(.*?)# webkit-budget:end", _gate_text(), re.DOTALL)
+    assert match, "the gate lost its webkit-budget block"
+    run = _run_scenario(
+        f'$tier = "{tier}"\n$e2eBrowsers = @({browsers})\n'
+        'function Invoke-Stub { Write-Host "OWN-RUN $args"; $global:LASTEXITCODE = 0 }\n'
+        f'$python = "Invoke-Stub"\n{match.group(1)}'
+    )
+    assert run.returncode == 0, run.stdout + run.stderr
+    assert ("OWN-RUN scripts/tools/webkit_budget_check.py" in run.stdout) is own_run, run.stdout
+
+
+def test_request_budget_test_is_not_opted_out_of_the_webkit_projection() -> None:
+    """The browser suite is the full tier's only WebKit run of it, and a skip there is silent."""
+    budget_test = REPO_ROOT / "tests" / "e2e" / "test_request_budget.py"
+    assert "desktop_only" not in budget_test.read_text(encoding="utf-8")
