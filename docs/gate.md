@@ -19,6 +19,10 @@ any path no rule names runs the **full** suite. A classifier that errors, prints
 tier, or returns an unknown one also runs the full suite, and says so — the gate never
 skips on doubt.
 
+The request-budget tests run on WebKit once per gate. A full tier's browser leg includes
+WebKit, so it covers them; a browser leg without WebKit (other than the smoke slice)
+runs them there on their own through `scripts/tools/webkit_budget_check.py`.
+
 ## Ratchets
 
 The static ratchet (`scripts/static_ratchet_gate.py`, rules in `.fleet.toml`

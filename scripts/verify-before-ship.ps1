@@ -303,14 +303,19 @@ try {
         }
         if ($e2eExit -ne 0) { Fail "Playwright e2e suite failed." }
 
+        # webkit-budget:begin
         if ($tier -eq "static") {
             Write-Host "[SKIP] request budget on webkit - an inert-asset diff runs only the smoke target" -ForegroundColor DarkGray
         }
+        elseif ($e2eBrowsers -contains "webkit") {
+            Write-Host "[SKIP] request budget on webkit - the e2e suite above ran it on WebKit already" -ForegroundColor DarkGray
+        }
         else {
-            # The Mac nightly runs the request-budget tests on WebKit, which the Chromium
-            # slice above never does. 0 passed; 4 (WebKit not installed) and 5 (the repo
-            # has no budget test) are "not run", printed as such and never as a pass;
-            # anything else, 3 (not confirmed) included, fails the gate.
+            # The Mac nightly runs the request-budget tests on WebKit, so a browser leg
+            # without WebKit still has to run them there. 0 passed; 4 (WebKit not
+            # installed) and 5 (the repo has no budget test) are "not run", printed as
+            # such and never as a pass; anything else, 3 (not confirmed) included, fails
+            # the gate.
             Write-Host "==> request budget on webkit..." -ForegroundColor Cyan
             $env:PHOTO_OCR_E2E_AUTOBOOT = "1"
             try {
@@ -330,6 +335,7 @@ try {
                 Fail "request budget on webkit failed (exit $webkitBudget): a budget test failed on WebKit, or the run could not be confirmed."
             }
         }
+        # webkit-budget:end
     }
 
     # Runtime write probe, second half: any file the unit and e2e runs left under a code folder.
