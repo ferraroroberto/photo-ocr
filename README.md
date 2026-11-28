@@ -283,6 +283,7 @@ photo-ocr/
 │   ├── verify-before-ship.ps1   pre-ship gate: byte-compile + the ratchets + pytest + e2e
 │   ├── box_lock_gate.ps1        holds fleet-config's shared box load lock for the whole gate run
 │   ├── ratchet_baseline.py      vendored sibling every ratchet loads: its baseline in .ratchets/, moved there once
+│   ├── personal_data_ratchet.py vendored baseline-and-ratchet on personal data in tracked files (not enabled)
 │   ├── static_ratchet.py        vendored baseline-and-ratchet detector (jscpd + ruff)
 │   ├── static_ratchet_gate.py   gate wrapper: only exit 0 passes, exit 3 = NOT CONFIRMED
 │   ├── docs_ratchet.py          vendored baseline-and-ratchet on README size + docs history markers
